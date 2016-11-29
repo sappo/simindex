@@ -1,0 +1,47 @@
+Hallo Herr Ulges,
+
+hier zwei Fragen bzgl. Recall-Precision:
+
+Angenommen ich habe als Ergebnis einer Query folgendes Scoring mit
+Wahrheitswerten (Beispiel aus SciKit Doku):
+
+y_true   = [0   , 1   , 0   , 1  ]
+y_scores = [0.10, 0.35, 0.45, 0.8]
+
+Daraus die Precision-Recall Kurve mittels SciKit zu errechnen funktioniert ohne
+Probleme. Für den Fall, dass das Scoring jedoch nicht alle erwarteten positiven
+Ergebnisse liefert funktioniert es nicht, da der Recall hier fälschlicherweise
+1 wird. Als möglichen Lösungsansatz habe ich versucht das fehlende positive
+Ergebnis mit Score 0 hinzuzufügen:
+
+y_true   = [1   , 1   , 0   , 1   , 1  ]
+y_scores = [0.00, 0.10, 0.35, 0.45, 0.8]
+
+Das erfolgt unter der Annahme, dass bei einer Threshold von 0 der Recall 1 sein
+muss, da hierbei theoretisch die gesamte Suchmenge zurückgeliefert wird.
+Allerdings ist für den Threshold von 0 die Precision jetzt nicht mehr korrekt,
+da ich nicht alle restlichen negativen Einträge der Suchmenge ebenfalls mit der
+Score 0 hinzugefügt habe.
+
+Ein Lösungsvorschlag ist, die berechneten Werte für den Threshold 0 zu
+entfernen, damit Läuft die Kurve allerdings nicht mehr bis zu Recall 1, um das
+zu korrigieren kann man künstlich ein Paar einfügen, das Recall auf 1 und
+Precision auf 0 setzt, ähnlich wie es die SciKit Methode umgekehrt für die
+Precision tut. Wäre das korrekt? Oder erzeuge ich hier künstlich ein Problem?
+
+Ein weiteres Problem auf das ich gestoßen bin ist, wie summiere ich die Scores
+mehrerer Queries auf, damit sich aus n Queries eine Precision-Recall Kurve
+ergibt. Beispielsweise:
+
+y_true1   = [0   , 1   , 0   , 1   ]
+y_scores1 = [0.10, 0.35, 0.45, 0.9 ]
+y_true2   = [1   , 1   , 0   , 1   ]
+y_scores2 = [0.15, 0.40, 0.45, 0.85]
+y_true3   = [0   , 1   , 1   , 0   ]
+y_scores3 = [0.20, 0.40, 0.45, 0.8 ]
+
+Eine Idee ist einfach zusammenwerfen, aber dann bekomme ich Problem mit
+doppelten Werten. Etwa y_scores2[2] und y_scores3[2].
+
+Gruß
+Kevin
