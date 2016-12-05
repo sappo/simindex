@@ -60,3 +60,5 @@ target/
 
 # pyenv python configuration file
 .python-version
+
+[1-9]*_*
