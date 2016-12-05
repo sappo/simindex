@@ -1,16 +1,16 @@
-import os
 import glob
 import sys
 import time
 import json
 import click
-from sklearn.metrics import recall_score, precision_score
 import jellyfish
+from sklearn.metrics import recall_score, precision_score
 from difflib import SequenceMatcher
 from simindex import DySimII, RecordTimer
 from simindex import draw_precision_recall_curve, \
                      draw_record_time_curve, \
                      draw_frequency_distribution, \
+                     draw_bar_chart, \
                      show
 
 
@@ -162,29 +162,37 @@ def main(index_file, index_attributes,
         json.dump(measurements, fp, sort_keys=True, indent=4)
 
     elif run_type == "plot":
+        memory_usage = {}
+        index_build_time = {}
         for resultfile in glob.glob("./%s*" % run_name):
             fp = open(resultfile)
             measurements = json.load(fp)
             fp.close()
-            resultset = resultfile[resultfile.index('_') + 1:]
+            dataset = resultfile[resultfile.index('_') + 1:]
 
             draw_frequency_distribution(measurements["block_frequency"],
-                                        resultset,
+                                        dataset,
                                         "Block")
 
             draw_record_time_curve(measurements["insert_times"],
-                                   resultset,
+                                   dataset,
                                    "insertion")
             draw_record_time_curve(measurements["query_times"],
-                                   resultset,
+                                   dataset,
                                    "query")
 
             draw_precision_recall_curve(measurements["y_true1"],
                                         measurements["y_scores"],
-                                        resultset)
+                                        dataset)
 
-            # Show plots
-            show()
+            memory_usage[dataset] = measurements["memory_usage"] / 1024
+            index_build_time[dataset] = measurements["build_time"]
+
+        draw_bar_chart(memory_usage, "Memory usage", "MiB")
+        draw_bar_chart(index_build_time, "Index build time", "Seconds (s)")
+
+        # Show plots
+        show()
 
     sys.exit(0)
 

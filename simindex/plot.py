@@ -19,7 +19,8 @@ def draw_frequency_distribution(data, dataset, type):
     fig = plt.figure(dpi=None, facecolor="white")
     fig.canvas.set_window_title("Frequency Distribution (%s)" % dataset)
     plt.clf()
-    # max = 0
+
+    # Sort data by value then label
     for index, label in enumerate(data.keys()):
         x_vals, y_vals = [], []
         for y, x in sorted(data[label].items(), key=lambda x: (x[1], -int(x[0]))):
@@ -60,6 +61,7 @@ def draw_record_time_curve(times, dataset, action):
     plt.xlabel(xlabel)
     plt.ylabel('Time (s)')
     plt.ylim([pow(10, -5), pow(10, -1)])
+    plt.yscale('log')
     plt.autoscale(enable=True, axis='y')
     plt.xlim([0, max(index)])
     plt.title(title)
@@ -86,3 +88,45 @@ def draw_precision_recall_curve(y_true, y_scores, dataset):
     title = "Precision-Recall curve (%s)" % dataset
     plt.title(title)
     plt.legend(loc="lower left")
+
+
+def draw_bar_chart(data, title, unit):
+    fig = plt.figure(dpi=None, facecolor="white")
+    fig.canvas.set_window_title(title)
+    plt.clf()
+    plt.title(title)
+    plt.ylabel(unit)
+
+    # Sort data by label
+    objects, y_vals = [], []
+    for label, value in sorted(data.items(), key=lambda x: (x[0])):
+        y_vals.append(value)
+        objects.append(label)
+
+    y_pos = np.arange(len(objects))
+
+    bars = plt.bar(y_pos, y_vals, width=0.35, align="center", alpha=0.8)
+    plt.xticks(y_pos, objects)
+
+    def autolabel(rects):
+        # Get y-axis height to calculate label position from.
+        (y_bottom, y_top) = plt.ylim()
+        y_height = y_top - y_bottom
+
+        for rect in rects:
+            height = rect.get_height()
+
+            # Fraction of axis height taken up by this rectangle
+            p_height = (height / y_height)
+
+            # If we can fit the label above the column, do that;
+            # otherwise, put it inside the column.
+            if p_height > 0.95:  # arbitrary; 95% looked good to me.
+                label_position = height - (y_height * 0.05)
+            else:
+                label_position = height + (y_height * 0.01)
+
+            plt.text(rect.get_x() + rect.get_width() / 2., label_position,
+                     str(round(height, 2)), ha='center', va='bottom')
+
+    autolabel(bars)
