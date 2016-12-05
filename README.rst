@@ -21,7 +21,7 @@ Similarity-Aware Inverted Index
 Implementation of Dynamic Similarity-Aware Inveted Index approach.
 
 
-* Free software: GNU General Public License v3
+* Free software: Mozilla Public License Version 2.0
 * Documentation: https://simindex.readthedocs.io.
 
 
@@ -37,4 +37,3 @@ This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypack
 
 .. _Cookiecutter: https://github.com/audreyr/cookiecutter
 .. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
-
