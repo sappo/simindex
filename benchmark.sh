@@ -1,119 +1,39 @@
 #!/bin/bash
 timestamp=$(date +%s)
 
-# Measure insert/query times on restaurant dataset
-# Calculate metrics on restaurant dataset
-python measures.py \
-    -i rec_id -i given_name -i suburb -i surname -i postcode \
-    -q rec_id -q given_name -q suburb -q surname -q postcode \
-    -e soundex -e soundex -e soundex -e first3 \
-    -c default -c default -c default -c default \
-    -s dataset1_gold.csv \
-    -g org_id -g dup_id \
-    -t evaluation -o "${timestamp}_dataset1" \
-    dataset1.csv dataset1.csv
+# Run ferbl datasets
+for dataset in "dataset1" "ferbl-4k-1k-1" "ferbl-9k-1k-1" "ferbl-90k-10k-1"
+do
+    # Measure insert/query times on restaurant dataset
+    # Calculate metrics on dataset
+    python measures.py \
+        -i rec_id -i given_name -i suburb -i surname -i postcode \
+        -q rec_id -q given_name -q suburb -q surname -q postcode \
+        -e soundex -e soundex -e soundex -e first3 \
+        -c default -c default -c default -c default \
+        -s ${dataset}_gold.csv \
+        -g org_id -g dup_id \
+        -t evaluation -o "${timestamp}_${dataset}" \
+        ${dataset}.csv ${dataset}.csv
 
-#python -m cProfile measures.py \
-PEAK=$(./memusg.sh python measures.py \
-    -i rec_id -i given_name -i suburb -i surname -i postcode \
-    -q rec_id -q given_name -q suburb -q surname -q postcode \
-    -e soundex -e soundex -e soundex -e first3 \
-    -c default -c default -c default -c default \
-    -t index -o $ "${timestamp}_dataset1" \
-    dataset1.csv dataset1.csv)
+    # Measure peak memory and index build time
+    PEAK=$(./memusg.sh python measures.py \
+        -i rec_id -i given_name -i suburb -i surname -i postcode \
+        -q rec_id -q given_name -q suburb -q surname -q postcode \
+        -e soundex -e soundex -e soundex -e first3 \
+        -c default -c default -c default -c default \
+        -t index -o $ "${timestamp}_${dataset}" \
+        ${dataset}.csv ${dataset}.csv)
 
-sed -i '$ d' "${timestamp}_dataset1"
-echo "    ,\"memory_usage\":" $PEAK >> "${timestamp}_dataset1"
-echo "}" >> "${timestamp}_dataset1"
+    sed -i '$ d' "${timestamp}_${dataset}"
+    echo "    ,\"memory_usage\":" $PEAK >> "${timestamp}_${dataset}"
+    echo "}" >> "${timestamp}_${dataset}"
+done
 
-# Measure insert/query times on restaurant dataset
-# Calculate metrics on restaurant dataset
-python measures.py \
-    -i rec_id -i given_name -i suburb -i surname -i postcode \
-    -q rec_id -q given_name -q suburb -q surname -q postcode \
-    -e soundex -e soundex -e soundex -e first3 \
-    -c default -c default -c default -c default \
-    -s ./ferbl-9k-1k-1_gold.csv \
-    -g org_id -g dup_id \
-    -t evaluation -o "${timestamp}_febrl-9k-1k-1" \
-    ./ferbl-9k-1k-1.csv ./ferbl-9k-1k-1.csv
-
-#python -m cProfile measures.py \
-PEAK=$(./memusg.sh python measures.py \
-    -i rec_id -i given_name -i suburb -i surname -i postcode \
-    -q rec_id -q given_name -q suburb -q surname -q postcode \
-    -e soundex -e soundex -e soundex -e first3 \
-    -c default -c default -c default -c default \
-    -t index -o $ "${timestamp}_febrl-9k-1k-1" \
-    ./ferbl-9k-1k-1.csv ./ferbl-9k-1k-1.csv)
-
-sed -i '$ d' "${timestamp}_febrl-9k-1k-1"
-echo "    ,\"memory_usage\":" $PEAK >> "${timestamp}_febrl-9k-1k-1"
-echo "}" >> "${timestamp}_febrl-9k-1k-1"
-
+# Draw results
 python measures.py \
     -t plot -r "${timestamp}" \
     benchmark.sh benchmark.sh
-
-## Measure insert/query times on restaurant dataset
-## Calculate metrics on restaurant dataset
-#python measures.py \
-    #-i rec_id -i given_name -i suburb -i surname -i postcode \
-    #-q rec_id -q given_name -q suburb -q surname -q postcode \
-    #-e soundex -e soundex -e soundex -e first3 \
-    #-c default -c default -c default -c default \
-    #-s ./ferbl-4k-1k-1_gold.csv \
-    #-g org_id -g dup_id \
-    #-t evaluation \
-    #./ferbl-4k-1k-1.csv ./ferbl-4k-1k-1.csv
-
-#./memusg.sh python measures.py \
-    #-i rec_id -i given_name -i suburb -i surname -i postcode \
-    #-q rec_id -q given_name -q suburb -q surname -q postcode \
-    #-e soundex -e soundex -e soundex -e first3 \
-    #-c default -c default -c default -c default \
-    #-t index \
-    #./ferbl-4k-1k-1.csv ./ferbl-4k-1k-1.csv
-
-## Measure insert/query times on restaurant dataset
-## Calculate metrics on restaurant dataset
-#python measures.py \
-    #-i rec_id -i given_name -i suburb -i surname -i postcode \
-    #-q rec_id -q given_name -q suburb -q surname -q postcode \
-    #-e soundex -e soundex -e soundex -e first3 \
-    #-c default -c default -c default -c default \
-    #-s ./ferbl-9k-1k-1_gold.csv \
-    #-g org_id -g dup_id \
-    #-t evaluation \
-    #./ferbl-9k-1k-1.csv ./ferbl-9k-1k-1.csv
-
-#./memusg.sh python measures.py \
-    #-i rec_id -i given_name -i suburb -i surname -i postcode \
-    #-q rec_id -q given_name -q suburb -q surname -q postcode \
-    #-e soundex -e soundex -e soundex -e first3 \
-    #-c default -c default -c default -c default \
-    #-t index \
-    #./ferbl-9k-1k-1.csv ./ferbl-9k-1k-1.csv
-
-## Measure insert/query times on restaurant dataset
-## Calculate metrics on restaurant dataset
-#python measures.py \
-    #-i rec_id -i given_name -i suburb -i surname -i postcode \
-    #-q rec_id -q given_name -q suburb -q surname -q postcode \
-    #-e soundex -e soundex -e soundex -e first3 \
-    #-c default -c default -c default -c default \
-    #-s ./ferbl-90k-10k-1_gold.csv \
-    #-g org_id -g dup_id \
-    #-t evaluation \
-    #./ferbl-90k-10k-1.csv ./ferbl-90k-10k-1.csv
-
-#./memusg.sh python measures.py \
-    #-i rec_id -i given_name -i suburb -i surname -i postcode \
-    #-q rec_id -q given_name -q suburb -q surname -q postcode \
-    #-e soundex -e soundex -e soundex -e first3 \
-    #-c default -c default -c default -c default \
-    #-t index \
-    #./ferbl-90k-10k-1.csv ./ferbl-90k-10k-1.csv
 
 ## Measure insert/query times on restaurant dataset
 ## Calculate metrics on restaurant dataset

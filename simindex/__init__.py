@@ -7,3 +7,4 @@ __version__ = '0.1.0'
 from simindex.dysim import DySimII
 from simindex.plot import *
 from simindex.timers import RecordTimer
+from simindex.dykmeans import DyKMeans

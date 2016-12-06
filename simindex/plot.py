@@ -90,6 +90,17 @@ def draw_precision_recall_curve(y_true, y_scores, dataset):
     plt.legend(loc="lower left")
 
 
+def draw_plots(x_vals, y_vals):
+    fig = plt.figure(dpi=None, facecolor="white")
+    fig.canvas.set_window_title("Plots")
+
+    plt.clf()
+    for y_val in y_vals:
+        plt.plot(x_vals, y_val, 'yo-', lw=lw, color='navy', picker=True)
+
+    fig.savefig("plot-%d.png" % len(x_vals))
+
+
 def draw_bar_chart(data, title, unit):
     fig = plt.figure(dpi=None, facecolor="white")
     fig.canvas.set_window_title(title)

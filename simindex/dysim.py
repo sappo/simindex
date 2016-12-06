@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
-import csv
 from collections import Counter
+from .helper import read_csv
 
 
 class DySimII(object):
@@ -22,7 +21,7 @@ class DySimII(object):
         self.gold_pairs = None
         self.gold_records = None
         if gold_standard and gold_attributes:
-            self.gold_pairs = self._read_csv(gold_standard, gold_attributes)
+            self.gold_pairs = read_csv(gold_standard, gold_attributes)
             self.gold_records = {}
             for a, b in self.gold_pairs:
                 if a not in self.gold_records.keys():
@@ -47,32 +46,6 @@ class DySimII(object):
             return cur_val + (new_val / max) + max - current - 1
         else:
             return cur_val + new_val + max - current - 1
-
-    def _read_csv(self, filename, attributes=[],
-                  percentage=1.0, delimiter=','):
-        lines = []
-        columns = []
-        with open(filename, newline='', encoding='utf-8', errors='ignore') as csvfile:
-            reader = csv.reader(csvfile, delimiter=delimiter, quotechar='"')
-            data = list(reader)
-            row_count = len(data)
-            threshold = int(row_count * percentage)
-            for index, row in enumerate(data[:threshold]):
-                if index == 0:
-                    for x, field in enumerate(row):
-                        row[x] = str(field).strip()
-                    for attribute in attributes:
-                        columns.append(row.index(attribute))
-                else:
-                    if len(columns) > 0:
-                        line = []
-                        for col in columns:
-                            line.append(str(row[col]).strip())
-                        lines.append(line)
-                    else:
-                        lines.append(row)
-
-        return lines
 
     def recall(self):
         """
@@ -118,7 +91,7 @@ class DySimII(object):
             self.indicies[index].insert(attribute, record[0])
 
     def insert_from_csv(self, filename, attributes=[]):
-        records = self._read_csv(filename, attributes)
+        records = read_csv(filename, attributes)
         for record in records:
             if self.insert_timer:
                 with self.insert_timer:
@@ -156,7 +129,7 @@ class DySimII(object):
         return accumulator
 
     def query_from_csv(self, filename, attributes=[]):
-        records = self._read_csv(filename, attributes)
+        records = read_csv(filename, attributes)
         accumulator = {}
         y_true1 = []
         y_true2 = []
