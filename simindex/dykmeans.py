@@ -15,13 +15,19 @@ from .plot import *
 
 class DyKMeans(object):
 
-    def __init__(self, recordset, attributes = [],
+    def __init__(self, encode_fn, simmetric_fn, threshold=-1.0, top_n=-1.0,
                  gold_standard=None, gold_attributes=None,
-                 n_features=10000, use_hashing=False, use_idf=True,
-                 verbose=False):
-        self.n_features = n_features
-        self.use_idf = use_idf
-        # Read gold standard from csv file
+                 n_features=10000, use_hashing=False, use_idf=True, verbose=False):
+        self.verbose = verbose
+        # ER Index attributes
+        self.BI = {}    # Block Index (BI)
+        self.SI = {}    # Similarity Index (SI)
+        self.simmetric = simmetric_fn
+        self.encode = encode_fn
+        self.dataset = {}
+        self.threshold = threshold
+        self.top_n = top_n
+        # Gold Standard/Ground Truth attributes
         self.gold_pairs = None
         self.gold_records = None
         if gold_standard and gold_attributes:
@@ -34,11 +40,16 @@ class DyKMeans(object):
                     self.gold_records[b] = set()
                 self.gold_records[a].add(b)
                 self.gold_records[b].add(a)
+        # K-Means Attributes
+        self.n_features = n_features
+        self.use_hashing = use_hashing
+        self.use_idf = use_idf
 
+    def fit(self, recordset, attributes):
         print("Extracting features from the training dataset using a sparse\
               vectorizer")
         t0 = time()
-        if use_hashing:
+        if self.use_hashing:
             if use_idf:
                 # Perform an IDF normalization on the output of
                 # HashingVectorizer
@@ -56,7 +67,7 @@ class DyKMeans(object):
         else:
             self.vectorizer = TfidfVectorizer(max_features=self.n_features,
                                               stop_words='english',
-                                              use_idf=use_idf)
+                                              use_idf=self.use_idf)
 
         records = read_csv(recordset, attributes)
         data = []
@@ -69,53 +80,39 @@ class DyKMeans(object):
         print("n_samples: %d, n_features: %d" % X.shape)
         print()
 
-        # self.km = KMeans(n_clusters=6, init='k-means++', max_iter=100,
-                         # n_init=1, verbose=verbose)
-
-        # print("Clustering sparse data with %s" % self.km)
-        # t0 = time()
-        # self.km.fit(X)
-        # print("done in %0.3fs" % (time() - t0))
-        # print()
-
-        max = int(len(data) * 0.6)
-        min = int(len(data) * 0.005)
-        step = int((max - min) / 10)
+        max = int(len(data) * 0.5)
+        min = int(len(data) * 0.3)
+        step = int((max - min) / 5)
         if step == 0: step = 1
-        max_silhouette = -1.0
+        fp = open("plot-len%d-min%d-max%d-step%d.txt" % (len(data), min, max, step), mode='w')
         cluster_range = []
-        cluster_avg_sils = []
-        cluster_recalls = []
+        cluster_silhouette_score = []
+        cluster_silhouette_time = []
+        cluster_recall_score = []
+        cluster_recall_time = []
         for n_clusters in range(min, max, step):
+            cluster_range.append(n_clusters)
+            t0 = time()
             km = KMeans(n_clusters=n_clusters, init='k-means++', max_iter=100,
-                        n_init=1, verbose=verbose)
+                        n_init=1, verbose=self.verbose)
             km.fit(X)
+            print("Fitting KMeans cluster with k=%d done in %fs" % (n_clusters, time() - t0))
 
             # The silhouette_score gives the average value for all the samples.
             # This gives a perspective into the density and separation of the
             # formed clusters
-            silhouette_avg = silhouette_score(X, km.labels_)
-            print(n_clusters, "Avg", silhouette_avg)
-            self.km = km
-            cluster_range.append(n_clusters)
-            cluster_avg_sils.append(silhouette_avg)
-            # Compute the silhouette scores for each sample
-            # sample_silhouette_values = silhouette_samples(X, km.labels_)
-            # avg_distance = 0
-            # for i in np.arange(n_clusters):
-                # print(sample_silhouette_values[i == km.labels_])
-                # for sample in sample_silhouette_values[i == km.labels_]:
-                    # avg_distance += sample - silhouette_avg
+            t0 = time()
+            silhouette_sc = silhouette_score(X, km.labels_)
+            silhouette_time = time() - t0
+            cluster_silhouette_score.append(silhouette_sc)
+            cluster_silhouette_time.append(silhouette_time)
+            print("Calculating silhouette score done in %fs" % silhouette_time)
 
-            # if (max_silhouette < silhouette_avg):
-                # max_silhouette = silhouette_avg
-                # self.km = km
-
-            # print("Choose k as", self.km.n_clusters)
+            t0 = time()
             # Build an inverted index and assign records to clusters
             self.k_cluster = {}
-            predictions = self.km.predict(X)
-            center_distances = self.km.transform(X)
+            predictions = km.predict(X)
+            center_distances = km.transform(X)
             for index in range(len(predictions)):
                 r_id = records[index][0]
                 cluster_no = predictions[index]
@@ -124,10 +121,29 @@ class DyKMeans(object):
                     self.k_cluster[cluster_no] = {}
 
                 self.k_cluster[cluster_no][r_id] = center_distance
+            print("Build Inverted Index done in %fs" % (time() - t0))
 
-            cluster_recalls.append(self.recall())
+            t0 = time()
+            recall_score = self.recall()
+            recall_time = time() - t0
+            cluster_recall_score.append(recall_score)
+            cluster_recall_time.append(recall_time)
+            print("Calculate recall as %f done in %fs" % (recall_score, time() - t0))
+            print()
 
-        draw_plots(cluster_range, [cluster_avg_sils, cluster_recalls])
+            self.km = km
+            fp.write("%d, %f, %f, %f, %f\n" % (n_clusters, silhouette_sc, silhouette_time, recall_score, recall_time))
+
+        print("Choose k as", self.km.n_clusters)
+        print()
+
+        t0 = time()
+        for record in records:
+            self.insert(record)
+        print("Pre-calculate similarities done in %fs" % (time() - t0))
+        print()
+
+        # draw_plots(cluster_range, [cluster_avg_sils, cluster_recalls])
 
     def recall(self):
         """
@@ -157,16 +173,73 @@ class DyKMeans(object):
         return true_p / total_p
 
     def insert(self, record):
-        q_id = record[0]
+        r_id = record[0]
         data = [' '.join(record[1:])]
         X = self.vectorizer.transform(data)
 
         cluster_no = self.km.predict(X)[0]
         center_distance = self.km.transform(X)[0][cluster_no]
-        self.k_cluster[cluster_no][q_id] = center_distance
+        self.k_cluster[cluster_no][r_id] = center_distance
 
-    def query(self, record):
-        pass
+        for attribute in record[1:]:
+            if attribute not in self.SI:
+                # Insert value into Block Index
+                encoding = self.encode(attribute)
+                if encoding not in self.BI.keys():
+                    self.BI[encoding] = set()
+
+                self.BI[encoding].add(attribute)
+
+                #  Calculate similarities and update SI
+                block = list(filter(lambda x: x != attribute, self.BI[encoding]))
+                for block_value in block:
+                    similarity = self.simmetric(attribute, block_value)
+                    similarity = round(similarity, 1)
+                    #  Append similarity to block_value
+                    if block_value not in self.SI.keys():
+                        self.SI[block_value] = {}
+
+                    self.SI[block_value][attribute] = similarity
+                    #  Append similarity to value
+                    if attribute not in self.SI.keys():
+                        self.SI[attribute] = {}
+
+                    self.SI[attribute][block_value] = similarity
+
+        self.dataset[r_id] = record[1:]
+
+    def query(self, q_record):
+        q_id = q_record[0]
+        data = [' '.join(q_record[1:])]
+        X = self.vectorizer.transform(data)
+
+        if q_id not in self.dataset:
+            self.insert(q_record)
+
+        cluster_no = self.km.predict(X)[0]
+        cluster = self.k_cluster[cluster_no]
+        cluster_records = list(filter(lambda r_id: r_id != q_id, cluster.keys()))
+        accumulator = {}
+        for r_id in cluster_records:
+            if r_id not in accumulator.keys():
+                record = self.dataset[r_id]
+                s = 0.
+                for q_attribute, attribute in zip(q_record[1:], record):
+                    if q_attribute == attribute:
+                        s += 1.
+                    elif attribute in self.SI[q_attribute]:
+                        s += self.SI[q_attribute][attribute]
+                    else:
+                        similarity = self.simmetric(q_attribute, attribute)
+                        s += round(similarity, 1)
+
+                if s > self.threshold:
+                    accumulator[r_id] = s
+
+        if self.top_n > 0:
+            return dict(Counter(accumulator).most_common(self.top_n))
+
+        return accumulator
 
     def frequency_distribution(self):
         """

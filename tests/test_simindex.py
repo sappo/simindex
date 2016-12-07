@@ -57,41 +57,41 @@ def test_simawareindex_insert():
     s = SimAwareIndex(_compare, _encode)
     s.insert("tony", "r1")
     assert s.RI == {'tony': {'r1'}}
-    assert s.BI == {'t': ['tony']}
+    assert s.BI == {'t': {'tony'}}
     assert s.SI == {}
     s.insert("tony", "r3")
     assert s.RI == {'tony': {'r1', 'r3'}}
-    assert s.BI == {'t': ['tony']}
+    assert s.BI == {'t': {'tony'}}
     assert s.SI == {}
     s.insert("tonya", "r5")
     assert s.RI == {'tony': {'r1', 'r3'}, 'tonya': {'r5'}}
-    assert s.BI == {'t': ['tony', 'tonya']}
-    assert s.SI == {'tony':  [('tonya', 0.9)],
-                    'tonya': [('tony', 0.9)]}
+    assert s.BI == {'t': {'tony', 'tonya'}}
+    assert s.SI == {'tony':  {'tonya': 0.9},
+                    'tonya': {'tony': 0.9}}
     s.insert("tonia", "r8")
     assert s.RI == {'tony': {'r1', 'r3'}, 'tonya': {'r5'}, 'tonia': {'r8'}}
-    assert s.BI == {'t': ['tony', 'tonya', 'tonia']}
-    assert s.SI == {'tony':  [('tonya', 0.9), ('tonia', 0.7)],
-                    'tonya': [('tony', 0.9), ('tonia', 0.8)],
-                    'tonia': [('tony', 0.7), ('tonya', 0.8)]}
+    assert s.BI == {'t': {'tony', 'tonya', 'tonia'}}
+    assert s.SI == {'tony':  {'tonya': 0.9, 'tonia': 0.7},
+                    'tonya': {'tony': 0.9, 'tonia': 0.8},
+                    'tonia': {'tony': 0.7, 'tonya': 0.8}}
     s.insert("cathrine", "r2")
     assert s.RI == {'cathrine': {'r2'},
                     'tony': {'r1', 'r3'}, 'tonya': {'r5'}, 'tonia': {'r8'}}
-    assert s.BI == {'t': ['tony', 'tonya', 'tonia'],
-                    'c': ['cathrine']}
-    assert s.SI == {'tony':  [('tonya', 0.9), ('tonia', 0.7)],
-                    'tonya': [('tony', 0.9), ('tonia', 0.8)],
-                    'tonia': [('tony', 0.7), ('tonya', 0.8)]}
+    assert s.BI == {'t': {'tony', 'tonya', 'tonia'},
+                    'c': {'cathrine'}}
+    assert s.SI == {'tony':  {'tonya': 0.9, 'tonia': 0.7},
+                    'tonya': {'tony': 0.9, 'tonia': 0.8},
+                    'tonia': {'tony': 0.7, 'tonya': 0.8}}
     s.insert("catrine", "r4")
     assert s.RI == {'cathrine': {'r2'}, 'catrine': {'r4'},
                     'tony': {'r1', 'r3'}, 'tonya': {'r5'}, 'tonia': {'r8'}}
-    assert s.BI == {'t': ['tony', 'tonya', 'tonia'],
-                    'c': ['cathrine', 'catrine']}
-    assert s.SI == {'catrine': [('cathrine', 0.9)],
-                    'cathrine': [('catrine', 0.9)],
-                    'tony':  [('tonya', 0.9), ('tonia', 0.7)],
-                    'tonya': [('tony', 0.9), ('tonia', 0.8)],
-                    'tonia': [('tony', 0.7), ('tonya', 0.8)]}
+    assert s.BI == {'t': {'tony', 'tonya', 'tonia'},
+                    'c': {'cathrine', 'catrine'}}
+    assert s.SI == {'catrine': {'cathrine': 0.9},
+                    'cathrine': {'catrine': 0.9},
+                    'tony':  {'tonya': 0.9, 'tonia': 0.7},
+                    'tonya': {'tony': 0.9, 'tonia': 0.8},
+                    'tonia': {'tony': 0.7, 'tonya': 0.8}}
 
 
 def test_simawareindex_query():
@@ -116,33 +116,33 @@ def test_dysimII_insert():
     s1 = DySimII(1, [_encode], [_compare])
     s1.insert(["r1", "tony"])
     assert s1.indicies[0].RI == {'tony': {'r1'}}
-    assert s1.indicies[0].BI == {'t': ['tony']}
+    assert s1.indicies[0].BI == {'t': {'tony'}}
     assert s1.indicies[0].SI == {}
     s1.insert(["r3", "tony"])
     assert s1.indicies[0].RI == {'tony': {'r1', 'r3'}}
-    assert s1.indicies[0].BI == {'t': ['tony']}
+    assert s1.indicies[0].BI == {'t': {'tony'}}
     assert s1.indicies[0].SI == {}
 
     s2 = DySimII(2, [_encode, _encode], [_compare, _compare])
     s2.insert(["r1", "tony", "23465"])
     assert s2.indicies[0].RI == {'tony': {'r1'}}
-    assert s2.indicies[0].BI == {'t': ['tony']}
+    assert s2.indicies[0].BI == {'t': {'tony'}}
     assert s2.indicies[0].SI == {}
     assert s2.indicies[1].RI == {'23465': {'r1'}}
-    assert s2.indicies[1].BI == {'2': ['23465']}
+    assert s2.indicies[1].BI == {'2': {'23465'}}
     assert s2.indicies[1].SI == {}
     s2.insert(["r2", "tonya", "23465"])
     s2.insert(["r3", "tonia", "23578"])
     assert s2.indicies[0].RI == {'tony': {'r1'}, 'tonya': {'r2'},
                                  'tonia': {'r3'}}
-    assert s2.indicies[0].BI == {'t': ['tony', 'tonya', 'tonia']}
-    assert s2.indicies[0].SI == {'tony':  [('tonya', 0.9), ('tonia', 0.7)],
-                                 'tonya': [('tony', 0.9), ('tonia', 0.8)],
-                                 'tonia': [('tony', 0.7), ('tonya', 0.8)]}
+    assert s2.indicies[0].BI == {'t': {'tony', 'tonya', 'tonia'}}
+    assert s2.indicies[0].SI == {'tony':  {'tonya': 0.9, 'tonia': 0.7},
+                                 'tonya': {'tony': 0.9, 'tonia': 0.8},
+                                 'tonia': {'tony': 0.7, 'tonya': 0.8}}
     assert s2.indicies[1].RI == {'23465': {'r1', 'r2'}, '23578': {'r3'}}
-    assert s2.indicies[1].BI == {'2': ['23465', '23578']}
-    assert s2.indicies[1].SI == {'23465': [('23578', 0.6)],
-                                 '23578': [('23465', 0.6)]}
+    assert s2.indicies[1].BI == {'2': {'23465', '23578'}}
+    assert s2.indicies[1].SI == {'23465': {'23578': 0.6},
+                                 '23578': {'23465': 0.6}}
 
 
 def test_dysimII_query():
@@ -181,59 +181,3 @@ def test_dysimII_query():
     s3.insert(["r3", "tonia", "23578"])
     res = s3.query(["r4", "tony", "23578"])
     assert res == {'r1': 1.6, 'r3': 1.7}
-
-# def encode(a):
-    # return a.lstrip()[:3]
-
-
-# def dysimII_insert_dataset(dataset):
-    # count = len(dataset[0])
-    # s = DySimII(count, encode_fn=encode)
-    # for record in dataset:
-        # s.insert(record)
-
-    # ri = open('RI.txt', 'w')
-    # ri.write('\n'.join('{}{}'.format(key, val) for key, val in sorted(s.indicies[0].RI.items())))
-    # ri.close()
-    # bi = open('BI.txt', 'w')
-    # bi.write('\n'.join('{}{}'.format(key, val) for key, val in sorted(s.indicies[0].BI.items())))
-    # bi.close()
-    # si = open('SI.txt', 'w')
-    # si.write('\n'.join('{}{}'.format(key, val) for key, val in sorted(s.indicies[0].SI.items())))
-    # si.close()
-
-
-# def test_dysimII_restaurant_insert_0_25(benchmark):
-    # records = read_csv('restaurant.csv', ["id", "name", "addr"], 0.25)
-    # benchmark.pedantic(dysimII_insert_dataset,
-                       # kwargs={'dataset': records}, rounds=1, iterations=1)
-
-
-# def test_dysimII_restaurant_insert_0_5(benchmark):
-    # records = read_csv('restaurant.csv', ["id", "name", "addr"], 0.5)
-    # benchmark.pedantic(dysimII_insert_dataset,
-                       # kwargs={'dataset': records}, rounds=1, iterations=1)
-
-
-# def test_dysimII_restaurant_insert_1_0(benchmark):
-    # records = read_csv('restaurant.csv', ["id", "name", "addr"], 1.0)
-    # benchmark.pedantic(dysimII_insert_dataset,
-                       # kwargs={'dataset': records}, rounds=1, iterations=1)
-
-
-# def test_dysimII_acm_insert_0_25(benchmark):
-    # records = read_csv('ACM.csv', ["id", "authors", "title"], 0.25)
-    # benchmark.pedantic(dysimII_insert_dataset,
-                       # kwargs={'dataset': records}, rounds=1, iterations=1)
-
-
-# def test_dysimII_acm_insert_0_5(benchmark):
-    # records = read_csv('ACM.csv', ["id", "authors", "title"], 0.5)
-    # benchmark.pedantic(dysimII_insert_dataset,
-                       # kwargs={'dataset': records}, rounds=1, iterations=1)
-
-
-# def test_dysimII_acm_insert_1_0(benchmark):
-    # records = read_csv('ACM.csv', ["id", "authors", "title"], 1.0)
-    # benchmark.pedantic(dysimII_insert_dataset,
-                       # kwargs={'dataset': records}, rounds=1, iterations=1)

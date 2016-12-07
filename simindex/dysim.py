@@ -220,9 +220,9 @@ class SimAwareIndex(object):
             #  Insert value into Block Index
             encoding = self.encode(value)
             if encoding not in self.BI.keys():
-                self.BI[encoding] = [value]
-            else:
-                self.BI[encoding].append(value)
+                self.BI[encoding] = set()
+
+            self.BI[encoding].add(value)
 
             #  Calculate similarities and update SI
             block = list(filter(lambda x: x != value, self.BI[encoding]))
@@ -231,14 +231,14 @@ class SimAwareIndex(object):
                 similarity = round(similarity, 1)
                 #  Append similarity to block_value
                 if block_value not in self.SI.keys():
-                    self.SI[block_value] = [(value, similarity)]
-                else:
-                    self.SI[block_value].append((value, similarity))
+                    self.SI[block_value] = {}
+
+                self.SI[block_value][value] = similarity
                 #  Append similarity to value
                 if value not in self.SI.keys():
-                    self.SI[value] = [(block_value, similarity)]
-                else:
-                    self.SI[value].append((block_value, similarity))
+                    self.SI[value] = {}
+
+                self.SI[value][block_value] = similarity
 
     def query(self, value, identifier):
         accumulator = {}
@@ -250,7 +250,7 @@ class SimAwareIndex(object):
             accumulator[id] = 1.0
 
         if value in self.SI:
-            for value, sim in self.SI[value]:
+            for value, sim in self.SI[value].items():
                 for id in self.RI[value]:
                     accumulator[id] = sim
 
