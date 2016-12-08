@@ -2,7 +2,8 @@
 timestamp=$(date +%s)
 
 # Run ferbl datasets
-for dataset in "dataset1" "ferbl-4k-1k-1" "ferbl-9k-1k-1" "ferbl-90k-10k-1"
+#for dataset in "dataset1" "ferbl-4k-1k-1" "ferbl-9k-1k-1" "ferbl-90k-10k-1"
+for dataset in "dataset1" "ferbl-4k-1k-1"
 do
     # Measure insert/query times on restaurant dataset
     # Calculate metrics on dataset

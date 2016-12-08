@@ -6,27 +6,23 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import Normalizer
 from sklearn import metrics
 from sklearn.metrics import silhouette_samples, silhouette_score
-from sklearn.cluster import KMeans, MiniBatchKMeans
+from sklearn.cluster import KMeans
+from datasketch import MinHash, MinHashLSH
 from time import time
 import numpy as np
 from collections import Counter
 from .helper import read_csv
 from .plot import *
 
+
 class DyKMeans(object):
 
-    def __init__(self, encode_fn, simmetric_fn, threshold=-1.0, top_n=-1.0,
-                 gold_standard=None, gold_attributes=None,
-                 n_features=10000, use_hashing=False, use_idf=True, verbose=False):
+    def __init__(self, encode_fn, similarity_fn, threshold=-1.0, top_n=-1.0,
+                 gold_standard=None, gold_attributes=None, n_features=10000,
+                 use_hashing=False, use_idf=True, verbose=False):
         self.verbose = verbose
-        # ER Index attributes
-        self.BI = {}    # Block Index (BI)
-        self.SI = {}    # Similarity Index (SI)
-        self.simmetric = simmetric_fn
-        self.encode = encode_fn
-        self.dataset = {}
-        self.threshold = threshold
-        self.top_n = top_n
+        self.saai = SimAwareAttributeIndex(encode_fn, similarity_fn, threshold,
+                                           top_n, verbose=verbose)
         # Gold Standard/Ground Truth attributes
         self.gold_pairs = None
         self.gold_records = None
@@ -50,7 +46,7 @@ class DyKMeans(object):
               vectorizer")
         t0 = time()
         if self.use_hashing:
-            if use_idf:
+            if self.use_idf:
                 # Perform an IDF normalization on the output of
                 # HashingVectorizer
                 hasher = HashingVectorizer(n_features=self.n_features,
@@ -80,11 +76,11 @@ class DyKMeans(object):
         print("n_samples: %d, n_features: %d" % X.shape)
         print()
 
-        max = int(len(data) * 0.5)
-        min = int(len(data) * 0.3)
+        max = int(len(data) * 0.45)
+        min = int(len(data) * 0.35)
         step = int((max - min) / 5)
         if step == 0: step = 1
-        fp = open("plot-len%d-min%d-max%d-step%d.txt" % (len(data), min, max, step), mode='w')
+        # fp = open("plot-len%d-min%d-max%d-step%d.txt" % (len(data), min, max, step), mode='w')
         cluster_range = []
         cluster_silhouette_score = []
         cluster_silhouette_time = []
@@ -132,7 +128,10 @@ class DyKMeans(object):
             print()
 
             self.km = km
-            fp.write("%d, %f, %f, %f, %f\n" % (n_clusters, silhouette_sc, silhouette_time, recall_score, recall_time))
+            # fp.write("%d, %f, %f, %f, %f\n" % (n_clusters, silhouette_sc,
+            #                                    silhouette_time, recall_score,
+            #                                    recall_time))
+            # fp.flush()
 
         print("Choose k as", self.km.n_clusters)
         print()
@@ -144,6 +143,28 @@ class DyKMeans(object):
         print()
 
         # draw_plots(cluster_range, [cluster_avg_sils, cluster_recalls])
+
+    def insert(self, record):
+        r_id = record[0]
+        data = [' '.join(record[1:])]
+        X = self.vectorizer.transform(data)
+
+        cluster_no = self.km.predict(X)[0]
+        center_distance = self.km.transform(X)[0][cluster_no]
+        self.k_cluster[cluster_no][r_id] = center_distance
+
+        self.saai.insert(record)
+
+    def query(self, q_record):
+        q_id = q_record[0]
+        data = [' '.join(q_record[1:])]
+        X = self.vectorizer.transform(data)
+
+        cluster_no = self.km.predict(X)[0]
+        cluster = self.k_cluster[cluster_no]
+        cluster_record_ids = list(filter(lambda r_id: r_id != q_id, cluster.keys()))
+
+        return self.saai.query(q_record, cluster_record_ids)
 
     def recall(self):
         """
@@ -172,19 +193,112 @@ class DyKMeans(object):
 
         return true_p / total_p
 
+    def frequency_distribution(self):
+        """
+        Returns the frequency distribution for the k-Means cluster as dict.
+        Where key is size of a cluster and value is the number of clusters with
+        this size.
+        """
+        cluster_sizes = []
+        for cluster in self.k_cluster.values():
+            cluster_sizes.append(len(cluster.keys()))
+
+        return Counter(cluster_sizes)
+
+
+class DyLSH(object):
+
+    def __init__(self, encode_fn, similarity_fn, threshold=-1.0, top_n=-1.0,
+                 gold_standard=None, gold_attributes=None,
+                 lsh_threshold=0.5, lsh_num_perm=128, verbose=False):
+        self.verbose = verbose
+        self.saai = SimAwareAttributeIndex(encode_fn, similarity_fn, threshold,
+                                           top_n, verbose=verbose)
+        # Gold Standard/Ground Truth attributes
+        self.gold_pairs = None
+        self.gold_records = None
+        if gold_standard and gold_attributes:
+            self.gold_pairs = read_csv(gold_standard, gold_attributes)
+            self.gold_records = {}
+            for a, b in self.gold_pairs:
+                if a not in self.gold_records.keys():
+                    self.gold_records[a] = set()
+                if b not in self.gold_records.keys():
+                    self.gold_records[b] = set()
+                self.gold_records[a].add(b)
+                self.gold_records[b].add(a)
+        # LSH Attributes
+        self.lsh = None
+        self.lsh_threshold = lsh_threshold
+        self.lsh_num_perm = lsh_num_perm
+
+    def fit(self, recordset, attributes):
+        records = read_csv(recordset, attributes)
+        self.lsh = MinHashLSH(threshold=self.lsh_threshold,
+                              num_perm=self.lsh_num_perm)
+        for record in records:
+            r_id = record[0]
+            r_attributes = record[1:]
+            min_hash = MinHash(num_perm=self.lsh_num_perm)
+            for attribute in r_attributes:
+                min_hash.update(attribute.encode('utf-8'))
+
+            self.lsh.insert(r_id, min_hash)
+
+    def recall(self):
+        """
+        Returns the recall from the passed gold standard and the index data.
+
+        Warning: The recall calculation does not take the threshold into
+                 account!
+        """
+        total_p = len(self.gold_pairs)  # True positives + False negatives
+        true_p = 0
+        for id1, id2 in self.gold_pairs:
+            # 1. For each duplicate pair
+            hit = False
+            for table in self.lsh.hashtables:
+                for block in table.values():
+                    # 2. Check every block to find out, if both records have at
+                    # at least one cluster in common
+                    if id1 in block and id2 in block:
+                        # 3. If both records are in same block abort search
+                        hit = True
+                        break
+
+                if hit:
+                    # 4. If duplicate pair has been found in at least on block
+                    # count it as true positive
+                    true_p += 1
+                    break
+
+        return true_p / total_p
+
+
+
+class SimAwareAttributeIndex(object):
+
+    def __init__(self, encode_fn, similarity_fn, threshold=-1.0, top_n=-1.0,
+                 gold_standard=None, gold_attributes=None, verbose=False):
+        self.verbose = verbose
+
+        self.BI = {}    # Block Index (BI)
+        self.SI = {}    # Similarity Index (SI)
+        self.dataset = {}
+
+        self.similarity_fn = similarity_fn
+        self.encode_fn = encode_fn
+        self.threshold = threshold
+        self.top_n = top_n
+
     def insert(self, record):
         r_id = record[0]
-        data = [' '.join(record[1:])]
-        X = self.vectorizer.transform(data)
+        r_attributes = record[1:]
 
-        cluster_no = self.km.predict(X)[0]
-        center_distance = self.km.transform(X)[0][cluster_no]
-        self.k_cluster[cluster_no][r_id] = center_distance
-
-        for attribute in record[1:]:
+        for attribute in r_attributes:
             if attribute not in self.SI:
                 # Insert value into Block Index
-                encoding = self.encode(attribute)
+                encoding = self.encode_fn(attribute)
                 if encoding not in self.BI.keys():
                     self.BI[encoding] = set()
 
@@ -193,7 +307,7 @@ class DyKMeans(object):
                 #  Calculate similarities and update SI
                 block = list(filter(lambda x: x != attribute, self.BI[encoding]))
                 for block_value in block:
-                    similarity = self.simmetric(attribute, block_value)
+                    similarity = self.similarity_fn(attribute, block_value)
                     similarity = round(similarity, 1)
                     #  Append similarity to block_value
                     if block_value not in self.SI.keys():
@@ -206,49 +320,36 @@ class DyKMeans(object):
 
                     self.SI[attribute][block_value] = similarity
 
-        self.dataset[r_id] = record[1:]
+        self.dataset[r_id] = r_attributes
 
-    def query(self, q_record):
+    def query(self, q_record, candidate_ids):
+        """
+            Compares a query record against a set of candidate records. Returns
+            the accumulated attribute score for each candidate.
+        """
         q_id = q_record[0]
-        data = [' '.join(q_record[1:])]
-        X = self.vectorizer.transform(data)
+        q_attributes = q_record[1:]
 
         if q_id not in self.dataset:
             self.insert(q_record)
 
-        cluster_no = self.km.predict(X)[0]
-        cluster = self.k_cluster[cluster_no]
-        cluster_records = list(filter(lambda r_id: r_id != q_id, cluster.keys()))
         accumulator = {}
-        for r_id in cluster_records:
-            if r_id not in accumulator.keys():
-                record = self.dataset[r_id]
-                s = 0.
-                for q_attribute, attribute in zip(q_record[1:], record):
-                    if q_attribute == attribute:
-                        s += 1.
-                    elif attribute in self.SI[q_attribute]:
-                        s += self.SI[q_attribute][attribute]
-                    else:
-                        similarity = self.simmetric(q_attribute, attribute)
-                        s += round(similarity, 1)
+        for c_id in candidate_ids:
+            c_attributes = self.dataset[c_id]
+            s = 0.
+            for q_attribute, c_attribute in zip(q_attributes, c_attributes):
+                if q_attribute == c_attribute:
+                    s += 1.
+                elif c_attribute in self.SI[q_attribute]:
+                    s += self.SI[q_attribute][c_attribute]
+                else:
+                    similarity = self.similarity_fn(q_attribute, c_attribute)
+                    s += round(similarity, 1)
 
-                if s > self.threshold:
-                    accumulator[r_id] = s
+            if s > self.threshold:
+                accumulator[c_id] = s
 
         if self.top_n > 0:
             return dict(Counter(accumulator).most_common(self.top_n))
 
         return accumulator
-
-    def frequency_distribution(self):
-        """
-        Returns the frequency distribution for the k-Means cluster as dict.
-        Where key is size of a cluster and value is the number of clusters with
-        this size.
-        """
-        cluster_sizes = []
-        for cluster in self.k_cluster.values():
-            cluster_sizes.append(len(cluster.keys()))
-
-        return Counter(cluster_sizes)
