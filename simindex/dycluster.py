@@ -139,7 +139,8 @@ class DyKMeans(object):
             km = KMeans(n_clusters=n_clusters, init='k-means++', max_iter=100,
                         n_init=1, verbose=self.verbose)
             km.fit(X)
-            print("Fitting KMeans cluster with k=%d done in %fs" % (n_clusters, time() - t0))
+            k_time = time() - t0
+            print("Fitting KMeans cluster with k=%d done in %fs" % (n_clusters, k_time))
 
             # The silhouette_score gives the average value for all the samples.
             # This gives a perspective into the density and separation of the
@@ -171,9 +172,9 @@ class DyKMeans(object):
             print()
 
             self.km = km
-            fp.write("%d, %f, %f, %f, %f\n" % (n_clusters, silhouette_sc,
-                                               silhouette_time, recall_score,
-                                               recall_time))
+            fp.write("%d, %f, %f, %f, %f, %f\n" % (n_clusters, k_time,
+                                                   silhouette_sc, silhouette_time,
+                                                   recall_score, recall_time))
             fp.flush()
 
         print("Choose k as", self.km.n_clusters)
