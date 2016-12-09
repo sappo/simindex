@@ -19,7 +19,7 @@ class DyKMeans(object):
 
     def __init__(self, encode_fn, similarity_fn, threshold=-1.0, top_n=-1.0,
                  gold_standard=None, gold_attributes=None, n_features=10000,
-                 use_hashing=False, use_idf=True, verbose=False):
+                 use_hashing=False, use_idf=True, k=-1, verbose=False):
         self.verbose = verbose
         self.saai = SimAwareAttributeIndex(encode_fn, similarity_fn, threshold,
                                            top_n, verbose=verbose)
@@ -40,8 +40,62 @@ class DyKMeans(object):
         self.n_features = n_features
         self.use_hashing = use_hashing
         self.use_idf = use_idf
+        self.k = k
 
-    def fit(self, recordset, attributes):
+    def fit_csv(self, recordset, attributes):
+        fit(read_csv(recordset, attributes))
+
+    def fit(self, records):
+        if self.use_hashing:
+            if self.use_idf:
+                # Perform an IDF normalization on the output of
+                # HashingVectorizer
+                hasher = HashingVectorizer(n_features=self.n_features,
+                                           stop_words='english',
+                                           non_negative=True,
+                                           norm=None, binary=False)
+                self.vectorizer = make_pipeline(hasher, TfidfTransformer())
+            else:
+                self.vectorizer = HashingVectorizer(n_features=self.n_features,
+                                                    stop_words='english',
+                                                    non_negative=False,
+                                                    norm='l2',
+                                                    binary=False)
+        else:
+            self.vectorizer = TfidfVectorizer(max_features=self.n_features,
+                                              stop_words='english',
+                                              use_idf=self.use_idf)
+
+        data = []
+        for record in records:
+            data.append(' '.join(record[1:]))
+
+        X = self.vectorizer.fit_transform(data)
+
+        if self.k == -1:
+            self.k = int(len(data) * 0.35)
+
+        self.km = KMeans(n_clusters=self.k, init='k-means++', max_iter=100,
+                         n_init=1, verbose=self.verbose)
+        self.km.fit(X)
+
+        # Build an inverted index and assign records to clusters
+        self.k_cluster = {}
+        predictions = self.km.predict(X)
+        center_distances = self.km.transform(X)
+        for index in range(len(predictions)):
+            r_id = records[index][0]
+            cluster_no = predictions[index]
+            center_distance = center_distances[index][cluster_no]
+            if cluster_no not in self.k_cluster:
+                self.k_cluster[cluster_no] = {}
+
+            self.k_cluster[cluster_no][r_id] = center_distance
+
+        for record in records:
+            self.insert(record)
+
+    def fit_eval(self, recordset, attributes):
         print("Extracting features from the training dataset using a sparse\
               vectorizer")
         t0 = time()
@@ -76,18 +130,11 @@ class DyKMeans(object):
         print("n_samples: %d, n_features: %d" % X.shape)
         print()
 
-        max = int(len(data) * 0.45)
-        min = int(len(data) * 0.35)
-        step = int((max - min) / 5)
-        if step == 0: step = 1
-        # fp = open("plot-len%d-min%d-max%d-step%d.txt" % (len(data), min, max, step), mode='w')
-        cluster_range = []
-        cluster_silhouette_score = []
-        cluster_silhouette_time = []
-        cluster_recall_score = []
-        cluster_recall_time = []
+        max = int(len(data) * 0.6)
+        min = 2
+        step = 1
+        fp = open("eval_kmeans-%s.txt" % recordset, mode='w')
         for n_clusters in range(min, max, step):
-            cluster_range.append(n_clusters)
             t0 = time()
             km = KMeans(n_clusters=n_clusters, init='k-means++', max_iter=100,
                         n_init=1, verbose=self.verbose)
@@ -100,8 +147,6 @@ class DyKMeans(object):
             t0 = time()
             silhouette_sc = silhouette_score(X, km.labels_)
             silhouette_time = time() - t0
-            cluster_silhouette_score.append(silhouette_sc)
-            cluster_silhouette_time.append(silhouette_time)
             print("Calculating silhouette score done in %fs" % silhouette_time)
 
             t0 = time()
@@ -122,16 +167,14 @@ class DyKMeans(object):
             t0 = time()
             recall_score = self.recall()
             recall_time = time() - t0
-            cluster_recall_score.append(recall_score)
-            cluster_recall_time.append(recall_time)
             print("Calculate recall as %f done in %fs" % (recall_score, time() - t0))
             print()
 
             self.km = km
-            # fp.write("%d, %f, %f, %f, %f\n" % (n_clusters, silhouette_sc,
-            #                                    silhouette_time, recall_score,
-            #                                    recall_time))
-            # fp.flush()
+            fp.write("%d, %f, %f, %f, %f\n" % (n_clusters, silhouette_sc,
+                                               silhouette_time, recall_score,
+                                               recall_time))
+            fp.flush()
 
         print("Choose k as", self.km.n_clusters)
         print()
@@ -141,8 +184,6 @@ class DyKMeans(object):
             self.insert(record)
         print("Pre-calculate similarities done in %fs" % (time() - t0))
         print()
-
-        # draw_plots(cluster_range, [cluster_avg_sils, cluster_recalls])
 
     def insert(self, record):
         r_id = record[0]
@@ -210,7 +251,7 @@ class DyLSH(object):
 
     def __init__(self, encode_fn, similarity_fn, threshold=-1.0, top_n=-1.0,
                  gold_standard=None, gold_attributes=None,
-                 lsh_threshold=0.5, lsh_num_perm=128, verbose=False):
+                 lsh_threshold=0.3, lsh_num_perm=60, verbose=False):
         self.verbose = verbose
         self.saai = SimAwareAttributeIndex(encode_fn, similarity_fn, threshold,
                                            top_n, verbose=verbose)
@@ -228,22 +269,15 @@ class DyLSH(object):
                 self.gold_records[a].add(b)
                 self.gold_records[b].add(a)
         # LSH Attributes
-        self.lsh = None
         self.lsh_threshold = lsh_threshold
         self.lsh_num_perm = lsh_num_perm
+        self.lsh = MinHashLSH(threshold=self.lsh_threshold,
+                              num_perm=self.lsh_num_perm)
 
     def fit(self, recordset, attributes):
         records = read_csv(recordset, attributes)
-        self.lsh = MinHashLSH(threshold=self.lsh_threshold,
-                              num_perm=self.lsh_num_perm)
         for record in records:
-            r_id = record[0]
-            r_attributes = record[1:]
-            min_hash = MinHash(num_perm=self.lsh_num_perm)
-            for attribute in r_attributes:
-                min_hash.update(attribute.encode('utf-8'))
-
-            self.lsh.insert(r_id, min_hash)
+            self.insert(record)
 
     def recall(self):
         """
@@ -260,7 +294,7 @@ class DyLSH(object):
             for table in self.lsh.hashtables:
                 for block in table.values():
                     # 2. Check every block to find out, if both records have at
-                    # at least one cluster in common
+                    # at least one block in common
                     if id1 in block and id2 in block:
                         # 3. If both records are in same block abort search
                         hit = True
@@ -268,12 +302,30 @@ class DyLSH(object):
 
                 if hit:
                     # 4. If duplicate pair has been found in at least on block
-                    # count it as true positive
+                    # count it as true positive and proceed with next
                     true_p += 1
                     break
 
         return true_p / total_p
 
+    def insert(self, record):
+        r_id = record[0]
+        r_attributes = record[1:]
+        min_hash = MinHash(num_perm=self.lsh_num_perm)
+        for attribute in r_attributes:
+            min_hash.update(attribute.encode('utf-8'))
+
+        self.lsh.insert(r_id, min_hash)
+        self.saai.insert(record)
+
+    def query(self, q_record):
+        q_attributes = record[1:]
+        min_hash = MinHash(num_perm=self.lsh_num_perm)
+        for attribute in q_attributes:
+            min_hash.update(attribute.encode('utf-8'))
+
+        candidate_ids = self.lsh.query(min_hash)
+        return self.saai.query(q_record, candidate_ids)
 
 
 class SimAwareAttributeIndex(object):
