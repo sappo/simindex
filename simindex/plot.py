@@ -50,20 +50,30 @@ def draw_record_time_curve(times, dataset, action):
     title = "%s time for a single record (%s)" % (action.capitalize(), dataset)
     fig = plt.figure(dpi=None, facecolor="white")
     fig.canvas.set_window_title(title)
-    index = np.arange(0, len(times), 1)
-    mean = np.mean(times)
-    times_mean = [mean for i in index]
     # Plot Precision-Recall curve
     plt.clf()
-    plt.plot(index, times, lw=lw, color='navy', label='Record-Time')
-    plt.plot(index, times_mean, color='red', label='Mean', linestyle='--')
+    # These are the colors that will be used in the plot
+    color_sequence = ['#1f77b4', '#aec7e8', '#ff7f0e', '#ffbb78', '#2ca02c',
+                      '#98df8a', '#d62728', '#ff9896', '#9467bd', '#c5b0d5',
+                      '#8c564b', '#c49c94', '#e377c2', '#f7b6d2', '#7f7f7f',
+                      '#c7c7c7', '#bcbd22', '#dbdb8d', '#17becf', '#9edae5']
+    for index, indexer in enumerate(sorted(times.keys())):
+        x_pos = np.arange(0, len(times[indexer]), 1)
+        mean = np.mean(times[indexer])
+        times_mean = [mean for i in x_pos]
+        plt.plot(x_pos, times[indexer], lw=lw,
+                 color=color_sequence[2 * index + 1], label=indexer)
+        # zorder assures that mean lines are always printed above
+        plt.plot(x_pos, times_mean, color=color_sequence[2 * index],
+                 zorder=index + 100, linestyle='--', label='%s mean' % indexer)
+
     xlabel = "Record %s number" % action
     plt.xlabel(xlabel)
     plt.ylabel('Time (s)')
-    plt.ylim([pow(10, -5), pow(10, -1)])
+    plt.ylim([pow(10, -6), pow(10, 0)])
     plt.yscale('log')
-    plt.autoscale(enable=True, axis='y')
-    plt.xlim([0, max(index)])
+    # plt.autoscale(enable=True, axis='y')
+    plt.xlim([0, max(x_pos)])
     plt.title(title)
     plt.legend(loc="upper right")
 
@@ -108,17 +118,6 @@ def draw_bar_chart(data, title, unit):
     plt.title(title)
     plt.ylabel(unit)
 
-    # Sort data by label
-    objects, y_vals = [], []
-    for label, value in sorted(data.items(), key=lambda x: (x[0])):
-        y_vals.append(value)
-        objects.append(label)
-
-    y_pos = np.arange(len(objects))
-
-    bars = plt.bar(y_pos, y_vals, width=0.35, align="center", alpha=0.8)
-    plt.xticks(y_pos, objects)
-
     def autolabel(rects):
         # Get y-axis height to calculate label position from.
         (y_bottom, y_top) = plt.ylim()
@@ -140,4 +139,25 @@ def draw_bar_chart(data, title, unit):
             plt.text(rect.get_x() + rect.get_width() / 2., label_position,
                      str(round(height, 2)), ha='center', va='bottom')
 
-    autolabel(bars)
+    ax = plt.subplot(111)
+    offset = 0.
+    color_sequence = ['#1f77b4',  '#ff7f0e',  '#2ca02c', '#d62728',
+                      '#9467bd', '#8c564b',  '#e377c2',  '#7f7f7f',
+                      '#bcbd22',  '#17becf']
+    for index, indexer in enumerate(sorted(data.keys())):
+        # Sort data by label
+        y_vals = []
+        objects = []
+        for dataset, value in sorted(data[indexer].items(), key=lambda x: (x[0])):
+            y_vals.append(value)
+            objects.append(dataset)
+
+        y_pos = [y + offset for y in np.arange(len(objects))]
+        offset += 0.2
+        bars = ax.bar(y_pos, y_vals, width=0.2, align="center",
+                      alpha=0.8, color=color_sequence[index], label=indexer)
+        autolabel(bars)
+
+    y_pos = [y + offset / 4 for y in np.arange(len(objects))]
+    plt.xticks(y_pos, objects)
+    plt.legend(loc="best")

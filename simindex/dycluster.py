@@ -11,7 +11,7 @@ from datasketch import MinHash, MinHashLSH
 from time import time
 import numpy as np
 from collections import Counter
-from .helper import read_csv
+from .helper import read_csv, calc_micro_scores, calc_micro_metrics
 from .plot import *
 
 
@@ -19,8 +19,11 @@ class DyKMeans(object):
 
     def __init__(self, encode_fn, similarity_fn, threshold=-1.0, top_n=-1.0,
                  gold_standard=None, gold_attributes=None, n_features=10000,
-                 use_hashing=False, use_idf=True, k=-1, verbose=False):
+                 use_hashing=False, use_idf=True, k=-1, verbose=False,
+                 insert_timer=None, query_timer=None):
         self.verbose = verbose
+        self.insert_timer = insert_timer
+        self.query_timer = query_timer
         self.saai = SimAwareAttributeIndex(encode_fn, similarity_fn, threshold,
                                            top_n, verbose=verbose)
         # Gold Standard/Ground Truth attributes
@@ -43,9 +46,12 @@ class DyKMeans(object):
         self.k = k
 
     def fit_csv(self, recordset, attributes):
-        fit(read_csv(recordset, attributes))
+        self.fit(read_csv(recordset, attributes))
 
     def fit(self, records):
+        if self.insert_timer:
+            self.insert_timer.start_common()
+
         if self.use_hashing:
             if self.use_idf:
                 # Perform an IDF normalization on the output of
@@ -92,8 +98,15 @@ class DyKMeans(object):
 
             self.k_cluster[cluster_no][r_id] = center_distance
 
+        if self.insert_timer:
+            self.insert_timer.stop_common()
+
         for record in records:
-            self.insert(record)
+            if self.insert_timer:
+                with self.insert_timer:
+                    self.saai.insert(record)
+            else:
+                self.saai.insert(record)
 
     def fit_eval(self, recordset, attributes):
         print("Extracting features from the training dataset using a sparse\
@@ -208,6 +221,32 @@ class DyKMeans(object):
 
         return self.saai.query(q_record, cluster_record_ids)
 
+    def query_from_csv(self, filename, attributes=[]):
+        records = read_csv(filename, attributes)
+        accumulator = {}
+        y_true1 = []
+        y_true2 = []
+        y_pred = []
+        y_scores = []
+        for record in records:
+            r_id = record[0]
+            if self.query_timer:
+                with self.query_timer:
+                    accumulator[r_id] = self.query(record)
+            else:
+                accumulator[r_id] = self.query(record)
+
+            if self.gold_records:
+                calc_micro_scores(record[0], accumulator[record[0]],
+                                  y_true1, y_scores, self.gold_records)
+                calc_micro_metrics(record[0], accumulator[record[0]],
+                                   y_true2, y_pred, self.gold_records)
+
+        if self.gold_records:
+            return accumulator, y_true1, y_scores, y_true2, y_pred
+        else:
+            return accumulator
+
     def recall(self):
         """
         Returns the recall from the passed gold standard and the index data.
@@ -245,15 +284,18 @@ class DyKMeans(object):
         for cluster in self.k_cluster.values():
             cluster_sizes.append(len(cluster.keys()))
 
-        return Counter(cluster_sizes)
+        return {'Records': Counter(cluster_sizes)}
 
 
 class DyLSH(object):
 
     def __init__(self, encode_fn, similarity_fn, threshold=-1.0, top_n=-1.0,
                  gold_standard=None, gold_attributes=None,
-                 lsh_threshold=0.3, lsh_num_perm=60, verbose=False):
+                 lsh_threshold=0.3, lsh_num_perm=60, verbose=False,
+                 insert_timer=None, query_timer=None):
         self.verbose = verbose
+        self.insert_timer = insert_timer
+        self.query_timer = query_timer
         self.saai = SimAwareAttributeIndex(encode_fn, similarity_fn, threshold,
                                            top_n, verbose=verbose)
         # Gold Standard/Ground Truth attributes
@@ -275,10 +317,61 @@ class DyLSH(object):
         self.lsh = MinHashLSH(threshold=self.lsh_threshold,
                               num_perm=self.lsh_num_perm)
 
-    def fit(self, recordset, attributes):
-        records = read_csv(recordset, attributes)
+    def fit_csv(self, recordset, attributes):
+        self.fit(read_csv(recordset, attributes))
+
+    def fit(self, records):
         for record in records:
-            self.insert(record)
+            if self.insert_timer:
+                with self.insert_timer:
+                    self.insert(record)
+            else:
+                self.insert(record)
+
+    def insert(self, record):
+        r_id = record[0]
+        r_attributes = record[1:]
+        min_hash = MinHash(num_perm=self.lsh_num_perm)
+        for attribute in r_attributes:
+            min_hash.update(attribute.encode('utf-8'))
+
+        self.lsh.insert(r_id, min_hash)
+        self.saai.insert(record)
+
+    def query(self, q_record):
+        q_attributes = q_record[1:]
+        min_hash = MinHash(num_perm=self.lsh_num_perm)
+        for attribute in q_attributes:
+            min_hash.update(attribute.encode('utf-8'))
+
+        candidate_ids = self.lsh.query(min_hash)
+        return self.saai.query(q_record, candidate_ids)
+
+    def query_from_csv(self, filename, attributes=[]):
+        records = read_csv(filename, attributes)
+        accumulator = {}
+        y_true1 = []
+        y_true2 = []
+        y_pred = []
+        y_scores = []
+        for record in records:
+            r_id = record[0]
+            if self.query_timer:
+                with self.query_timer:
+                    accumulator[r_id] = self.query(record)
+            else:
+                accumulator[r_id] = self.query(record)
+
+            if self.gold_records:
+                calc_micro_scores(r_id, accumulator[r_id],
+                                  y_true1, y_scores, self.gold_records)
+                calc_micro_metrics(r_id, accumulator[r_id],
+                                   y_true2, y_pred, self.gold_records)
+
+        if self.gold_records:
+            return accumulator, y_true1, y_scores, y_true2, y_pred
+        else:
+            return accumulator
 
     def recall(self):
         """
@@ -309,24 +402,20 @@ class DyLSH(object):
 
         return true_p / total_p
 
-    def insert(self, record):
-        r_id = record[0]
-        r_attributes = record[1:]
-        min_hash = MinHash(num_perm=self.lsh_num_perm)
-        for attribute in r_attributes:
-            min_hash.update(attribute.encode('utf-8'))
+    def frequency_distribution(self):
+        """
+        Returns the frequency distribution of the minhash table as dict. Where
+        key is size of a cluster and value is the number of clusters with this
+        size.
+        """
+        self.lsh.hashtables
+        pass
+        cluster_sizes = []
+        for table in self.lsh.hashtables:
+            for values in table.values():
+                cluster_sizes.append(len(values))
 
-        self.lsh.insert(r_id, min_hash)
-        self.saai.insert(record)
-
-    def query(self, q_record):
-        q_attributes = record[1:]
-        min_hash = MinHash(num_perm=self.lsh_num_perm)
-        for attribute in q_attributes:
-            min_hash.update(attribute.encode('utf-8'))
-
-        candidate_ids = self.lsh.query(min_hash)
-        return self.saai.query(q_record, candidate_ids)
+        return {'Records': Counter(cluster_sizes)}
 
 
 class SimAwareAttributeIndex(object):
@@ -348,10 +437,14 @@ class SimAwareAttributeIndex(object):
         r_id = record[0]
         r_attributes = record[1:]
 
-        for attribute in r_attributes:
+        for index, attribute in enumerate(r_attributes):
             if attribute not in self.SI:
                 # Insert value into Block Index
-                encoding = self.encode_fn(attribute)
+                if isinstance(self.encode_fn, list):
+                    encoding = self.encode_fn[index](attribute)
+                else:
+                    encoding = self.encode_fn(attribute)
+
                 if encoding not in self.BI.keys():
                     self.BI[encoding] = set()
 
@@ -360,7 +453,10 @@ class SimAwareAttributeIndex(object):
                 #  Calculate similarities and update SI
                 block = list(filter(lambda x: x != attribute, self.BI[encoding]))
                 for block_value in block:
-                    similarity = self.similarity_fn(attribute, block_value)
+                    if isinstance(self.similarity_fn, list):
+                        similarity = self.similarity_fn[index](attribute, block_value)
+                    else:
+                        similarity = self.similarity_fn(attribute, block_value)
                     similarity = round(similarity, 1)
                     #  Append similarity to block_value
                     if block_value not in self.SI.keys():
@@ -384,19 +480,27 @@ class SimAwareAttributeIndex(object):
         q_attributes = q_record[1:]
 
         if q_id not in self.dataset:
+            print("INSERT")
             self.insert(q_record)
 
         accumulator = {}
         for c_id in candidate_ids:
+            if q_id == c_id:
+                continue
+
             c_attributes = self.dataset[c_id]
             s = 0.
-            for q_attribute, c_attribute in zip(q_attributes, c_attributes):
+            for index, (q_attribute, c_attribute) in enumerate(zip(q_attributes, c_attributes)):
                 if q_attribute == c_attribute:
                     s += 1.
-                elif c_attribute in self.SI[q_attribute]:
+                elif q_attribute in self.SI and c_attribute in self.SI[q_attribute]:
                     s += self.SI[q_attribute][c_attribute]
                 else:
-                    similarity = self.similarity_fn(q_attribute, c_attribute)
+                    if isinstance(self.similarity_fn, list):
+                        similarity = self.similarity_fn[index](q_attribute, c_attribute)
+                    else:
+                        similarity = self.similarity_fn(q_attribute, c_attribute)
+
                     s += round(similarity, 1)
 
             if s > self.threshold:

@@ -6,7 +6,7 @@ import click
 import jellyfish
 from sklearn.metrics import recall_score, precision_score
 from difflib import SequenceMatcher
-from simindex import DySimII, RecordTimer
+from simindex import DySimII, DyLSH, DyKMeans, RecordTimer
 from simindex import draw_precision_recall_curve, \
                      draw_record_time_curve, \
                      draw_frequency_distribution, \
@@ -54,27 +54,38 @@ def _encode_first3(a):
 )
 @click.option(
     u'-e', u'--encoding_list', multiple=True,
-    help=u'List of encodings to apply in order to attributes'
+    help=u'List of encodings to apply in order to attributes\
+           Use multiple times if needed!'
 )
 @click.option(
     u'-c', u'--similarity_list', multiple=True,
-    help=u'List of similarities to apply in order to attributes'
+    help=u'List of similarities to apply in order to attributes\
+           Use multiple times if needed!'
 )
 @click.option(
-    u'-t', u'--run_type', help=u'CSV with gold standard data'
+    u'-t', u'--run_type', help=u'What are you benchmarking?\
+                                 evaluation - calculate all metrics\
+                                 index - measure indexing time\
+                                 plot - draw results'
 )
 @click.option(
     u'-o', u'--output', help=u'File name to print the result to or \
                                the read them from.'
 )
 @click.option(
-    u'-r', u'--run_name', help=u''
+    u'-r', u'--run_name', help=u'Common prefix of output file from one\
+                                 run to draw measures collectively.'
+)
+@click.option(
+    u'-m', u'--index_method', help=u'Which method to use for indexing?\
+                                     DySimII\
+                                     DyLSH'
 )
 def main(index_file, index_attributes,
          query_file, query_attributes,
          gold_standard, gold_attributes,
          encoding_list, similarity_list,
-         run_type, output, run_name):
+         run_type, output, run_name, index_method):
     """Run a basic matching task on input file."""
     if (len(index_attributes) != len(query_attributes)):
         print("Query attribute count must equal index attribute count!")
@@ -102,37 +113,66 @@ def main(index_file, index_attributes,
         insert_timer = RecordTimer()
         query_timer = RecordTimer()
 
-        dy_sim = DySimII(len(index_attributes) - 1, top_n=1,
-                         simmetric_fn=similarity_fns, encode_fn=encoding_fns,
-                         gold_standard=gold_standard,
-                         gold_attributes=gold_attributes,
-                         insert_timer=insert_timer, query_timer=query_timer)
+        indexer = None
+        if index_method == "DySimII":
+            indexer = DySimII(len(index_attributes) - 1, top_n=1,
+                              simmetric_fn=similarity_fns,
+                              encode_fn=encoding_fns,
+                              gold_standard=gold_standard,
+                              gold_attributes=gold_attributes,
+                              insert_timer=insert_timer, query_timer=query_timer)
+        elif index_method == "DyLSH":
+            indexer = DyLSH(top_n=1, lsh_threshold=0.09, lsh_num_perm=40,
+                            similarity_fn=similarity_fns,
+                            encode_fn=encoding_fns,
+                            gold_standard=gold_standard,
+                            gold_attributes=gold_attributes,
+                            insert_timer=insert_timer, query_timer=query_timer)
+        elif index_method == "DyKMeans":
+            indexer = DyKMeans(top_n=1,
+                               similarity_fn=similarity_fns,
+                               encode_fn=encoding_fns,
+                               gold_standard=gold_standard,
+                               gold_attributes=gold_attributes,
+                               insert_timer=insert_timer,
+                               query_timer=query_timer)
 
         # Build index
         start = time.time()
-        dy_sim.insert_from_csv(index_file, index_attributes)
+        indexer.fit_csv(index_file, index_attributes)
         end = time.time()
         measurements["build_time"] = end - start
-        print("Index build time:", measurements["build_time"])
+        print("Index build time: %f" % measurements["build_time"])
+        print("Index build time (sum): %f" % (sum(insert_timer.times) + sum(insert_timer.common_time)))
 
+        insert_timer.apply_common()
         measurements["insert_times"] = insert_timer.times
-        measurements["query_times"] = query_timer.times
 
-        measurements["block_frequency"] = {}
-        for index, block_freq in enumerate(dy_sim.frequency_distribution()):
-            measurements["block_frequency"][index_attributes[index + 1]] = block_freq
+        if index_method == "DySimII":
+            measurements["block_frequency"] = {}
+            for index, block_freq in enumerate(indexer.frequency_distribution()):
+                measurements["block_frequency"][index_attributes[index + 1]] = block_freq
+        elif index_method == "DyLSH" or index_method == "DyKMeans":
+            measurements["block_frequency"] = indexer.frequency_distribution()
 
         # Run Queries
+        start = time.time()
         result, \
             measurements["y_true1"], \
             measurements["y_scores"], \
             measurements["y_true2"], \
             measurements["y_pred"] \
-            = dy_sim.query_from_csv(query_file, query_attributes)
+            = indexer.query_from_csv(query_file, query_attributes)
+        end = time.time()
+        measurements["query_time"] = end - start
+        print("Index query time: %f" % measurements["query_time"])
+
+        query_timer.apply_common()
+        measurements["query_times"] = query_timer.times
 
         # Calculate Precision/Recall
         measurements["query_records"] = len(result)
-        measurements["recall_blocking"] = dy_sim.recall()
+        measurements["recall_blocking"] = indexer.recall()
         measurements["precision"] = precision_score(measurements["y_true2"],
                                                     measurements["y_pred"])
         measurements["recall"] = recall_score(measurements["y_true2"],
@@ -150,11 +190,22 @@ def main(index_file, index_attributes,
         measurements = json.load(fp)
         fp.close()
 
-        dy_sim = DySimII(len(index_attributes) - 1,
-                         simmetric_fn=similarity_fns, encode_fn=encoding_fns)
+        indexer = None
+        if index_method == "DySimII":
+            indexer = DySimII(len(index_attributes) - 1,
+                              simmetric_fn=similarity_fns,
+                              encode_fn=encoding_fns)
+        elif index_method == "DyLSH":
+            indexer = DyLSH(top_n=1, lsh_threshold=0.09, lsh_num_perm=40,
+                            similarity_fn=similarity_fns,
+                            encode_fn=encoding_fns)
+        elif index_method == "DyKMeans":
+            indexer = DyKMeans(top_n=1,
+                               similarity_fn=similarity_fns,
+                               encode_fn=encoding_fns)
 
         start = time.time()
-        dy_sim.insert_from_csv(index_file, index_attributes)
+        indexer.fit_csv(index_file, index_attributes)
         end = time.time()
         measurements["build_time"] = end - start
 
@@ -164,32 +215,48 @@ def main(index_file, index_attributes,
     elif run_type == "plot":
         memory_usage = {}
         index_build_time = {}
+        insert_times = {}
+        query_times = {}
         for resultfile in glob.glob("./%s*" % run_name):
             fp = open(resultfile)
             measurements = json.load(fp)
             fp.close()
-            dataset = resultfile[resultfile.index('_') + 1:]
+            indexer_dataset = resultfile[resultfile.index('_') + 1:]
+            indexer = indexer_dataset[:indexer_dataset.index('_')]
+            dataset = indexer_dataset[indexer_dataset.index('_') + 1:]
+
+            if dataset not in insert_times:
+                insert_times[dataset] = {}
+                query_times[dataset] = {}
+
+            insert_times[dataset][indexer] = measurements["insert_times"]
+            query_times[dataset][indexer] = measurements["query_times"]
 
             draw_frequency_distribution(measurements["block_frequency"],
-                                        dataset,
+                                        indexer_dataset,
                                         "Block")
-
-            draw_record_time_curve(measurements["insert_times"],
-                                   dataset,
-                                   "insertion")
-            draw_record_time_curve(measurements["query_times"],
-                                   dataset,
-                                   "query")
 
             draw_precision_recall_curve(measurements["y_true1"],
                                         measurements["y_scores"],
-                                        dataset)
+                                        indexer_dataset)
 
-            memory_usage[dataset] = measurements["memory_usage"] / 1024
-            index_build_time[dataset] = measurements["build_time"]
+            # Sort data by indexer and then by dataset
+            if indexer not in memory_usage:
+                memory_usage[indexer] = {}
+                index_build_time[indexer] = {}
+
+            memory_usage[indexer][dataset] = measurements["memory_usage"] / 1024
+            index_build_time[indexer][dataset] = measurements["build_time"]
+
+        for dataset in insert_times.keys():
+            draw_record_time_curve(insert_times[dataset], dataset, "insertion")
+
+        for dataset in query_times.keys():
+            draw_record_time_curve(query_times[dataset], dataset, "query")
 
         draw_bar_chart(memory_usage, "Memory usage", "MiB")
         draw_bar_chart(index_build_time, "Index build time", "Seconds (s)")
+
 
         # Show plots
         show()

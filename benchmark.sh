@@ -2,9 +2,13 @@
 timestamp=$(date +%s)
 
 # Run ferbl datasets
-#for dataset in "dataset1" "ferbl-4k-1k-1" "ferbl-9k-1k-1" "ferbl-90k-10k-1"
-for dataset in "dataset1" "ferbl-4k-1k-1"
+#for indexer in "DySimII" "DyLSH" "DyKMeans"
+for indexer in "DySimII"
 do
+#for dataset in "dataset1" "ferbl-4k-1k-1" "ferbl-9k-1k-1" "ferbl-90k-10k-1"
+for dataset in "dataset1"
+do
+    result_output="${timestamp}_${indexer}_${dataset}"
     # Measure insert/query times on restaurant dataset
     # Calculate metrics on dataset
     python measures.py \
@@ -14,7 +18,8 @@ do
         -c default -c default -c default -c default \
         -s ${dataset}_gold.csv \
         -g org_id -g dup_id \
-        -t evaluation -o "${timestamp}_${dataset}" \
+        -t evaluation -o $result_output \
+        -m ${indexer} \
         ${dataset}.csv ${dataset}.csv
 
     # Measure peak memory and index build time
@@ -23,12 +28,14 @@ do
         -q rec_id -q given_name -q suburb -q surname -q postcode \
         -e soundex -e soundex -e soundex -e first3 \
         -c default -c default -c default -c default \
-        -t index -o $ "${timestamp}_${dataset}" \
+        -t index -o $result_output \
+        -m ${indexer} \
         ${dataset}.csv ${dataset}.csv)
 
-    sed -i '$ d' "${timestamp}_${dataset}"
-    echo "    ,\"memory_usage\":" $PEAK >> "${timestamp}_${dataset}"
-    echo "}" >> "${timestamp}_${dataset}"
+    sed -i '$ d' $result_output
+    echo "    ,\"memory_usage\":" $PEAK >> $result_output
+    echo "}" >> $result_output
+done
 done
 
 # Draw results
