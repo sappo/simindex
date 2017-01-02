@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 from simindex.helper import read_csv
 
-dataset1 = read_csv("evaluation/lsh_dataset1.txt")
+dataset1 = read_csv("eval_lsh_restaurant.txt")
 thresholds = sorted(list(set(x[0] for x in dataset1)))
 
 fig = plt.figure(dpi=None, facecolor="white")

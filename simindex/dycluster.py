@@ -45,6 +45,8 @@ class DyKMeans(object):
         self.use_idf = use_idf
         self.k = k
 
+        self.candidate_count = 0
+
     def fit_csv(self, recordset, attributes):
         self.fit(read_csv(recordset, attributes))
 
@@ -219,6 +221,7 @@ class DyKMeans(object):
         cluster = self.k_cluster[cluster_no]
         cluster_record_ids = list(filter(lambda r_id: r_id != q_id, cluster.keys()))
 
+        self.candidate_count += len(cluster_record_ids)
         return self.saai.query(q_record, cluster_record_ids)
 
     def query_from_csv(self, filename, attributes=[]):
@@ -315,7 +318,10 @@ class DyLSH(object):
         self.lsh_threshold = lsh_threshold
         self.lsh_num_perm = lsh_num_perm
         self.lsh = MinHashLSH(threshold=self.lsh_threshold,
-                              num_perm=self.lsh_num_perm)
+                              num_perm=self.lsh_num_perm,
+                              weights=(0.4, 0.6))
+        self.mhash = MinHash(num_perm=self.lsh_num_perm)
+        self.candidate_count = 0
 
     def fit_csv(self, recordset, attributes):
         self.fit(read_csv(recordset, attributes))
@@ -340,12 +346,20 @@ class DyLSH(object):
 
     def query(self, q_record):
         q_attributes = q_record[1:]
-        min_hash = MinHash(num_perm=self.lsh_num_perm)
+        self.mhash.clear()
         for attribute in q_attributes:
-            min_hash.update(attribute.encode('utf-8'))
-
-        candidate_ids = self.lsh.query(min_hash)
-        return self.saai.query(q_record, candidate_ids)
+            self.mhash.update(attribute.encode('utf-8'))
+        # if self.query_timer:
+            # self.query_timer.mark_run()
+        candidate_ids = self.lsh.query(self.mhash)
+        assert len(candidate_ids) == len(set(candidate_ids))
+        self.candidate_count += len(candidate_ids)
+        # if self.query_timer:
+            # self.query_timer.mark_run()
+        result = self.saai.query(q_record, candidate_ids)
+        # if self.query_timer:
+            # self.query_timer.mark_run()
+        return result
 
     def query_from_csv(self, filename, attributes=[]):
         records = read_csv(filename, attributes)
@@ -385,11 +399,11 @@ class DyLSH(object):
         for id1, id2 in self.gold_pairs:
             # 1. For each duplicate pair
             hit = False
-            for table in self.lsh.hashtables:
-                for block in table.values():
-                    # 2. Check every block to find out, if both records have at
-                    # at least one block in common
-                    if id1 in block and id2 in block:
+            for band in self.lsh.hashtables:
+                for sig in band.values():
+                    # 2. Check every band to find out, if both records have at
+                    # at least one signature in common
+                    if id1 in sig and id2 in sig:
                         # 3. If both records are in same block abort search
                         hit = True
                         break
@@ -433,9 +447,15 @@ class SimAwareAttributeIndex(object):
         self.threshold = threshold
         self.top_n = top_n
 
+        self.eq_count = 0
+        self.si_count = 0
+        self.sim_count = 0
+
     def insert(self, record):
         r_id = record[0]
         r_attributes = record[1:]
+        if r_id in self.dataset:
+            return
 
         for index, attribute in enumerate(r_attributes):
             if attribute not in self.SI:
@@ -463,7 +483,7 @@ class SimAwareAttributeIndex(object):
                         self.SI[block_value] = {}
 
                     self.SI[block_value][attribute] = similarity
-                    #  Append similarity to value
+                    #  Append similarity to attribute
                     if attribute not in self.SI.keys():
                         self.SI[attribute] = {}
 
@@ -476,14 +496,13 @@ class SimAwareAttributeIndex(object):
             Compares a query record against a set of candidate records. Returns
             the accumulated attribute score for each candidate.
         """
+        accumulator = {}
         q_id = q_record[0]
         q_attributes = q_record[1:]
 
-        if q_id not in self.dataset:
-            print("INSERT")
-            self.insert(q_record)
+        #  Insert new record into index
+        self.insert(q_record)
 
-        accumulator = {}
         for c_id in candidate_ids:
             if q_id == c_id:
                 continue
@@ -492,16 +511,29 @@ class SimAwareAttributeIndex(object):
             s = 0.
             for index, (q_attribute, c_attribute) in enumerate(zip(q_attributes, c_attributes)):
                 if q_attribute == c_attribute:
+                    self.eq_count += 1
                     s += 1.
-                elif q_attribute in self.SI and c_attribute in self.SI[q_attribute]:
+                elif q_attribute in self.SI.keys() and c_attribute in self.SI[q_attribute].keys():
+                    self.si_count += 1
                     s += self.SI[q_attribute][c_attribute]
-                else:
-                    if isinstance(self.similarity_fn, list):
-                        similarity = self.similarity_fn[index](q_attribute, c_attribute)
-                    else:
-                        similarity = self.similarity_fn(q_attribute, c_attribute)
+                # else:
+                    # self.sim_count += 1
+                    # if isinstance(self.similarity_fn, list):
+                        # similarity = self.similarity_fn[index](q_attribute, c_attribute)
+                    # else:
+                        # similarity = self.similarity_fn(q_attribute, c_attribute)
 
-                    s += round(similarity, 1)
+                    # similarity = round(similarity, 1)
+
+                    # if q_attribute not in self.SI.keys():
+                        # self.SI[q_attribute] = {}
+                    # self.SI[q_attribute][c_attribute] = similarity
+
+                    # if c_attribute not in self.SI.keys():
+                        # self.SI[c_attribute] = {}
+                    # self.SI[c_attribute][q_attribute] = similarity
+
+                    # s += similarity
 
             if s > self.threshold:
                 accumulator[c_id] = s

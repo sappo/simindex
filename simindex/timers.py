@@ -6,6 +6,7 @@ class RecordTimer(object):
     def __init__(self):
         self.run = 0
         self.times = []
+        self.marker = []
         self.common_time = [0]
 
     def __enter__(self):
@@ -20,6 +21,17 @@ class RecordTimer(object):
         Initialize new test run
         """
         self.start = time.time()
+        self.mark = self.start
+
+    def mark_run(self):
+        """
+        """
+        while self.run >= len(self.marker):
+            self.marker.append([])
+
+        interim = time.time()
+        self.marker[self.run].append(interim - self.mark)
+        self.mark = interim
 
     def stop_run(self):
         """
@@ -31,6 +43,9 @@ class RecordTimer(object):
         else:
             self.times.append(end - self.start)
         self.run += 1
+
+    def reset_run(self):
+        self.run = 0
 
     def start_common(self):
         self.start_run()
@@ -45,6 +60,3 @@ class RecordTimer(object):
             self.times = [x + part for x in self.times]
             # Reset common time
             self.common_time = [0]
-
-    def revert(self):
-        self.run = 0

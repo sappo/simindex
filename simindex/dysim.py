@@ -31,6 +31,7 @@ class DySimII(object):
                     self.gold_records[b] = set()
                 self.gold_records[a].add(b)
                 self.gold_records[b].add(a)
+        self.candidate_count = 0
 
     def _insert_to_accumulator(self, accumulator, key, value):
         nom_value = value
@@ -66,9 +67,11 @@ class DySimII(object):
         count = len(self.indicies) + 1
         accumulator = {}
         q_id = record[0]
+        q_attributes = record[1:count]
         # For each attribute run a query in its index
-        for index, attribute in enumerate(record[1:count]):
+        for index, attribute in enumerate(q_attributes):
             m = self.indicies[index].query(attribute, q_id)
+            self.candidate_count += len(m.items())
             for key, value in m.items():
                 if self.threshold > 0:
                     max_sim = self._max_similarity(accumulator.get(key, 0.0),
@@ -172,48 +175,47 @@ class SimAwareIndex(object):
         self.simmetric = simmetric_fn
         self.encode = encode_fn
 
-    def insert(self, value, identifier):
-        value_known = value in self.RI.keys()
-        if value_known:
-            self.RI[value].add(identifier)
+    def insert(self, attribute, r_id):
+        if attribute in self.RI.keys():
+            self.RI[attribute].add(r_id)
         else:
-            self.RI[value] = set()
-            self.RI[value].add(identifier)
+            self.RI[attribute] = set()
+            self.RI[attribute].add(r_id)
             #  Insert value into Block Index
-            encoding = self.encode(value)
+            encoding = self.encode(attribute)
             if encoding not in self.BI.keys():
                 self.BI[encoding] = set()
 
-            self.BI[encoding].add(value)
+            self.BI[encoding].add(attribute)
 
             #  Calculate similarities and update SI
-            block = list(filter(lambda x: x != value, self.BI[encoding]))
+            block = list(filter(lambda x: x != attribute, self.BI[encoding]))
             for block_value in block:
-                similarity = self.simmetric(value, block_value)
+                similarity = self.simmetric(attribute, block_value)
                 similarity = round(similarity, 1)
                 #  Append similarity to block_value
                 if block_value not in self.SI.keys():
                     self.SI[block_value] = {}
 
-                self.SI[block_value][value] = similarity
+                self.SI[block_value][attribute] = similarity
                 #  Append similarity to value
-                if value not in self.SI.keys():
-                    self.SI[value] = {}
+                if attribute not in self.SI.keys():
+                    self.SI[attribute] = {}
 
-                self.SI[value][block_value] = similarity
+                self.SI[attribute][block_value] = similarity
 
-    def query(self, value, identifier):
+    def query(self, attribute, q_id):
         accumulator = {}
         #  Insert new record into index
-        self.insert(value, identifier)
+        self.insert(attribute, q_id)
 
-        ids = list(filter(lambda x: x != identifier, self.RI[value]))
+        ids = list(filter(lambda x: x != q_id, self.RI[attribute]))
         for id in ids:
             accumulator[id] = 1.0
 
-        if value in self.SI:
-            for value, sim in self.SI[value].items():
-                for id in self.RI[value]:
+        if attribute in self.SI:
+            for attribute, sim in self.SI[attribute].items():
+                for id in self.RI[attribute]:
                     accumulator[id] = sim
 
         return accumulator

@@ -4,6 +4,7 @@ import time
 import json
 import click
 import jellyfish
+import numpy as np
 from sklearn.metrics import recall_score, precision_score
 from difflib import SequenceMatcher
 from simindex import DySimII, DyLSH, DyKMeans, RecordTimer
@@ -16,6 +17,9 @@ from simindex import draw_precision_recall_curve, \
 
 def _compare(a, b):
     return SequenceMatcher(None, a, b).ratio()
+
+def _compare_jaro(a, b):
+    return jellyfish.jaro_distance(a, b)
 
 
 def _encode_soundex(a):
@@ -106,6 +110,8 @@ def main(index_file, index_attributes,
     for similarity in similarity_list:
         if similarity == "default":
             similarity_fns.append(_compare)
+        elif similarity == "jaro":
+            similarity_fns.append(_compare_jaro)
 
     if run_type == "evaluation":
         measurements = {}
@@ -122,7 +128,7 @@ def main(index_file, index_attributes,
                               gold_attributes=gold_attributes,
                               insert_timer=insert_timer, query_timer=query_timer)
         elif index_method == "DyLSH":
-            indexer = DyLSH(top_n=1, lsh_threshold=0.09, lsh_num_perm=40,
+            indexer = DyLSH(top_n=1, lsh_threshold=0.25, lsh_num_perm=60,
                             similarity_fn=similarity_fns,
                             encode_fn=encoding_fns,
                             gold_standard=gold_standard,
@@ -169,17 +175,32 @@ def main(index_file, index_attributes,
 
         query_timer.apply_common()
         measurements["query_times"] = query_timer.times
+        mean = np.mean(query_timer.times)
+        print("Query mean:", mean)
+        print("Queries (s):", 1 / mean)
+
+        print("Total candidate pairs:", indexer.candidate_count)
+        if index_method == "DyLSH":
+            print ("EQ Count:", indexer.saai.eq_count)
+            print ("SI Count:", indexer.saai.si_count)
+            print ("SIM Count:", indexer.saai.sim_count)
+            # imba = {"all": query_timer.times,
+                    # "minhash": [x[0] for x in query_timer.marker],
+                    # "lsh": [x[1] for x in query_timer.marker],
+                    # "simaware": [x[2] for x in query_timer.marker]}
+            # draw_record_time_curve(imba, "blub", "haha")
+            # show()
 
         # Calculate Precision/Recall
         measurements["query_records"] = len(result)
+        print("Query records:", measurements["query_records"])
         measurements["recall_blocking"] = indexer.recall()
+        print("Recall blocking:", measurements["recall_blocking"])
         measurements["precision"] = precision_score(measurements["y_true2"],
                                                     measurements["y_pred"])
+        print("P1:", measurements["precision"])
         measurements["recall"] = recall_score(measurements["y_true2"],
                                               measurements["y_pred"])
-        print("Query records:", measurements["query_records"])
-        print("Recall blocking:", measurements["recall_blocking"])
-        print("P1:", measurements["precision"])
         print("R1:", measurements["recall"])
 
         fp = open(output, mode='w')
@@ -196,7 +217,7 @@ def main(index_file, index_attributes,
                               simmetric_fn=similarity_fns,
                               encode_fn=encoding_fns)
         elif index_method == "DyLSH":
-            indexer = DyLSH(top_n=1, lsh_threshold=0.09, lsh_num_perm=40,
+            indexer = DyLSH(top_n=1, lsh_threshold=0.25, lsh_num_perm=60,
                             similarity_fn=similarity_fns,
                             encode_fn=encoding_fns)
         elif index_method == "DyKMeans":

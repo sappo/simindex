@@ -50,6 +50,6 @@ plt.plot(res_n_ranges, res_kmeans_time, label="RES kmeans time")
 plt.plot(res_n_ranges, res_sil_time, label="RES silhouette time")
 plt.plot(f4k_n_ranges, f4k_kmeans_time, label="F4k kmeans time")
 plt.plot(f4k_n_ranges, f4k_sil_time, label="F4k silhouette time")
-plt.legend(loc='auto')
+plt.legend(loc='best')
 
 plt.show()
