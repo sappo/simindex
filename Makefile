@@ -54,8 +54,12 @@ test: ## run tests quickly with the default Python
 	py.test
 
 
-test-verbose: ## run tests quickly with the default Python
+test-verbose: ## run tests quickly with the default Python in verbose mode
 	py.test -s -v
+
+
+test-profile: ## run tests quickly with the default Python in verbose mode
+	py.test --profile -s -v
 
 
 test-all: ## run tests on every Python version with tox
