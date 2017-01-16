@@ -10,51 +10,14 @@ Tests for `weak` module.
 
 import pytest
 from .testprofiler import profile
+from .testdata import restaurant_records as records
+from .testhelper import has_common_token
+
+from pprint import pprint
+
 from simindex.weak_labels import WeakLabels, SimTupel, \
                                  Feature, DisjunctiveBlockingScheme, \
-                                 BlockingPredicate, stoplist
-
-records = [
-    # P (0, 1), (2, 3), (4, 5), (6, 7)
-    ["0", "Mario's Pizza", "Italian"],
-    ["1", "Marios Pizza", "Italian"],
-    ["2", "Fringal", "French Bistro"],
-    ["3", "Fringale", "French Bistro"],
-    ["4", "Yujean Kang's Gourmet Cuisine", "Asian"],
-    ["5", "Yujean Kang's Best Cuisine", "Asian"],
-    ["6", "Big Belly Burger", "American"],
-    ["7", "Big Belly Burger", "German"],
-    # N (8, 9), (10, 11), (12, 13), (14, 15)
-    ["8", "Sally's Cafè and Internet", "Tex-Mex Cafe"],
-    ["9", "Cafè Sunflower and More", "Health Food"],
-    ["10", "Roosevelt Tamale Parlor", "Mexican"],
-    ["11", "Wa-Ha-Ka Oaxaca Moaxo", "Mexican"],
-    ["12", "Thailand Restaurant", "Thai"],
-    ["13", "Andre's Petit Restaurant", "Spanish"],
-    ["14", "Zubu", "Japanese"],
-    ["15", "Nobu", "Japanese"],
-]
-
-# -> hasCommonToken:f1
-# P (0, 1)
-# P (2, 3)
-# P (4, 5)
-# P (6, 7)
-# -> hasCommonToken:f2
-# P (0, 1)
-# P (2, 3)
-# P (4, 5)
-# P (6, 7)
-
-
-def has_common_token(t1, t2):
-    t1_tokens = set(word for word in t1 if word not in stoplist)
-    t2_tokens = set(word for word in t2 if word not in stoplist)
-
-    if len(t1_tokens.intersection(t2_tokens)) > 0:
-        return 1
-    else:
-        return 0
+                                 BlockingKey, stoplist
 
 
 def test_weak_labels():
@@ -87,13 +50,47 @@ def test_weak_labels():
                 hit = True
         assert(hit)
 
-    dnfblock = DisjunctiveBlockingScheme([has_common_token], labels)
+    blocking_keys=[]
+    blocking_keys.append(BlockingKey(has_common_token, 0, str.split))
+    blocking_keys.append(BlockingKey(has_common_token, 1, str.split))
+
+    dnfblock = DisjunctiveBlockingScheme(blocking_keys, labels)
     dnf = dnfblock.transform()
-    dnf_expected = [Feature([BlockingPredicate(has_common_token, 0),
-                             BlockingPredicate(has_common_token, 1)], 0., 0.),
-                    Feature([BlockingPredicate(has_common_token, 0)], 0., 0.),
-                    Feature([BlockingPredicate(has_common_token, 1)], 0., 0.)]
+    dnf_expected = [Feature([BlockingKey(has_common_token, 0, None),
+                             BlockingKey(has_common_token, 1, None)], 0., 0.),
+                    Feature([BlockingKey(has_common_token, 0, None)], 0., 0.),
+                    Feature([BlockingKey(has_common_token, 1, None)], 0., 0.)]
     assert(dnf == dnf_expected)
+
+
+def test_filter_labels():
+    labels = WeakLabels(max_positive_pairs=4, max_negative_pairs=4)
+    labels.fit(records)
+    P, N = labels.predict()
+
+    blocking_keys=[]
+    blocking_keys.append(BlockingKey(has_common_token, 0, str.split))
+    blocking_keys.append(BlockingKey(has_common_token, 1, str.split))
+
+    dnfblock = DisjunctiveBlockingScheme(blocking_keys, labels)
+    dnf = dnfblock.transform()
+
+    # Only use first combined blocking key which filters half positives and all
+    # negatives.
+    fP, fN = dnfblock.filter_labels(dnf[:1])
+
+    fP_expected = [SimTupel(t1='0', t2='1', sim=0.),
+                   SimTupel(t1='4', t2='5', sim=0.)]
+    # Similarity robust tupel assertion
+    for actual_pair in fP:
+        hit = False
+        for expected_pair in fP_expected:
+            if actual_pair.t1 == expected_pair.t1 and \
+               actual_pair.t2 == expected_pair.t2:
+                hit = True
+        assert(hit)
+
+    assert fN == []
 
 
 def test_fisher_score():
@@ -148,8 +145,17 @@ def test_tfidf_similarity():
 @profile(follow=[WeakLabels.predict,
                  WeakLabels.tfidf_similarity,
                  DisjunctiveBlockingScheme.terms])
-def test_profile_dnf():
-    labels = WeakLabels(max_positive_pairs=4, max_negative_pairs=4)
-    labels.fit(records)
-    dnfblock = DisjunctiveBlockingScheme([has_common_token], labels)
+def test_profile_restaurant_dnf():
+    labels = WeakLabels(max_positive_pairs=50, max_negative_pairs=200)
+    labels.fit_csv("restaurant.csv")
+
+    blocking_keys=[]
+    blocking_keys.append(BlockingKey(has_common_token, 0, str.split))
+    blocking_keys.append(BlockingKey(has_common_token, 1, str.split))
+    blocking_keys.append(BlockingKey(has_common_token, 2, str.split))
+    blocking_keys.append(BlockingKey(has_common_token, 3, str.split))
+    blocking_keys.append(BlockingKey(has_common_token, 4, str.split))
+    blocking_keys.append(BlockingKey(has_common_token, 5, str.split))
+
+    dnfblock = DisjunctiveBlockingScheme(blocking_keys, labels)
     dnfblock.transform()

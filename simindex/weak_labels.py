@@ -133,7 +133,7 @@ class WeakLabels(object):
 stoplist = set('for a of the and to in'.split())
 
 
-BlockingPredicate = namedtuple('BlockingPredicate', ['predicate', 'field'])
+BlockingKey = namedtuple('BlockingKey', ['predicate', 'field', 'encoder'])
 
 
 class Feature:
@@ -160,20 +160,21 @@ class Feature:
     def __ne__(self, other):
         return not self.__eq__(other)
 
+    def __hash__(self):
+        return hash(str(self.signature()))
+
 
 class DisjunctiveBlockingScheme(object):
 
-    def __init__(self, predicates, labels, k=2):
+    def __init__(self, blocking_keys, labels, k=2):
         self.labels = labels
         self.features = []
         self.k = k
         self.P, self.N = self.labels.predict()
 
-        for index, predicate in enumerate(predicates):
-            for field in range(0, self.labels.attribute_count):
-                blocking_predicate = BlockingPredicate(predicate, field)
-                feature = Feature([blocking_predicate], None, None)
-                self.features.append(feature)
+        for blocking_key in blocking_keys:
+            feature = Feature([blocking_key], None, None)
+            self.features.append(feature)
 
     @staticmethod
     def fisher_score(Pf, Nf, i):
@@ -199,6 +200,7 @@ class DisjunctiveBlockingScheme(object):
                  ((d * math.pow(vpi, 2)) + (nd * math.pow(vni, 2)))
             return pi
 
+    # TODO: Try Mutual Information
     @staticmethod
     def my_score(Pf, Nf, i):
         Pfi = Pf[i]
@@ -262,9 +264,7 @@ class DisjunctiveBlockingScheme(object):
                     pred = predicate.predicate
                     t1_field = self.labels.dataset[pair.t1][field]
                     t2_field = self.labels.dataset[pair.t2][field]
-                    t1_token = t1_field.lower().split()
-                    t2_token = t2_field.lower().split()
-                    result &= pred(t1_token, t2_token)
+                    result &= pred(t1_field, t2_field)
                     if not result:
                         break
 
@@ -277,9 +277,7 @@ class DisjunctiveBlockingScheme(object):
                     pred = predicate.predicate
                     t1_field = self.labels.dataset[pair.t1][field]
                     t2_field = self.labels.dataset[pair.t2][field]
-                    t1_token = t1_field.lower().split()
-                    t2_token = t2_field.lower().split()
-                    result &= pred(t1_token, t2_token)
+                    result &= pred(t1_field, t2_field)
                     if not result:
                         break
 
@@ -316,6 +314,7 @@ class DisjunctiveBlockingScheme(object):
         # Example coverage variant
         for feature in Km:
             if fPDisj_p is None:
+                # Init NULL-vector
                 fPDisj_p = np.array([0 for index in range(0, len(feature.pv))])
 
             new_sig = fPDisj_p | np.array(feature.pv)
@@ -323,14 +322,24 @@ class DisjunctiveBlockingScheme(object):
                 fPDisj_p = new_sig
                 fPDisj.append(feature)
 
-        # Vector coverage variant
-        # fPDisj_signature = set()
-        # for feature in Kf:
-            # if feature.signature().difference(fPDisj_signature):
-                # fPDisj.append(feature)
-                # fPDisj_signature.update(feature.signature())
-
         return fPDisj
+
+    def filter_labels(self, fPDisj):
+        filtered_P = []
+        for index, pair in enumerate(self.P):
+            for feature in fPDisj:
+                if feature.pv[index] == 1:
+                    filtered_P.append(pair)
+                    break
+
+        filtered_N = []
+        for index, pair in enumerate(self.N):
+            for feature in fPDisj:
+                if feature.nv[index] == 1:
+                    filtered_N.append(pair)
+                    break
+
+        return filtered_P, filtered_N
 
 
 def has_common_token(t1, t2):
@@ -351,14 +360,3 @@ def is_exact_match(t1, t2):
         return 1
     else:
         return 0
-
-
-# labels = WeakLabels()
-# labels.fit_csv("restaurant.csv")
-
-# dnfblock = DisjunctiveBlockingScheme([has_common_token, is_exact_match],
-                                     # labels)
-# fPDisj = dnfblock.transform()
-# print()
-# print("DNF")
-# pprint(fPDisj)

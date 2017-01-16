@@ -3,16 +3,44 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import HashingVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import Normalizer
-from sklearn import metrics
-from sklearn.metrics import silhouette_samples, silhouette_score
-from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+from sklearn.cluster import MiniBatchKMeans
 from datasketch import MinHash, MinHashLSH
 from time import time
-import numpy as np
-from collections import Counter
+from collections import Counter, defaultdict
+from .weak_labels import Feature, BlockingKey
 from .helper import read_csv, calc_micro_scores, calc_micro_metrics
 from .plot import *
+
+
+class Vectorizer(object):
+
+    def __init__(self, use_hashing=False, use_idf=True, n_features=10000):
+        if use_hashing:
+            if use_idf:
+                # Perform an IDF normalization on the output of
+                # HashingVectorizer
+                hasher = HashingVectorizer(n_features=n_features,
+                                           stop_words='english',
+                                           non_negative=True,
+                                           norm=None, binary=False)
+                self.vectorizer = make_pipeline(hasher, TfidfTransformer())
+            else:
+                self.vectorizer = HashingVectorizer(n_features=n_features,
+                                                    stop_words='english',
+                                                    non_negative=False,
+                                                    norm='l2',
+                                                    binary=False)
+        else:
+            self.vectorizer = TfidfVectorizer(max_features=n_features,
+                                              stop_words='english',
+                                              use_idf=use_idf)
+
+    def fit_transform(self, data):
+        return self.vectorizer.fit_transform(data)
+
+    def transform(self, data):
+        return self.vectorizer.transform(data)
 
 
 class DyKMeans(object):
@@ -40,9 +68,7 @@ class DyKMeans(object):
                 self.gold_records[a].add(b)
                 self.gold_records[b].add(a)
         # K-Means Attributes
-        self.n_features = n_features
-        self.use_hashing = use_hashing
-        self.use_idf = use_idf
+        self.vectorizer = Vectorizer(use_hashing, use_idf, n_features)
         self.k = k
 
         self.candidate_count = 0
@@ -54,26 +80,6 @@ class DyKMeans(object):
         if self.insert_timer:
             self.insert_timer.start_common()
 
-        if self.use_hashing:
-            if self.use_idf:
-                # Perform an IDF normalization on the output of
-                # HashingVectorizer
-                hasher = HashingVectorizer(n_features=self.n_features,
-                                           stop_words='english',
-                                           non_negative=True,
-                                           norm=None, binary=False)
-                self.vectorizer = make_pipeline(hasher, TfidfTransformer())
-            else:
-                self.vectorizer = HashingVectorizer(n_features=self.n_features,
-                                                    stop_words='english',
-                                                    non_negative=False,
-                                                    norm='l2',
-                                                    binary=False)
-        else:
-            self.vectorizer = TfidfVectorizer(max_features=self.n_features,
-                                              stop_words='english',
-                                              use_idf=self.use_idf)
-
         data = []
         for record in records:
             data.append(' '.join(record[1:]))
@@ -83,7 +89,7 @@ class DyKMeans(object):
         if self.k == -1:
             self.k = int(len(data) * 0.35)
 
-        self.km = KMeans(n_clusters=self.k, init='k-means++', max_iter=100,
+        self.km = MiniBatchKMeans(n_clusters=self.k, init='k-means++', max_iter=100,
                          n_init=1, verbose=self.verbose)
         self.km.fit(X)
 
@@ -114,26 +120,6 @@ class DyKMeans(object):
         print("Extracting features from the training dataset using a sparse\
               vectorizer")
         t0 = time()
-        if self.use_hashing:
-            if self.use_idf:
-                # Perform an IDF normalization on the output of
-                # HashingVectorizer
-                hasher = HashingVectorizer(n_features=self.n_features,
-                                           stop_words='english',
-                                           non_negative=True,
-                                           norm=None, binary=False)
-                self.vectorizer = make_pipeline(hasher, TfidfTransformer())
-            else:
-                self.vectorizer = HashingVectorizer(n_features=self.n_features,
-                                                    stop_words='english',
-                                                    non_negative=False,
-                                                    norm='l2',
-                                                    binary=False)
-        else:
-            self.vectorizer = TfidfVectorizer(max_features=self.n_features,
-                                              stop_words='english',
-                                              use_idf=self.use_idf)
-
         records = read_csv(recordset, attributes)
         data = []
         for record in records:
@@ -142,7 +128,6 @@ class DyKMeans(object):
         X = self.vectorizer.fit_transform(data)
 
         print("done in %fs" % (time() - t0))
-        print("n_samples: %d, n_features: %d" % X.shape)
         print()
 
         max = int(len(data) * 0.6)
@@ -151,7 +136,7 @@ class DyKMeans(object):
         fp = open("eval_kmeans-%s.txt" % recordset, mode='w')
         for n_clusters in range(min, max, step):
             t0 = time()
-            km = KMeans(n_clusters=n_clusters, init='k-means++', max_iter=100,
+            km = MiniBatchKMeans(n_clusters=n_clusters, init='k-means++', max_iter=100,
                         n_init=1, verbose=self.verbose)
             km.fit(X)
             k_time = time() - t0
@@ -432,6 +417,67 @@ class DyLSH(object):
         return {'Records': Counter(cluster_sizes)}
 
 
+class DyAnnoy(object):
+
+    def __init__(self, bk_dnf, similarity_fn, threshold=-1.0, top_n=-1.0,
+                 gold_standard=None, gold_attributes=None,
+                 lsh_threshold=0.3, lsh_num_perm=60, verbose=False,
+                 insert_timer=None, query_timer=None):
+        self.verbose = verbose
+        self.insert_timer = insert_timer
+        self.query_timer = query_timer
+        self.msaai = MultiSimAwareAttributeIndex(bk_dnf, similarity_fn,
+                                                 threshold, top_n, verbose)
+
+        # Gold Standard/Ground Truth attributes
+        self.gold_pairs = None
+        self.gold_records = None
+        if gold_standard and gold_attributes:
+            self.gold_pairs = read_csv(gold_standard, gold_attributes)
+            self.gold_records = {}
+            for a, b in self.gold_pairs:
+                if a not in self.gold_records.keys():
+                    self.gold_records[a] = set()
+                if b not in self.gold_records.keys():
+                    self.gold_records[b] = set()
+                self.gold_records[a].add(b)
+                self.gold_records[b].add(a)
+
+        # Annoy Attributes
+        self.annoy = AnnoyIndex(10) # Length of item vector that will be indexed
+        self.n_trees = 10
+        self.search_k = -1
+
+
+    def fit_csv(self, recordset, attributes):
+        self.fit(read_csv(recordset, attributes))
+
+    def fit(self, records):
+        data = []
+        for record in records:
+            data.append(' '.join(record[1:]))
+
+        X = self.vectorizer.fit_transform(data)
+        for x in X:
+            self.annoy.add_item(x, x)
+
+        for record in records:
+            if self.insert_timer:
+                with self.insert_timer:
+                    self.insert(record)
+            else:
+                self.insert(record)
+
+    def insert(self, record):
+        r_id = record[0]
+        r_attributes = record[1:]
+
+        vector = None
+        self.annoy.add_item(r_id, vector)
+
+        self.msaai.insert(record)
+
+
 class SimAwareAttributeIndex(object):
 
     def __init__(self, encode_fn, similarity_fn, threshold=-1.0, top_n=-1.0,
@@ -534,6 +580,104 @@ class SimAwareAttributeIndex(object):
                     # self.SI[c_attribute][q_attribute] = similarity
 
                     # s += similarity
+
+            if s > self.threshold:
+                accumulator[c_id] = s
+
+        if self.top_n > 0:
+            return dict(Counter(accumulator).most_common(self.top_n))
+
+        return accumulator
+
+
+class MultiSimAwareAttributeIndex(object):
+
+    def __init__(self, dns_blocking_scheme, similarity_fn, threshold=-1.0, top_n=-1.0,
+                 verbose=False):
+        self.verbose = verbose
+
+        self.FI = defaultdict(dict)   # Feature Index (FI)
+        self.SI = defaultdict(dict)   # Similarity Index (SI)
+        self.dataset = {}
+
+        self.similarity_fn = similarity_fn
+        self.dns_blocking_scheme = dns_blocking_scheme
+        self.threshold = threshold
+        self.top_n = top_n
+
+    def insert(self, record):
+        r_id = record[0]
+        r_attributes = record[1:]
+        if r_id in self.dataset:
+            return
+
+        for feature in self.dns_blocking_scheme:
+            feature_encodings = []
+            for blocking_key in feature.predicates:
+                attribute = r_attributes[blocking_key.field]
+                if len(feature_encodings) == 0:
+                    feature_encodings = blocking_key.encoder(attribute)
+                else:
+                    for dummy in range(0, len(feature_encodings)):
+                        f_encoding = feature_encodings.pop(0)
+                        for bk_encoding in blocking_key.encoder(attribute):
+                            feature_encodings.append(f_encoding + bk_encoding)
+
+            for encoding in feature_encodings:
+                for blocking_key in feature.predicates:
+                    field = blocking_key.field
+                    attribute = r_attributes[field]
+
+                    BI = self.FI[field]
+                    if encoding not in BI.keys():
+                        BI[encoding] = set()
+
+                    BI[encoding].add(attribute)
+
+                    #  Calculate similarities and update SI
+                    block = list(filter(lambda x: x != attribute, BI[encoding]))
+                    for block_value in block:
+                        if block_value not in self.SI[attribute]:
+                            if isinstance(self.similarity_fn, list):
+                                similarity = self.similarity_fn[index](attribute, block_value)
+                            else:
+                                similarity = self.similarity_fn(attribute, block_value)
+                            similarity = round(similarity, 1)
+                            #  Append similarity to block_value
+                            self.SI[block_value][attribute] = similarity
+
+                            #  Append similarity to attribute
+                            self.SI[attribute][block_value] = similarity
+
+        self.dataset[r_id] = r_attributes
+
+    def query(self, q_record, candidate_ids):
+        """
+            Compares a query record against a set of candidate records. Returns
+            the accumulated attribute score for each candidate.
+        """
+        accumulator = {}
+        q_id = q_record[0]
+        q_attributes = q_record[1:]
+
+        #  Insert new record into index
+        self.insert(q_record)
+
+        for c_id in candidate_ids:
+            if q_id == c_id:
+                continue
+
+            c_attributes = self.dataset[c_id]
+            s = 0.
+            for index, (q_attribute, c_attribute) in enumerate(zip(q_attributes, c_attributes)):
+                if q_attribute == c_attribute:
+                    s += 1.
+                elif q_attribute in self.SI.keys() and c_attribute in self.SI[q_attribute].keys():
+                    s += self.SI[q_attribute][c_attribute]
+                else:
+                    # Do not calculate similarity of unkown values. It takes
+                    # too much time!
+                    pass
 
             if s > self.threshold:
                 accumulator[c_id] = s

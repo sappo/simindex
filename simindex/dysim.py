@@ -168,6 +168,7 @@ class DySimII(object):
 
 
 class SimAwareIndex(object):
+
     def __init__(self, simmetric_fn, encode_fn):
         self.RI = {}    # Record Index (RI)
         self.BI = {}    # Block Index (BI)

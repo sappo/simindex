@@ -27,6 +27,17 @@ def read_csv(filename, attributes=[], percentage=1.0, delimiter=','):
 
     return lines
 
+
+def prepare_record_fitting(dataset, ground_truth):
+    X=[]
+    y=[]
+    for a_id, b_id in ground_truth:
+        X.append((a_id, b_id))
+        y.append(1)
+
+    return X, y
+
+
 def calc_micro_scores(q_id, result, y_true, y_score, gold_records):
     # Disregards True negatives (TN)
     for a in result.keys():
