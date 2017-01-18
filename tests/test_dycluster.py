@@ -9,6 +9,7 @@ Tests for `simindex` module.
 """
 
 import pytest
+from .testprofiler import profile
 from .testdata import restaurant_records
 from .testhelper import has_common_token
 
@@ -16,7 +17,7 @@ from pprint import pprint
 from difflib import SequenceMatcher
 
 from simindex import draw_frequency_distribution, show
-from simindex import DyKMeans, DyLSH, MultiSimAwareAttributeIndex
+from simindex import DyKMeans, DyLSH, SimAwareAttributeIndex, MultiSimAwareAttributeIndex, DyNearPy
 from simindex import Feature, BlockingKey
 
 def __compare(a, b):
@@ -114,6 +115,24 @@ def test_lsh():
                               'tonia': {'tony': 0.7, 'tonya': 0.8}}
 
 
+def test_dynearpy():
+    dy_nearpy = DyNearPy(__encode, __compare)
+    # dy_nearpy.fit([["r1", "tony"],
+                   # ["r5", "tonya"],
+                   # ["r8", "tonia"],
+                   # ["r2", "cathrine"],
+                   # ["r4", "catrine"]])
+    # dy_nearpy.insert(["r1", "tony"])
+    # dy_nearpy.insert(["r5", "tonya"])
+    # dy_nearpy.insert(["r8", "tonia"])
+    # dy_nearpy.insert(["r2", "cathrine"])
+    # dy_nearpy.insert(["r4", "catrine"])
+    # dy_nearpy.query(["r1", "tony"])
+
+    # dy_nearpy = DyNearPy(__encode, __compare, npy_projections=2, npy_vector_dimensions=1)
+    # dy_nearpy.fit_csv("restaurant.csv", ["id", "name", "addr", "city"])
+    # dy_nearpy.query_from_csv("restaurant.csv", ["id", "name", "addr", "city"])
+
 def test_MultiSimAwareAttributeIndex():
     dnf = [Feature([BlockingKey(has_common_token, 0, str.split),
                     BlockingKey(has_common_token, 1, str.split)], 0., 0.),
@@ -178,3 +197,12 @@ def test_MultiSimAwareAttributeIndex():
                         "Yujean Kang's Best Cuisine": {"Yujean Kang's Gourmet Cuisine": 0.9},
                         "Yujean Kang's Gourmet Cuisine": {"Yujean Kang's Best Cuisine": 0.9}
                        }
+
+
+# @profile(follow=[DyLSH.query_from_csv,
+                 # DyLSH.query,
+                 # SimAwareAttributeIndex.query])
+# def test_profile_lash():
+    # dy_lsh = DyLSH(__encode, __compare, lsh_num_perm=20)
+    # dy_lsh.fit_csv("restaurant.csv", ["id", "name", "addr", "city"])
+    # dy_lsh.query_from_csv("restaurant.csv", ["id", "name", "addr", "city"])

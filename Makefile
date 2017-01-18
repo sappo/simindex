@@ -55,7 +55,7 @@ test: ## run tests quickly with the default Python
 
 
 test-verbose: ## run tests quickly with the default Python in verbose mode
-	py.test -s -v
+	py.test -s -vv
 
 
 test-profile: ## run tests with the default Python in including profiles

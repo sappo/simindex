@@ -7,16 +7,20 @@ import jellyfish
 import numpy as np
 from sklearn.metrics import recall_score, precision_score
 from difflib import SequenceMatcher
-from simindex import DySimII, DyLSH, DyKMeans, RecordTimer
+from simindex import DySimII, DyLSH, DyKMeans, RecordTimer, read_csv
+from simindex import MultiSimAwareAttributeIndex, WeakLabels, DisjunctiveBlockingScheme
 from simindex import draw_precision_recall_curve, \
                      draw_record_time_curve, \
                      draw_frequency_distribution, \
                      draw_bar_chart, \
                      show
+from simindex.similarity import sim_damerau
 
 
 def _compare(a, b):
-    return SequenceMatcher(None, a, b).ratio()
+    return sim_damerau(a, b)
+    # return SequenceMatcher(None, a, b).ratio()
+
 
 def _compare_jaro(a, b):
     return jellyfish.jaro_distance(a, b)
@@ -85,11 +89,13 @@ def _encode_first3(a):
                                      DySimII\
                                      DyLSH'
 )
+@click.option( u'-fe', u'--file_encoding', default="utf-8")
 def main(index_file, index_attributes,
          query_file, query_attributes,
          gold_standard, gold_attributes,
          encoding_list, similarity_list,
-         run_type, output, run_name, index_method):
+         run_type, output, run_name, index_method,
+         file_encoding):
     """Run a basic matching task on input file."""
     if (len(index_attributes) != len(query_attributes)):
         print("Query attribute count must equal index attribute count!")
@@ -135,7 +141,7 @@ def main(index_file, index_attributes,
                             gold_attributes=gold_attributes,
                             insert_timer=insert_timer, query_timer=query_timer)
         elif index_method == "DyKMeans":
-            indexer = DyKMeans(top_n=1,
+            indexer = DyKMeans(top_n=1, k=50,
                                similarity_fn=similarity_fns,
                                encode_fn=encoding_fns,
                                gold_standard=gold_standard,
@@ -144,6 +150,7 @@ def main(index_file, index_attributes,
                                query_timer=query_timer)
 
         # Build index
+        print("Building index with", indexer)
         start = time.time()
         indexer.fit_csv(index_file, index_attributes)
         end = time.time()
@@ -172,6 +179,7 @@ def main(index_file, index_attributes,
         end = time.time()
         measurements["query_time"] = end - start
         print("Index query time: %f" % measurements["query_time"])
+        print("Index query time (sum): %f" % (sum(query_timer.times) + sum(query_timer.common_time)))
 
         query_timer.apply_common()
         measurements["query_times"] = query_timer.times
@@ -194,8 +202,9 @@ def main(index_file, index_attributes,
         # Calculate Precision/Recall
         measurements["query_records"] = len(result)
         print("Query records:", measurements["query_records"])
-        measurements["recall_blocking"] = indexer.recall()
-        print("Recall blocking:", measurements["recall_blocking"])
+        # @WARNING: Takes a lot of time to compute
+        # measurements["recall_blocking"] = indexer.recall()
+        # print("Recall blocking:", measurements["recall_blocking"])
         measurements["precision"] = precision_score(measurements["y_true2"],
                                                     measurements["y_pred"])
         print("P1:", measurements["precision"])
@@ -205,6 +214,25 @@ def main(index_file, index_attributes,
 
         fp = open(output, mode='w')
         json.dump(measurements, fp, sort_keys=True, indent=4)
+
+    elif run_type == "selfconfig":
+        measurements = {}
+        # Prepare record timers
+        insert_timer = RecordTimer()
+        query_timer = RecordTimer()
+
+        labels = WeakLabels(max_positive_pairs=4, max_negative_pairs=4)
+        print("Predict weak labels")
+        start = time.time()
+        labels.fit(read_csv(index_file))
+        end = time.time()
+        measurements["label_time"] = end - start
+        print("Prediction time:", measurements["label_time"])
+
+        # dnfblock = DisjunctiveBlockingScheme(blocking_keys, labels)
+        # dnf = dnfblock.transform()
+        # MultiSimAwareAttributeIndex(dnf, __compare)
+        pass
 
     elif run_type == "index":
         fp = open(output)

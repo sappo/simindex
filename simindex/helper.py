@@ -1,31 +1,45 @@
 # -*- coding: utf-8 -*-
-import csv
+import pandas as pd
 
 
-def read_csv(filename, attributes=[], percentage=1.0, delimiter=','):
-    lines = []
-    columns = []
-    with open(filename, newline='', encoding='utf-8', errors='ignore') as csvfile:
-        reader = csv.reader(csvfile, delimiter=delimiter, quotechar='"')
-        data = list(reader)
-        row_count = len(data)
-        threshold = int(row_count * percentage)
-        for index, row in enumerate(data[:threshold]):
-            if index == 0:
-                for x, field in enumerate(row):
-                    row[x] = str(field).strip()
-                for attribute in attributes:
-                    columns.append(row.index(attribute))
-            else:
-                if len(columns) > 0:
-                    line = []
-                    for col in columns:
-                        line.append(str(row[col]).strip())
-                    lines.append(line)
-                else:
-                    lines.append(row)
+def read_csv(filename, attributes=None, percentage=1.0,
+             delimiter=',', encoding='iso-8859-1'):
+    csv_chunks = pd.read_csv(filename,
+                             usecols=attributes,
+                             skipinitialspace=True,
+                             iterator=True,
+                             chunksize=10000,
+                             error_bad_lines=False,
+                             index_col=False,
+                             dtype='unicode',
+                             encoding=encoding)
 
-    return lines
+    for chunk in csv_chunks:
+        chunk.fillna('', inplace=True)
+        for row in chunk.values:
+            yield row
+    # columns = []
+    # with open(filename, newline='', encoding='utf-8', errors='ignore') as csvfile:
+        # reader = csv.reader(csvfile, delimiter=delimiter, quotechar='"')
+        # data = list(reader)
+        # row_count = len(data)
+        # threshold = int(row_count * percentage)
+        # for index, row in enumerate(data[:threshold]):
+            # if index == 0:
+                # for x, field in enumerate(row):
+                    # row[x] = str(field).strip()
+                # for attribute in attributes:
+                    # columns.append(row.index(attribute))
+            # else:
+                # if len(columns) > 0:
+                    # line = []
+                    # for col in columns:
+                        # line.append(str(row[col]).strip())
+                    # lines.append(line)
+                # else:
+                    # lines.append(row)
+
+    # return lines
 
 
 def prepare_record_fitting(dataset, ground_truth):

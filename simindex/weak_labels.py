@@ -2,11 +2,11 @@
 import math
 import heapq
 import numpy as np
-from pprint import pprint
 from collections import defaultdict
 from collections import namedtuple
 from simindex.helper import read_csv
 from gensim import corpora, models
+# from joblib import Parallel, delayed
 
 
 def wglobal(doc_freq, total_docs):
@@ -19,9 +19,11 @@ class WeakLabels(object):
 
     def __init__(self, stoplist=None,
                  max_positive_pairs=100,
-                 max_negative_pairs=200):
+                 max_negative_pairs=200,
+                 upper_threshold=0.5,
+                 lower_threshold=0.3):
         self.dataset = {}
-        self.attribute_count = 999
+        self.attribute_count = None
         if stoplist:
             self.stoplist = stoplist
         else:
@@ -29,6 +31,8 @@ class WeakLabels(object):
 
         self.max_positive_pairs = max_positive_pairs
         self.max_negative_pairs = max_negative_pairs
+        self.upper_threshold = upper_threshold
+        self.lower_threshold = lower_threshold
 
     def string_to_bow(self, record):
         # Remove stop words from record
@@ -36,14 +40,15 @@ class WeakLabels(object):
         words = [word for word in words if word not in self.stoplist]
         return self.dictionary.doc2bow(words)
 
-    def fit_csv(self, filename, attributes=[]):
-        records = read_csv(filename, attributes)
-        self.fit(records)
+    def fit_csv(self, filename, attributes=None):
+        self.fit(read_csv(filename, attributes))
 
     def fit(self, records):
         texts = []
-        self.attribute_count = min([self.attribute_count, len(records[0]) - 1])
         for record in records:
+            if self.attribute_count is None:
+                self.attribute_count = len(record) - 1
+
             r_id = record[0]
             r_attributes = record[1:]
             # Store dataset
@@ -73,27 +78,23 @@ class WeakLabels(object):
         bow_t1 = self.string_to_bow(t1_attribute_str)
         bow_t2 = self.string_to_bow(t2_attribute_str)
 
-        tfidf_1 = self.tfidf_model[bow_t1]
-        tfidf_2 = self.tfidf_model[bow_t2]
-        for weight1 in tfidf_1:
-            for weight2 in tfidf_2:
-                if (weight1[0] == weight2[0]):
-                    similarity += weight1[1] * weight1[1]
-                    break
+        tfidf_1 = dict(self.tfidf_model[bow_t1])
+        tfidf_2 = dict(self.tfidf_model[bow_t2])
+        for w1_id in tfidf_1.keys():
+            if w1_id in tfidf_2:
+                similarity += tfidf_1[w1_id] * tfidf_2[w1_id]
 
         return similarity
 
     def predict(self):
         blocker = {}
         candidates = set()
-        window_size = 20
-        upper_threshold = 0.5
-        lower_threshold = 0.4999
+        window_size = 5
         max_positive_pairs = self.max_positive_pairs
         max_negative_pairs = self.max_negative_pairs
 
-        P = set()
-        N = set()
+        P = []
+        N = []
 
         for field in range(0, self.attribute_count):
             blocker[field] = defaultdict(list)
@@ -117,15 +118,20 @@ class WeakLabels(object):
                         candidates.add((token_block[index], candidate))
                     index += 1
 
-        for t1, t2 in candidates:
+        trim_threshold = max_negative_pairs * 3
+        for index, (t1, t2) in enumerate(candidates):
             sim = self.tfidf_similarity(t1, t2)
-            if sim >= upper_threshold:
-                P.add(SimTupel(t1, t2, sim))
-            if sim < lower_threshold:
-                N.add(SimTupel(t1, t2, sim))
+            if sim >= self.upper_threshold:
+                P.append(SimTupel(t1, t2, sim))
+            if sim < self.lower_threshold:
+                N.append(SimTupel(t1, t2, sim))
+
+            if index % trim_threshold == 0:
+                P = heapq.nlargest(max_positive_pairs, P, key=lambda pair: pair.sim)
+                N = heapq.nlargest(max_negative_pairs, N, key=lambda pair: pair.sim)
 
         P = heapq.nlargest(max_positive_pairs, P, key=lambda pair: pair.sim)
-        N = heapq.nsmallest(max_negative_pairs, N, key=lambda pair: pair.sim)
+        N = heapq.nlargest(max_negative_pairs, N, key=lambda pair: pair.sim)
 
         return P, N
 

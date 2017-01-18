@@ -9,6 +9,7 @@ Tests for `simindex` module.
 """
 
 import pytest
+from .testprofiler import profile
 
 # from contextlib import contextmanager
 from click.testing import CliRunner
@@ -165,3 +166,14 @@ def test_dysimII_query():
     s3.insert(["r3", "tonia", "23578"])
     res = s3.query(["r4", "tony", "23578"])
     assert res == {'r1': 1.6, 'r3': 1.7}
+
+
+# @profile(follow=[DySimII.query_from_csv,
+                 # DySimII.query,
+                 # SimAwareIndex.query])
+# def test_profile_build_query():
+    # s = DySimII(4,
+                # [_encode, _encode, _encode, _encode],
+                # [_compare, _compare, _compare, _compare])
+    # s.fit_csv("restaurant.csv", ["id", "name", "addr", "city"])
+    # s.query_from_csv("restaurant.csv", ["id", "name", "addr", "city"])

@@ -21,7 +21,8 @@ from simindex.weak_labels import WeakLabels, SimTupel, \
 
 
 def test_weak_labels():
-    labels = WeakLabels(max_positive_pairs=4, max_negative_pairs=4)
+    labels = WeakLabels(max_positive_pairs=4, max_negative_pairs=4,
+                        upper_threshold=0.5, lower_threshold=0.4999)
     labels.fit(records)
     P_actual, N_actual = labels.predict()
     P_expected = [SimTupel(t1='0', t2='1', sim=0.),
@@ -34,23 +35,23 @@ def test_weak_labels():
                   SimTupel(t1='14', t2='15', sim=0.)]
 
     # Similarity robust tupel assertion
-    for actual_pair in P_actual:
+    for expected_pair in P_expected:
         hit = False
-        for expected_pair in P_expected:
-            if actual_pair.t1 == expected_pair.t1 and \
-               actual_pair.t2 == expected_pair.t2:
+        for actual_pair in P_actual:
+            if expected_pair.t1 == actual_pair.t1 and \
+               expected_pair.t2 == actual_pair.t2:
                 hit = True
-        assert(hit)
+        assert hit is True
 
-    for actual_pair in N_actual:
+    for expected_pair in N_expected:
         hit = False
-        for expected_pair in N_expected:
-            if actual_pair.t1 == expected_pair.t1 and \
-               actual_pair.t2 == expected_pair.t2:
+        for actual_pair in N_actual:
+            if expected_pair.t1 == actual_pair.t1 and \
+               expected_pair.t2 == actual_pair.t2:
                 hit = True
-        assert(hit)
+        assert hit is True
 
-    blocking_keys=[]
+    blocking_keys = []
     blocking_keys.append(BlockingKey(has_common_token, 0, str.split))
     blocking_keys.append(BlockingKey(has_common_token, 1, str.split))
 
@@ -142,11 +143,12 @@ def test_tfidf_similarity():
     assert(round(sim67, 2) == 0.66)
 
 
-@profile(follow=[WeakLabels.predict,
-                 WeakLabels.tfidf_similarity,
-                 DisjunctiveBlockingScheme.terms])
+@profile(follow=[WeakLabels.fit,
+                 WeakLabels.predict,
+                 WeakLabels.tfidf_similarity])
 def test_profile_restaurant_dnf():
-    labels = WeakLabels(max_positive_pairs=50, max_negative_pairs=200)
+    labels = WeakLabels(max_positive_pairs=50, max_negative_pairs=200,
+                        upper_threshold=0.7, lower_threshold=0.3)
     labels.fit_csv("restaurant.csv")
 
     blocking_keys=[]

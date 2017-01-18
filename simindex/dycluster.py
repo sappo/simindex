@@ -6,6 +6,11 @@ from sklearn.pipeline import make_pipeline
 from sklearn.metrics import silhouette_score
 from sklearn.cluster import MiniBatchKMeans
 from datasketch import MinHash, MinHashLSH
+from nearpy import Engine
+from nearpy.hashes import RandomBinaryProjections
+from nearpy.distances import CosineDistance
+from nearpy.storage import MemoryStorage
+from nearpy.filters import NearestFilter
 from time import time
 from collections import Counter, defaultdict
 from .weak_labels import Feature, BlockingKey
@@ -36,8 +41,12 @@ class Vectorizer(object):
                                               stop_words='english',
                                               use_idf=use_idf)
 
+    def fit(self, data):
+        self.vectorizer = self.vectorizer.fit(data)
+
     def fit_transform(self, data):
-        return self.vectorizer.fit_transform(data)
+        self.fit(data)
+        return self.transform(data)
 
     def transform(self, data):
         return self.vectorizer.transform(data)
@@ -58,7 +67,11 @@ class DyKMeans(object):
         self.gold_pairs = None
         self.gold_records = None
         if gold_standard and gold_attributes:
-            self.gold_pairs = read_csv(gold_standard, gold_attributes)
+            self.gold_pairs = []
+            pairs = read_csv(gold_standard, gold_attributes)
+            for gold_pair in pairs:
+                self.gold_pairs.append(gold_pair)
+
             self.gold_records = {}
             for a, b in self.gold_pairs:
                 if a not in self.gold_records.keys():
@@ -290,7 +303,11 @@ class DyLSH(object):
         self.gold_pairs = None
         self.gold_records = None
         if gold_standard and gold_attributes:
-            self.gold_pairs = read_csv(gold_standard, gold_attributes)
+            self.gold_pairs = []
+            pairs = read_csv(gold_standard, gold_attributes)
+            for gold_pair in pairs:
+                self.gold_pairs.append(gold_pair)
+
             self.gold_records = {}
             for a, b in self.gold_pairs:
                 if a not in self.gold_records.keys():
@@ -417,23 +434,26 @@ class DyLSH(object):
         return {'Records': Counter(cluster_sizes)}
 
 
-class DyAnnoy(object):
+class DyNearPy(object):
 
-    def __init__(self, bk_dnf, similarity_fn, threshold=-1.0, top_n=-1.0,
+    def __init__(self, encode_fn, similarity_fn, threshold=-1.0, top_n=-1.0,
                  gold_standard=None, gold_attributes=None,
-                 lsh_threshold=0.3, lsh_num_perm=60, verbose=False,
+                 npy_projections=1, npy_vector_dimensions=1, verbose=False,
                  insert_timer=None, query_timer=None):
         self.verbose = verbose
         self.insert_timer = insert_timer
         self.query_timer = query_timer
-        self.msaai = MultiSimAwareAttributeIndex(bk_dnf, similarity_fn,
-                                                 threshold, top_n, verbose)
-
+        self.saai = SimAwareAttributeIndex(encode_fn, similarity_fn, threshold,
+                                           top_n, verbose=verbose)
         # Gold Standard/Ground Truth attributes
         self.gold_pairs = None
         self.gold_records = None
         if gold_standard and gold_attributes:
-            self.gold_pairs = read_csv(gold_standard, gold_attributes)
+            self.gold_pairs = []
+            pairs = read_csv(gold_standard, gold_attributes)
+            for gold_pair in pairs:
+                self.gold_pairs.append(gold_pair)
+
             self.gold_records = {}
             for a, b in self.gold_pairs:
                 if a not in self.gold_records.keys():
@@ -442,41 +462,78 @@ class DyAnnoy(object):
                     self.gold_records[b] = set()
                 self.gold_records[a].add(b)
                 self.gold_records[b].add(a)
-
-        # Annoy Attributes
-        self.annoy = AnnoyIndex(10) # Length of item vector that will be indexed
-        self.n_trees = 10
-        self.search_k = -1
-
+        # LSH Attributes
+        # Create a random binary hash with 10 bits
+        rbp = RandomBinaryProjections('rbp', npy_projections)
+        # Create engine with pipeline configuration
+        self.lsh = Engine(npy_vector_dimensions,
+                          lshashes=[rbp],
+                          distance=CosineDistance(),
+                          vector_filters=[NearestFilter(1)],
+                          storage=MemoryStorage())
+        self.vectorizer = Vectorizer(True, True)
+        self.candidate_count = 0
 
     def fit_csv(self, recordset, attributes):
         self.fit(read_csv(recordset, attributes))
-
-    def fit(self, records):
-        data = []
-        for record in records:
-            data.append(' '.join(record[1:]))
-
-        X = self.vectorizer.fit_transform(data)
-        for x in X:
-            self.annoy.add_item(x, x)
-
-        for record in records:
+        for record in read_csv(recordset, attributes):
             if self.insert_timer:
                 with self.insert_timer:
                     self.insert(record)
             else:
                 self.insert(record)
 
+    def fit(self, records):
+        data = []
+        for record in records:
+            data.append(' '.join(record[1:]))
+
+        self.vectorizer.fit(data)
+
     def insert(self, record):
         r_id = record[0]
         r_attributes = record[1:]
+        X = self.vectorizer.fit_transform([' '.join(r_attributes)])
+        self.lsh.store_vector(X[0], r_id)
+        self.saai.insert(record)
 
-        vector = None
-        self.annoy.add_item(r_id, vector)
+    def query(self, q_record):
+        q_attributes = q_record[1:]
+        X = self.vectorizer.fit_transform([' '.join(q_attributes)])
+        self.insert(q_record)
+        neighbors = self.lsh.neighbours(X[0])
+        candidate_ids = []
+        for neighbor in neighbors:
+            candidate_ids.append(neighbor[1])
 
-        self.msaai.insert(record)
+        return self.saai.query(q_record, candidate_ids)
 
+    def query_from_csv(self, filename, attributes=[]):
+        records = read_csv(filename, attributes)
+        accumulator = {}
+        y_true1 = []
+        y_true2 = []
+        y_pred = []
+        y_scores = []
+        for record in records:
+            r_id = record[0]
+            if self.query_timer:
+                with self.query_timer:
+                    accumulator[r_id] = self.query(record)
+            else:
+                accumulator[r_id] = self.query(record)
+
+            if self.gold_records:
+                calc_micro_scores(r_id, accumulator[r_id],
+                                  y_true1, y_scores, self.gold_records)
+                calc_micro_metrics(r_id, accumulator[r_id],
+                                   y_true2, y_pred, self.gold_records)
+
+        if self.gold_records:
+            return accumulator, y_true1, y_scores, y_true2, y_pred
+        else:
+            print(accumulator)
+            return accumulator
 
 class SimAwareAttributeIndex(object):
 

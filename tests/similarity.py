@@ -26,8 +26,8 @@ def test_similarity():
     P, N = labels.predict()
 
     predicted_similarities = sl.predict(P, N)
-    # assert predicted_similarities[0] == sim_damerau
-    # assert predicted_similarities[1] == sim_ratio
+    assert predicted_similarities[0] == sim_damerau
+    assert predicted_similarities[1] == sim_ratio
 
 
 def test_similarity_pipline():

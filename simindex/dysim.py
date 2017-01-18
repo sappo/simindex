@@ -1,4 +1,4 @@
-from collections import Counter
+from collections import Counter, defaultdict
 from .helper import read_csv, calc_micro_scores, calc_micro_metrics
 
 
@@ -22,7 +22,11 @@ class DySimII(object):
         self.gold_pairs = None
         self.gold_records = None
         if gold_standard and gold_attributes:
-            self.gold_pairs = read_csv(gold_standard, gold_attributes)
+            self.gold_pairs = []
+            pairs = read_csv(gold_standard, gold_attributes)
+            for gold_pair in pairs:
+                self.gold_pairs.append(gold_pair)
+
             self.gold_records = {}
             for a, b in self.gold_pairs:
                 if a not in self.gold_records.keys():
@@ -95,12 +99,12 @@ class DySimII(object):
         return accumulator
 
     def query_from_csv(self, filename, attributes=[]):
-        records = read_csv(filename, attributes)
         accumulator = {}
         y_true1 = []
         y_true2 = []
         y_pred = []
         y_scores = []
+        records = read_csv(filename, attributes)
         for record in records:
             if self.query_timer:
                 with self.query_timer:
@@ -170,52 +174,40 @@ class DySimII(object):
 class SimAwareIndex(object):
 
     def __init__(self, simmetric_fn, encode_fn):
-        self.RI = {}    # Record Index (RI)
-        self.BI = {}    # Block Index (BI)
-        self.SI = {}    # Similarity Index (SI)
+        self.RI = defaultdict(set)    # Record Index (RI)
+        self.BI = defaultdict(set)    # Block Index (BI)
+        self.SI = defaultdict(dict)   # Similarity Index (SI)
         self.simmetric = simmetric_fn
         self.encode = encode_fn
 
-    def insert(self, attribute, r_id):
-        if attribute in self.RI.keys():
-            self.RI[attribute].add(r_id)
-        else:
-            self.RI[attribute] = set()
-            self.RI[attribute].add(r_id)
+    def insert(self, r_attribute, r_id):
+        self.RI[r_attribute].add(r_id)
+        if r_attribute not in self.SI.keys():
             #  Insert value into Block Index
-            encoding = self.encode(attribute)
-            if encoding not in self.BI.keys():
-                self.BI[encoding] = set()
-
-            self.BI[encoding].add(attribute)
+            encoding = self.encode(r_attribute)
+            self.BI[encoding].add(r_attribute)
 
             #  Calculate similarities and update SI
-            block = list(filter(lambda x: x != attribute, self.BI[encoding]))
+            block = list(filter(lambda x: x != r_attribute, self.BI[encoding]))
             for block_value in block:
-                similarity = self.simmetric(attribute, block_value)
+                similarity = self.simmetric(r_attribute, block_value)
                 similarity = round(similarity, 1)
                 #  Append similarity to block_value
-                if block_value not in self.SI.keys():
-                    self.SI[block_value] = {}
-
-                self.SI[block_value][attribute] = similarity
+                self.SI[block_value][r_attribute] = similarity
                 #  Append similarity to value
-                if attribute not in self.SI.keys():
-                    self.SI[attribute] = {}
+                self.SI[r_attribute][block_value] = similarity
 
-                self.SI[attribute][block_value] = similarity
-
-    def query(self, attribute, q_id):
+    def query(self, q_attribute, q_id):
         accumulator = {}
         #  Insert new record into index
-        self.insert(attribute, q_id)
+        self.insert(q_attribute, q_id)
 
-        ids = list(filter(lambda x: x != q_id, self.RI[attribute]))
-        for id in ids:
-            accumulator[id] = 1.0
+        for id in self.RI[q_attribute]:
+            if q_id != id:
+                accumulator[id] = 1.0
 
-        if attribute in self.SI:
-            for attribute, sim in self.SI[attribute].items():
+        if q_attribute in self.SI:
+            for attribute, sim in self.SI[q_attribute].items():
                 for id in self.RI[attribute]:
                     accumulator[id] = sim
 
