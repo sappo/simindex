@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
+import os
+import subprocess
 import pandas as pd
+import itertools as it
 
 
 def read_csv(filename, attributes=None, percentage=1.0,
@@ -18,33 +21,47 @@ def read_csv(filename, attributes=None, percentage=1.0,
         chunk.fillna('', inplace=True)
         for row in chunk.values:
             yield row
-    # columns = []
-    # with open(filename, newline='', encoding='utf-8', errors='ignore') as csvfile:
-        # reader = csv.reader(csvfile, delimiter=delimiter, quotechar='"')
-        # data = list(reader)
-        # row_count = len(data)
-        # threshold = int(row_count * percentage)
-        # for index, row in enumerate(data[:threshold]):
-            # if index == 0:
-                # for x, field in enumerate(row):
-                    # row[x] = str(field).strip()
-                # for attribute in attributes:
-                    # columns.append(row.index(attribute))
-            # else:
-                # if len(columns) > 0:
-                    # line = []
-                    # for col in columns:
-                        # line.append(str(row[col]).strip())
-                    # lines.append(line)
-                # else:
-                    # lines.append(row)
 
-    # return lines
+
+def write_csv(filename, data, mode='w', compression=None):
+    df = pd.DataFrame(data)
+    df.to_csv(filename, mode=mode, index=False,
+              encoding="utf-8", chunksize=10000, compression=compression)
+
+
+def hdf_record_attributes(store, group, columns=None):
+    if not store.is_open:
+        store.open()
+
+    if columns:
+        frames = store.select_column(group, where="columns == %r" % columns,
+                              iterator=True, chunksize=50000)
+    else:
+        frames = store.select(group, iterator=True, chunksize=50000)
+    for df in frames:
+        df.fillna('', inplace=True)
+        for row in df.values:
+            yield row
+
+    store.close()
+
+
+def hdf_records(store, group):
+    if not store.is_open:
+        store.open()
+
+    frames = store.select(group, iterator=True, chunksize=50000)
+    for df in frames:
+        df.fillna('', inplace=True)
+        for record in df.to_records():
+            yield list(record)
+
+    store.close()
 
 
 def prepare_record_fitting(dataset, ground_truth):
-    X=[]
-    y=[]
+    X = []
+    y = []
     for a_id, b_id in ground_truth:
         X.append((a_id, b_id))
         y.append(1)
@@ -90,3 +107,24 @@ def calc_micro_metrics(q_id, result, y_true, y_pred, gold_records):
         for fn in gold_records[q_id].difference(result.keys()):
             y_true.append(1)
             y_pred.append(0)
+
+
+def grouper(iterable, n, fillvalue=None):
+    "Collect data into fixed-length chunks or blocks"
+    # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx"
+    args = [iter(iterable)] * n
+    return it.zip_longest(*args, fillvalue=fillvalue)
+
+
+def flatten(listOfLists):
+    "Flatten one level of nesting"
+    return it.chain.from_iterable(listOfLists)
+
+
+def file_len(filename):
+    p = subprocess.Popen(['wc', '-l', filename], stdout=subprocess.PIPE,
+                                              stderr=subprocess.PIPE)
+    result, err = p.communicate()
+    if p.returncode != 0:
+        raise IOError(err)
+    return int(result.strip().split()[0])

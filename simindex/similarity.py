@@ -1,19 +1,22 @@
 # -*- coding: utf-8 -*-
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 import numpy as np
 from harry import Measures, Hstring
 
-from .helper import read_csv
+import simindex.helper as hp
 
 import jellyfish
 from difflib import SequenceMatcher
 
 bag = Measures("dist_bag")
 bag.config_set_string("measures.dist_bag.norm", "max")
+bag.config_set_bool("measures.global_cache", True)
 damerau = Measures("dist_damerau")
 damerau.config_set_string("measures.dist_damerau.norm", "max")
+damerau.config_set_bool("measures.global_cache", True)
 levenshtein = Measures("dist_levenshtein")
 levenshtein.config_set_string("measures.dist_levenshtein.norm", "max")
+levenshtein.config_set_bool("measures.global_cache", True)
 
 
 def sim_bag(a, b):
@@ -58,7 +61,7 @@ class SimLearner():
         self.gold_pairs = None
         self.gold_records = None
         if gold_standard and gold_attributes:
-            self.gold_pairs = read_csv(gold_standard, gold_attributes)
+            self.gold_pairs = hp.read_csv(gold_standard, gold_attributes)
             self.gold_records = {}
             for a, b in self.gold_pairs:
                 if a not in self.gold_records.keys():
@@ -69,27 +72,26 @@ class SimLearner():
                 self.gold_records[b].add(a)
 
     def predict(self, P, N):
-        pred = defaultdict(dict)
+        prediction = defaultdict(dict)
         for attribute in range(self.attribute_count):
             for similarity in self.similarities:
                 mean = self.mean_similarity(P, attribute, similarity)
-                pred[attribute][similarity] = 1 - mean
+                prediction[attribute][similarity] = 1 - mean
 
         for attribute in range(self.attribute_count):
             for similarity in self.similarities:
                 mean = self.mean_similarity(N, attribute, similarity)
-                pred[attribute][similarity] += mean
+                prediction[attribute][similarity] += mean
 
-        print(pred)
-        result = {}
-        for attribute in pred.keys():
+        result = OrderedDict()
+        for attribute in prediction.keys():
             min = 2.
-            for similarity in pred[attribute]:
-                if pred[attribute][similarity] < min:
-                    min = pred[attribute][similarity]
+            for similarity in prediction[attribute]:
+                if prediction[attribute][similarity] < min:
+                    min = prediction[attribute][similarity]
                     result[attribute] = similarity
 
-        return result
+        return list(result.values())
 
     def mean_similarity(self, pairs, attribute, similarity):
         result = []
@@ -102,4 +104,36 @@ class SimLearner():
         if len(result) == 0:
             return 0.
 
-        return np.mean(result)
+        return round(np.mean(result), 4)
+
+    @staticmethod
+    def strings_to_prediction(strings):
+        result_list = []
+        for name in strings:
+            if name == "bag":
+                result_list.append(sim_bag)
+            elif name == "damerau":
+                result_list.append(sim_damerau)
+            elif name == "jaro":
+                result_list.append(sim_jaro)
+            elif name == "levenshtein":
+                result_list.append(sim_levenshtein)
+            elif name == "ratio":
+                result_list.append(sim_ratio)
+        return result_list
+
+    @staticmethod
+    def prediction_to_strings(prediction):
+        result_list = []
+        for function in prediction:
+            if function == sim_bag:
+                result_list.append("bag")
+            elif function == sim_damerau:
+                result_list.append("damerau")
+            elif function == sim_jaro:
+                result_list.append("jaro")
+            elif function == sim_levenshtein:
+                result_list.append("levenshtein")
+            elif function == sim_ratio:
+                result_list.append("ratio")
+        return result_list

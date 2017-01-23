@@ -2,11 +2,8 @@
 import math
 import heapq
 import numpy as np
-from collections import defaultdict
-from collections import namedtuple
-from simindex.helper import read_csv
+from collections import defaultdict, namedtuple
 from gensim import corpora, models
-# from joblib import Parallel, delayed
 
 
 def wglobal(doc_freq, total_docs):
@@ -17,18 +14,19 @@ SimTupel = namedtuple('SimTupel', ['t1', 't2', 'sim'])
 
 class WeakLabels(object):
 
-    def __init__(self, stoplist=None,
+    def __init__(self, attribute_count, stoplist=None,
                  max_positive_pairs=100,
                  max_negative_pairs=200,
                  upper_threshold=0.5,
                  lower_threshold=0.3):
-        self.dataset = {}
-        self.attribute_count = None
+        self.attribute_count = attribute_count
         if stoplist:
             self.stoplist = stoplist
         else:
             self.stoplist = set('for a of the and to in'.split())
 
+        self.P = None
+        self.N = None
         self.max_positive_pairs = max_positive_pairs
         self.max_negative_pairs = max_negative_pairs
         self.upper_threshold = upper_threshold
@@ -36,27 +34,17 @@ class WeakLabels(object):
 
     def string_to_bow(self, record):
         # Remove stop words from record
-        words = record.lower().split()
+        words = record.split()
         words = [word for word in words if word not in self.stoplist]
         return self.dictionary.doc2bow(words)
 
-    def fit_csv(self, filename, attributes=None):
-        self.fit(read_csv(filename, attributes))
-
-    def fit(self, records):
+    def fit(self, dataset):
         texts = []
-        for record in records:
-            if self.attribute_count is None:
-                self.attribute_count = len(record) - 1
-
-            r_id = record[0]
-            r_attributes = record[1:]
-            # Store dataset
-            self.dataset[r_id] = r_attributes
-
+        self.dataset = dataset
+        for r_attributes in dataset.values():
             # Remove stop words
             for attribute in r_attributes:
-                words = attribute.lower().split()
+                words = attribute.split()
                 texts.append([word for word in words if word not in self.stoplist])
 
         self.dictionary = corpora.Dictionary(texts)
@@ -100,7 +88,7 @@ class WeakLabels(object):
             blocker[field] = defaultdict(list)
             for r_id, r_attributes in self.dataset.items():
                 attribute = r_attributes[field]
-                words = attribute.lower().split()
+                words = attribute.split()
                 tokens = [word for word in words if word not in self.stoplist]
                 for token in tokens:
                     if r_id not in blocker[field][token]:
@@ -135,8 +123,23 @@ class WeakLabels(object):
 
         return P, N
 
+    @staticmethod
+    def filter(fPDisj, P, N):
+        filtered_P = []
+        for index, pair in enumerate(P):
+            for feature in fPDisj:
+                if feature.pv[index] == 1:
+                    filtered_P.append(pair)
+                    break
 
-stoplist = set('for a of the and to in'.split())
+        filtered_N = []
+        for index, pair in enumerate(N):
+            for feature in fPDisj:
+                if feature.nv[index] == 1:
+                    filtered_N.append(pair)
+                    break
+
+        return filtered_P, filtered_N
 
 
 BlockingKey = namedtuple('BlockingKey', ['predicate', 'field', 'encoder'])
@@ -150,13 +153,20 @@ class Feature:
         self.pv = None
         self.nv = None
 
+    def union(self, other):
+        pred_conjunction = self.predicates + other.predicates
+        feature = Feature(pred_conjunction, None, None)
+        feature.pv = self.pv & other.pv
+        feature.nv = self.nv & other.nv
+        return feature
+
+    def signature(self):
+        return set((p.predicate, p.field) for p in self.predicates)
+
     def __repr__(self):
         return "Feature(%s, fsc=%s, msc=%s)" % (self.predicates,
                                                 self.fsc,
                                                 self.msc)
-
-    def signature(self):
-        return set((p.predicate, p.field) for p in self.predicates)
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -172,11 +182,11 @@ class Feature:
 
 class DisjunctiveBlockingScheme(object):
 
-    def __init__(self, blocking_keys, labels, k=2):
-        self.labels = labels
+    def __init__(self, blocking_keys, P, N, k=2):
+        self.P = P
+        self.N = N
         self.features = []
         self.k = k
-        self.P, self.N = self.labels.predict()
 
         for blocking_key in blocking_keys:
             feature = Feature([blocking_key], None, None)
@@ -191,7 +201,7 @@ class DisjunctiveBlockingScheme(object):
         vpi = np.var(Pfi)
         mni = np.mean(Nfi)
         vni = np.var(Nfi)
-        m = np.mean(Pfi + Nfi)
+        m = np.mean(np.concatenate((Pfi, Nfi)))
         d = len(Pfi)
         nd = len(Nfi)
 
@@ -212,8 +222,8 @@ class DisjunctiveBlockingScheme(object):
         Pfi = Pf[i]
         Nfi = Nf[i]
 
-        Pp = Pfi.count(1) / len(Pfi)
-        Nn = Nfi.count(1) / len(Nfi)
+        Pp = np.mean(Pfi)
+        Nn = np.mean(Nfi)
         return Pp - Nn
 
     def terms(self, Pf, Nf):
@@ -237,22 +247,16 @@ class DisjunctiveBlockingScheme(object):
                 for original_feature in original_features:
                     original_signature = original_feature.signature().pop()
                     if original_signature not in feature.signature():
-                        # Join predicates
-                        pred_conjunction = \
-                            feature.predicates + original_feature.predicates
-                        new_feature = Feature(pred_conjunction, None, None)
+                        new_feature = feature.union(original_feature)
                         if new_feature not in self.features:
-                            # Calculate new feature vector and scores
-                            pv, nv = self.feature_vector(new_feature)
-                            new_feature.pv = pv
-                            new_feature.nv = nv
-                            new_feature.fsc = self.fisher_score([pv], [nv], 0)
-                            new_feature.msc = self.my_score([pv], [nv], 0)
+                            # Calculate new scores
+                            new_feature.fsc = self.fisher_score([new_feature.pv], [new_feature.nv], 0)
+                            new_feature.msc = self.my_score([new_feature.pv], [new_feature.nv], 0)
                             # Add new feature if above average score
                             if new_feature.msc > fsc_avg:
                                 self.features.append(new_feature)
-                                PfT.append(pv)
-                                NfT.append(nv)
+                                PfT.append(new_feature.pv)
+                                NfT.append(new_feature.nv)
 
                 forbidden.append(feature)
 
@@ -261,39 +265,40 @@ class DisjunctiveBlockingScheme(object):
         return PfT, NfT
 
     def feature_vector(self, feature):
-            pv = []
-            nv = []
-            for pair in self.P:
+            pv = np.empty(len(self.P), np.bool)
+            nv = np.empty(len(self.N), np.bool)
+            for index, pair in enumerate(self.P):
                 result = True
                 for predicate in feature.predicates:
                     field = predicate.field
                     pred = predicate.predicate
-                    t1_field = self.labels.dataset[pair.t1][field]
-                    t2_field = self.labels.dataset[pair.t2][field]
+                    t1_field = self.dataset[pair.t1][field]
+                    t2_field = self.dataset[pair.t2][field]
                     result &= pred(t1_field, t2_field)
                     if not result:
                         break
 
-                pv.append(result)
+                pv[index] = result
 
-            for pair in self.N:
+            for index, pair in enumerate(self.N):
                 result = True
                 for predicate in feature.predicates:
                     field = predicate.field
                     pred = predicate.predicate
-                    t1_field = self.labels.dataset[pair.t1][field]
-                    t2_field = self.labels.dataset[pair.t2][field]
+                    t1_field = self.dataset[pair.t1][field]
+                    t2_field = self.dataset[pair.t2][field]
                     result &= pred(t1_field, t2_field)
                     if not result:
                         break
 
-                nv.append(result)
+                nv[index] = result
 
             return pv, nv
 
-    def transform(self):
+    def transform(self, dataset):
         Pf = []
         Nf = []
+        self.dataset = dataset
         # Create boolean feature vectors
         for index, feature in enumerate(self.features):
             pv, nv = self.feature_vector(feature)
@@ -319,6 +324,9 @@ class DisjunctiveBlockingScheme(object):
         fPDisj_p = None
         # Example coverage variant
         for feature in Km:
+            if feature.msc < 0:
+                continue
+
             if fPDisj_p is None:
                 # Init NULL-vector
                 fPDisj_p = np.array([0 for index in range(0, len(feature.pv))])
@@ -330,27 +338,10 @@ class DisjunctiveBlockingScheme(object):
 
         return fPDisj
 
-    def filter_labels(self, fPDisj):
-        filtered_P = []
-        for index, pair in enumerate(self.P):
-            for feature in fPDisj:
-                if feature.pv[index] == 1:
-                    filtered_P.append(pair)
-                    break
-
-        filtered_N = []
-        for index, pair in enumerate(self.N):
-            for feature in fPDisj:
-                if feature.nv[index] == 1:
-                    filtered_N.append(pair)
-                    break
-
-        return filtered_P, filtered_N
-
 
 def has_common_token(t1, t2):
-    t1_tokens = set(word for word in t1 if word not in stoplist)
-    t2_tokens = set(word for word in t2 if word not in stoplist)
+    t1_tokens = set(t1.split())
+    t2_tokens = set(t2.split())
 
     if len(t1_tokens.intersection(t2_tokens)) > 0:
         return 1
@@ -359,8 +350,8 @@ def has_common_token(t1, t2):
 
 
 def is_exact_match(t1, t2):
-    t1_tokens = set(word for word in t1 if word not in stoplist)
-    t2_tokens = set(word for word in t2 if word not in stoplist)
+    t1_tokens = set(t1.split())
+    t2_tokens = set(t2.split())
 
     if len(t1_tokens.symmetric_difference(t2_tokens)) == 0:
         return 1

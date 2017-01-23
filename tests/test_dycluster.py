@@ -144,58 +144,58 @@ def test_MultiSimAwareAttributeIndex():
     msaai.insert(restaurant_records[0])
     result = msaai.query(restaurant_records[1], ["0"])
     assert result == {"0": 2.0}
-    assert msaai.FI[0] == {"Mario'sItalian": {"Mario's Pizza"},
-                           'MariosItalian': {'Marios Pizza'},
-                           'PizzaItalian': {"Mario's Pizza", 'Marios Pizza'},
-                           "Mario's": {"Mario's Pizza"},
-                           'Marios': {'Marios Pizza'},
-                           'Pizza': {"Mario's Pizza", 'Marios Pizza'}}
-    assert msaai.FI[1] == {"Italian": {'Italian'},
-                           "Mario'sItalian": {'Italian'},
-                           'MariosItalian': {'Italian'},
-                           'PizzaItalian': {'Italian'}}
-    assert msaai.SI == {"Mario's Pizza": {'Marios Pizza': 1.0},
-                        "Marios Pizza": {"Mario's Pizza": 1.0}}
+    assert msaai.FBI[0] == {"mario'sitalian": {"mario's pizza"},
+                           'mariositalian': {'marios pizza'},
+                           'pizzaitalian': {"mario's pizza", 'marios pizza'},
+                           "mario's": {"mario's pizza"},
+                           'marios': {'marios pizza'},
+                           'pizza': {"mario's pizza", 'marios pizza'}}
+    assert msaai.FBI[1] == {"italian": {'italian'},
+                           "mario'sitalian": {'italian'},
+                           'mariositalian': {'italian'},
+                           'pizzaitalian': {'italian'}}
+    assert msaai.SI == {"mario's pizza": {'marios pizza': 1.0},
+                        "marios pizza": {"mario's pizza": 1.0}}
 
     msaai.insert(restaurant_records[4])
     result = msaai.query(restaurant_records[5], ["4"])
     assert result == {"4": 1.9}
-    assert msaai.FI[0] == {"Mario'sItalian": {"Mario's Pizza"},
-                           'MariosItalian': {'Marios Pizza'},
-                           'PizzaItalian': {"Mario's Pizza", 'Marios Pizza'},
-                           "Mario's": {"Mario's Pizza"},
-                           'Marios': {'Marios Pizza'},
-                           'Pizza': {"Mario's Pizza", 'Marios Pizza'},
-                           "Yujean": {"Yujean Kang's Best Cuisine",
-                                      "Yujean Kang's Gourmet Cuisine"},
-                           "Kang's": {"Yujean Kang's Best Cuisine",
-                                      "Yujean Kang's Gourmet Cuisine"},
-                           "Best": {"Yujean Kang's Best Cuisine"},
-                           "Gourmet": {"Yujean Kang's Gourmet Cuisine"},
-                           "Cuisine": {"Yujean Kang's Best Cuisine",
-                                       "Yujean Kang's Gourmet Cuisine"},
-                           "YujeanAsian": {"Yujean Kang's Best Cuisine",
-                                           "Yujean Kang's Gourmet Cuisine"},
-                           "Kang'sAsian": {"Yujean Kang's Best Cuisine",
-                                           "Yujean Kang's Gourmet Cuisine"},
-                           "BestAsian": {"Yujean Kang's Best Cuisine"},
-                           "GourmetAsian": {"Yujean Kang's Gourmet Cuisine"},
-                           "CuisineAsian": {"Yujean Kang's Best Cuisine",
-                                            "Yujean Kang's Gourmet Cuisine"}}
-    assert msaai.FI[1] == {"Italian": {'Italian'},
-                           "Mario'sItalian": {'Italian'},
-                           'MariosItalian': {'Italian'},
-                           'PizzaItalian': {'Italian'},
-                           "Asian": {'Asian'},
-                           "YujeanAsian": {"Asian"},
-                           "Kang'sAsian": {"Asian"},
-                           "BestAsian": {"Asian"},
-                           "GourmetAsian": {"Asian"},
-                           "CuisineAsian": {"Asian"}}
-    assert msaai.SI == {"Mario's Pizza": {'Marios Pizza': 1.0},
-                        "Marios Pizza": {"Mario's Pizza": 1.0},
-                        "Yujean Kang's Best Cuisine": {"Yujean Kang's Gourmet Cuisine": 0.9},
-                        "Yujean Kang's Gourmet Cuisine": {"Yujean Kang's Best Cuisine": 0.9}
+    assert msaai.FBI[0] == {"mario'sitalian": {"mario's pizza"},
+                           'mariositalian': {'marios pizza'},
+                           'pizzaitalian': {"mario's pizza", 'marios pizza'},
+                           "mario's": {"mario's pizza"},
+                           'marios': {'marios pizza'},
+                           'pizza': {"mario's pizza", 'marios pizza'},
+                           "yujean": {"yujean kang's best cuisine",
+                                      "yujean kang's gourmet cuisine"},
+                           "kang's": {"yujean kang's best cuisine",
+                                      "yujean kang's gourmet cuisine"},
+                           "best": {"yujean kang's best cuisine"},
+                           "gourmet": {"yujean kang's gourmet cuisine"},
+                           "cuisine": {"yujean kang's best cuisine",
+                                       "yujean kang's gourmet cuisine"},
+                           "yujeanasian": {"yujean kang's best cuisine",
+                                           "yujean kang's gourmet cuisine"},
+                           "kang'sasian": {"yujean kang's best cuisine",
+                                           "yujean kang's gourmet cuisine"},
+                           "bestasian": {"yujean kang's best cuisine"},
+                           "gourmetasian": {"yujean kang's gourmet cuisine"},
+                           "cuisineasian": {"yujean kang's best cuisine",
+                                            "yujean kang's gourmet cuisine"}}
+    assert msaai.FBI[1] == {"italian": {'italian'},
+                           "mario'sitalian": {'italian'},
+                           'mariositalian': {'italian'},
+                           'pizzaitalian': {'italian'},
+                           "asian": {'asian'},
+                           "yujeanasian": {"asian"},
+                           "kang'sasian": {"asian"},
+                           "bestasian": {"asian"},
+                           "gourmetasian": {"asian"},
+                           "cuisineasian": {"asian"}}
+    assert msaai.SI == {"mario's pizza": {'marios pizza': 1.0},
+                        "marios pizza": {"mario's pizza": 1.0},
+                        "yujean kang's best cuisine": {"yujean kang's gourmet cuisine": 0.9},
+                        "yujean kang's gourmet cuisine": {"yujean kang's best cuisine": 0.9}
                        }
 
 

@@ -1,3 +1,5 @@
+import os
+import pickle
 from collections import Counter, defaultdict
 from .helper import read_csv, calc_micro_scores, calc_micro_metrics
 
@@ -171,6 +173,112 @@ class DySimII(object):
         return freq_dis
 
 
+class MDySimII(object):
+
+    def __init__(self, count, dns_blocking_scheme, similarity_fns,
+                 threshold=-1.0, top_n=-1.0, normalize=False,
+                 gold_standard=None, gold_attributes=None,
+                 insert_timer=None, query_timer=None):
+        self.count = count
+        self.msai = MultiSimAwareIndex(dns_blocking_scheme, similarity_fns)
+        self.threshold = threshold
+        self.top_n = top_n
+        self.normalize = normalize
+        self.insert_timer = insert_timer
+        self.query_timer = query_timer
+        # Read gold standard from csv file
+        self.gold_pairs = None
+        self.gold_records = None
+        if gold_standard and gold_attributes:
+            self.gold_pairs = []
+            pairs = read_csv(gold_standard, gold_attributes)
+            for gold_pair in pairs:
+                self.gold_pairs.append(gold_pair)
+
+            self.gold_records = {}
+            for a, b in self.gold_pairs:
+                if a not in self.gold_records.keys():
+                    self.gold_records[a] = set()
+                if b not in self.gold_records.keys():
+                    self.gold_records[b] = set()
+                self.gold_records[a].add(b)
+                self.gold_records[b].add(a)
+        self.candidate_count = 0
+
+    def _insert_to_accumulator(self, accumulator, key, value):
+        nom_value = value
+        if self.normalize:
+            nom_value /= self.count
+
+        if key in accumulator:
+            accumulator[key] += nom_value
+        else:
+            accumulator[key] = nom_value
+
+    def insert(self, r_id, r_attributes):
+        self.msai.insert(r_id, r_attributes)
+
+    def query(self, q_record):
+        accumulator = {}
+        m = self.msai.query(q_record)
+        self.candidate_count += len(m.items())
+        for key, value in m.items():
+            if value > self.threshold:
+                self._insert_to_accumulator(accumulator, key, value)
+
+        if self.top_n > 0:
+            return dict(Counter(accumulator).most_common(self.top_n))
+
+        return accumulator
+
+    def recall(self):
+        """
+        Returns the recall from the passed gold standard and the index data.
+
+        Warning: The recall calculation does not take the threshold into
+                 account!
+        """
+        total_p = len(self.gold_pairs)  # True positives + False negatives
+        true_p = 0
+        for id1, id2 in self.gold_pairs:
+            # 1. For each duplicate pair
+            hit = False
+            for index in range(self.count):
+                # 2. Look at each indexed attribute
+                for key in self.indicies[index].BI:
+                    # 3. Check every block to find out, if both records have at
+                    # at least one block in common
+                    hit_1, hit_2 = False, False
+                    values = self.indicies[index].BI[key]
+                    for value in values:
+                        if not hit_1:
+                            hit_1 = id1 in self.indicies[index].RI[value]
+                        if not hit_2:
+                            hit_2 = id2 in self.indicies[index].RI[value]
+
+                    if hit_1 and hit_2:
+                        # 4. If both records are in same block abort search
+                        hit = True
+                        break
+
+                if hit:
+                    # 5. If duplicate pair has been found in at least on block
+                    # count it as true positive
+                    true_p += 1
+                    break
+
+        return true_p / total_p
+
+    def frequency_distribution(self):
+        """
+        Returns the frequency distribution for each attribute
+        """
+        freq_dis = []
+        for index in self.indicies:
+            freq_dis.append(index.frequency_distribution())
+        return freq_dis
+
+
 class SimAwareIndex(object):
 
     def __init__(self, simmetric_fn, encode_fn):
@@ -221,5 +329,116 @@ class SimAwareIndex(object):
         block_sizes = []
         for block_key in self.BI.keys():
             block_sizes.append(len(self.BI[block_key]))
+
+        return Counter(block_sizes)
+
+
+class MultiSimAwareIndex(object):
+
+    def __init__(self, dns_blocking_scheme, similarity_fns):
+        self.dns_blocking_scheme = dns_blocking_scheme
+        self.similarity_fns = similarity_fns
+
+        self.RI = defaultdict(set)     # Record Index (RI)
+        self.FBI = defaultdict(dict)  # Field Block Indicies (FBI)
+        self.SI = defaultdict(dict)    # Similarity Index (SI)
+
+    def insert(self, r_id, r_attributes):
+        for feature in self.dns_blocking_scheme:
+            # Generate blocking keys for feature
+            blocking_key_values = []
+            for blocking_key in feature.predicates:
+                attribute = r_attributes[blocking_key.field]
+                self.RI[attribute].add(r_id)
+                if len(blocking_key_values) == 0:
+                    blocking_key_values = blocking_key.encoder(attribute)
+                else:
+                    for dummy in range(0, len(blocking_key_values)):
+                        f_encoding = blocking_key_values.pop(0)
+                        for bk_encoding in blocking_key.encoder(attribute):
+                            blocking_key_values.append(f_encoding + bk_encoding)
+
+            # Insert record into block and calculate similarities
+            for encoding in blocking_key_values:
+                for blocking_key in feature.predicates:
+                    field = blocking_key.field
+                    attribute = r_attributes[field]
+
+                    BI = self.FBI[field]
+                    if encoding not in BI.keys():
+                        BI[encoding] = set()
+
+                    BI[encoding].add(attribute)
+
+                    #  Calculate similarities and update SI
+                    block = list(filter(lambda x: x != attribute, BI[encoding]))
+                    for block_value in block:
+                        if block_value not in self.SI[attribute]:
+                            similarity = self.similarity_fns[field](attribute, block_value)
+                            similarity = round(similarity, 1)
+                            #  Append similarity to block_value
+                            self.SI[block_value][attribute] = similarity
+
+                            #  Append similarity to attribute
+                            self.SI[attribute][block_value] = similarity
+
+    def query(self, q_record):
+        accumulator = defaultdict(float)
+        q_id = q_record[0]
+        q_attributes = q_record[1:]
+
+        #  Insert new record into index
+        self.insert(q_id, q_attributes)
+
+        for q_attribute in q_attributes:
+            for id in self.RI[q_attribute]:
+                accumulator[id] += 1.0
+
+            if q_attribute in self.SI:
+                for attribute, sim in self.SI[q_attribute].items():
+                    for id in self.RI[attribute]:
+                        accumulator[id] += sim
+
+        del accumulator[q_id]
+        return accumulator
+
+    def save(self, name):
+        # Dump RI
+        with open(".%s_RI.idx" % name, "wb") as handle:
+            pickle.dump(self.RI, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        # Dump FBI
+        with open(".%s_FBI.idx" % name, "wb") as handle:
+            pickle.dump(self.FBI, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        # Dump SI
+        with open(".%s_SI.idx" % name, "wb") as handle:
+            pickle.dump(self.SI, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def load(self, name):
+        ri_filename = ".%s_RI.idx" % name
+        fbi_filename = ".%s_FBI.idx" % name
+        si_filename = ".%s_SI.idx" % name
+        if os.path.exists(ri_filename) and \
+           os.path.exists(fbi_filename) and \
+           os.path.exists(si_filename):
+            with open(ri_filename, "rb") as handle:
+                self.RI = pickle.load(handle)
+            with open(fbi_filename, "rb") as handle:
+                self.FBI = pickle.load(handle)
+            with open(si_filename, "rb") as handle:
+                self.SI = pickle.load(handle)
+
+            return True
+        else:
+            return False
+
+    def frequency_distribution(self):
+        """
+        Returns the frequency distribution for the block index as dict. Where
+        key is size a block and value number of blocks with this size.
+        """
+        block_sizes = []
+        for BI in self.FBI.values():
+            for block_key in BI.keys():
+                block_sizes.append(len(self.BI[block_key]))
 
         return Counter(block_sizes)

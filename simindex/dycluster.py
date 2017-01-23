@@ -653,8 +653,8 @@ class MultiSimAwareAttributeIndex(object):
                  verbose=False):
         self.verbose = verbose
 
-        self.FI = defaultdict(dict)   # Feature Index (FI)
-        self.SI = defaultdict(dict)   # Similarity Index (SI)
+        self.FBI = defaultdict(dict)    # Field Block Indicies (FBI)
+        self.SI = defaultdict(dict)     # Similarity Index (SI)
         self.dataset = {}
 
         self.similarity_fn = similarity_fn
@@ -685,7 +685,7 @@ class MultiSimAwareAttributeIndex(object):
                     field = blocking_key.field
                     attribute = r_attributes[field]
 
-                    BI = self.FI[field]
+                    BI = self.FBI[field]
                     if encoding not in BI.keys():
                         BI[encoding] = set()
 
@@ -696,7 +696,7 @@ class MultiSimAwareAttributeIndex(object):
                     for block_value in block:
                         if block_value not in self.SI[attribute]:
                             if isinstance(self.similarity_fn, list):
-                                similarity = self.similarity_fn[index](attribute, block_value)
+                                similarity = self.similarity_fn[field](attribute, block_value)
                             else:
                                 similarity = self.similarity_fn(attribute, block_value)
                             similarity = round(similarity, 1)
@@ -726,7 +726,7 @@ class MultiSimAwareAttributeIndex(object):
 
             c_attributes = self.dataset[c_id]
             s = 0.
-            for index, (q_attribute, c_attribute) in enumerate(zip(q_attributes, c_attributes)):
+            for q_attribute, c_attribute in zip(q_attributes, c_attributes):
                 if q_attribute == c_attribute:
                     s += 1.
                 elif q_attribute in self.SI.keys() and c_attribute in self.SI[q_attribute].keys():

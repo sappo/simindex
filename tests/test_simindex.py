@@ -10,12 +10,17 @@ Tests for `simindex` module.
 
 import pytest
 from .testprofiler import profile
+from .testhelper import has_common_token
+from .testdata import restaurant_records
+
+from pprint import pprint
 
 # from contextlib import contextmanager
 from click.testing import CliRunner
 from difflib import SequenceMatcher
 
-from simindex.dysim import SimAwareIndex
+from simindex.dysim import SimAwareIndex, MultiSimAwareIndex
+from simindex import Feature, BlockingKey
 from simindex import DySimII
 from simindex import cli
 
@@ -77,6 +82,33 @@ def test_simawareindex_insert():
                     'tony':  {'tonya': 0.9, 'tonia': 0.7},
                     'tonya': {'tony': 0.9, 'tonia': 0.8},
                     'tonia': {'tony': 0.7, 'tonya': 0.8}}
+
+
+def test_multisimawareindex_insert():
+    dns = [Feature([BlockingKey(has_common_token, 0, str.split),
+                    BlockingKey(has_common_token, 1, str.split)], 0., 0.),
+           Feature([BlockingKey(has_common_token, 0, str.split)], 0., 0.),
+           Feature([BlockingKey(has_common_token, 1, str.split)], 0., 0.)]
+    s = MultiSimAwareIndex(dns, [_compare, _compare])
+    s.insert(restaurant_records[0][0], restaurant_records[0][1:])
+    s.insert(restaurant_records[1][0], restaurant_records[1][1:])
+    result = s.query(restaurant_records[1])
+    assert result == {"0": 2.0}
+    assert s.RI == {"mario's pizza": {"0"},
+                    "marios pizza": {"1"},
+                    "italian": {"0", "1"}}
+    assert s.FBI[0] == {"mario'sitalian": {"mario's pizza"},
+                        'mariositalian': {'marios pizza'},
+                        'pizzaitalian': {"mario's pizza", 'marios pizza'},
+                        "mario's": {"mario's pizza"},
+                        'marios': {'marios pizza'},
+                        'pizza': {"mario's pizza", 'marios pizza'}}
+    assert s.FBI[1] == {"italian": {'italian'},
+                        "mario'sitalian": {'italian'},
+                        'mariositalian': {'italian'},
+                        'pizzaitalian': {'italian'}}
+    assert s.SI == {"mario's pizza": {'marios pizza': 1.0},
+                    "marios pizza": {"mario's pizza": 1.0}}
 
 
 def test_simawareindex_query():
