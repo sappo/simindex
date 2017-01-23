@@ -6,7 +6,7 @@ import itertools as it
 
 
 def read_csv(filename, attributes=None, percentage=1.0,
-             delimiter=',', encoding='iso-8859-1'):
+             delimiter=',', dtype='unicode', encoding='iso-8859-1'):
     csv_chunks = pd.read_csv(filename,
                              usecols=attributes,
                              skipinitialspace=True,
@@ -14,7 +14,7 @@ def read_csv(filename, attributes=None, percentage=1.0,
                              chunksize=10000,
                              error_bad_lines=False,
                              index_col=False,
-                             dtype='unicode',
+                             dtype=dtype,
                              encoding=encoding)
 
     for chunk in csv_chunks:
@@ -46,11 +46,11 @@ def hdf_record_attributes(store, group, columns=None):
     store.close()
 
 
-def hdf_records(store, group):
+def hdf_records(store, group, query=None):
     if not store.is_open:
         store.open()
 
-    frames = store.select(group, iterator=True, chunksize=50000)
+    frames = store.select(group, where=query, iterator=True, chunksize=50000)
     for df in frames:
         df.fillna('', inplace=True)
         for record in df.to_records():

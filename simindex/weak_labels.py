@@ -17,8 +17,8 @@ class WeakLabels(object):
     def __init__(self, attribute_count, stoplist=None,
                  max_positive_pairs=100,
                  max_negative_pairs=200,
-                 upper_threshold=0.5,
-                 lower_threshold=0.3):
+                 upper_threshold=0.6,
+                 lower_threshold=0.1):
         self.attribute_count = attribute_count
         if stoplist:
             self.stoplist = stoplist
@@ -90,14 +90,14 @@ class WeakLabels(object):
                 attribute = r_attributes[field]
                 words = attribute.split()
                 tokens = [word for word in words if word not in self.stoplist]
-                for token in tokens:
-                    if r_id not in blocker[field][token]:
-                        blocker[field][token].append(r_id)
+                for tokens in tokens:
+                    if r_id not in blocker[field][tokens]:
+                        blocker[field][tokens].append(r_id)
 
         for field in range(0, self.attribute_count):
             field_blocks = blocker[field]
-            for token in field_blocks.keys():
-                token_block = sorted(field_blocks[token])
+            for tokens in field_blocks.keys():
+                token_block = sorted(field_blocks[tokens])
                 sorted
                 index = 0
                 # Move window over token block for field
@@ -162,6 +162,30 @@ class Feature:
 
     def signature(self):
         return set((p.predicate, p.field) for p in self.predicates)
+
+    def blocking_key_values(self, r_attributes):
+        BKVs = set()
+        for blocking_key in self.predicates:
+            attribute = r_attributes[blocking_key.field]
+            if len(BKVs) == 0:
+                BKVs = blocking_key.encoder(attribute)
+            else:
+                concat_BKVs = set()
+                for dummy in range(0, len(BKVs)):
+                    f_encoding = BKVs.pop()
+                    for bk_encoding in blocking_key.encoder(attribute):
+                        concat_BKVs.add(f_encoding + bk_encoding)
+
+                BKVs = concat_BKVs
+
+        return BKVs
+
+    def covered_fields(self):
+        fields = set()
+        for blocking_key in self.predicates:
+            fields.add(blocking_key.field)
+
+        return fields
 
     def __repr__(self):
         return "Feature(%s, fsc=%s, msc=%s)" % (self.predicates,
@@ -324,9 +348,6 @@ class DisjunctiveBlockingScheme(object):
         fPDisj_p = None
         # Example coverage variant
         for feature in Km:
-            if feature.msc < 0:
-                continue
-
             if fPDisj_p is None:
                 # Init NULL-vector
                 fPDisj_p = np.array([0 for index in range(0, len(feature.pv))])
@@ -339,21 +360,23 @@ class DisjunctiveBlockingScheme(object):
         return fPDisj
 
 
-def has_common_token(t1, t2):
-    t1_tokens = set(t1.split())
-    t2_tokens = set(t2.split())
+def tokens(term):
+    return set(term.split())
 
-    if len(t1_tokens.intersection(t2_tokens)) > 0:
+
+def has_common_token(t1, t2):
+    if len(tokens(t1).intersection(tokens(t2))) > 0:
         return 1
     else:
         return 0
 
+def term_id(term):
+    r = set()
+    r.add(term)
+    return r
 
 def is_exact_match(t1, t2):
-    t1_tokens = set(t1.split())
-    t2_tokens = set(t2.split())
-
-    if len(t1_tokens.symmetric_difference(t2_tokens)) == 0:
+    if len(term_id(t1).intersection(term_id(t2))) > 0:
         return 1
     else:
         return 0

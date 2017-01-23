@@ -108,32 +108,18 @@ class SimLearner():
 
     @staticmethod
     def strings_to_prediction(strings):
+        possibles = globals().copy()
+        possibles.update(locals())
         result_list = []
         for name in strings:
-            if name == "bag":
-                result_list.append(sim_bag)
-            elif name == "damerau":
-                result_list.append(sim_damerau)
-            elif name == "jaro":
-                result_list.append(sim_jaro)
-            elif name == "levenshtein":
-                result_list.append(sim_levenshtein)
-            elif name == "ratio":
-                result_list.append(sim_ratio)
+            result_list.append(possibles.get(name))
+
         return result_list
 
     @staticmethod
     def prediction_to_strings(prediction):
         result_list = []
         for function in prediction:
-            if function == sim_bag:
-                result_list.append("bag")
-            elif function == sim_damerau:
-                result_list.append("damerau")
-            elif function == sim_jaro:
-                result_list.append("jaro")
-            elif function == sim_levenshtein:
-                result_list.append("levenshtein")
-            elif function == sim_ratio:
-                result_list.append("ratio")
+            result_list.append(function.__name__)
+
         return result_list

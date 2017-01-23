@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+def tokens(term):
+    return set(term.split())
+
+
 def has_common_token(t1, t2):
     t1_tokens = set(t1.split())
     t2_tokens = set(t2.split())

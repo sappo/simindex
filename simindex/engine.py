@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import pandas as pd
+import numpy as np
 from pprint import pprint
 
 from .dysim import MDySimII
@@ -8,7 +9,9 @@ from .weak_labels import WeakLabels, \
                          BlockingKey, \
                          Feature, \
                          SimTupel, \
+                         tokens, \
                          has_common_token, \
+                         term_id, \
                          is_exact_match
 from simindex.similarity import SimLearner
 import simindex.helper as hp
@@ -17,7 +20,8 @@ import simindex.helper as hp
 class SimEngine(object):
 
     def __init__(self, name, indexer=MDySimII,
-                 max_positive_labels=None, max_negative_labels=None):
+                 max_positive_labels=None, max_negative_labels=None,
+                 insert_timer=None, query_timer=None):
         self.name = name
         self.configstore_name = ".%s_config.h5" % self.name
         self.traindatastore_name = ".%s_traindata.h5" % self.name
@@ -30,23 +34,11 @@ class SimEngine(object):
         self.max_p = max_positive_labels
         self.max_n = max_negative_labels
 
-        # # Gold Standard/Ground Truth attributes
-        # self.gold_pairs = None
-        # self.gold_records = None
-        # if gold_standard and gold_attributes:
-            # self.gold_pairs = []
-            # pairs = read_csv(gold_standard, gold_attributes)
-            # for gold_pair in pairs:
-                # self.gold_pairs.append(gold_pair)
+        self.insert_timer = insert_timer
+        self.query_timer = query_timer
 
-            # self.gold_records = {}
-            # for a, b in self.gold_pairs:
-                # if a not in self.gold_records.keys():
-                    # self.gold_records[a] = set()
-                # if b not in self.gold_records.keys():
-                    # self.gold_records[b] = set()
-                # self.gold_records[a].add(b)
-                # self.gold_records[b].add(a)
+        # Gold Standard/Ground Truth attributes
+        self.gold_pairs = None
 
     def pre_process_data(self, store, csvfile, attributes):
         group_name = "/%s" % self.name
@@ -77,6 +69,7 @@ class SimEngine(object):
                              expectedrows=expectedrows,
                              complib='blosc', complevel=9)
                 self.attribute_count = len(dataframe.columns)
+                self.index_dtype = dataframe.index.dtype
                 del dataframe
 
         # Create index on index column for the whole dataset
@@ -98,6 +91,7 @@ class SimEngine(object):
             r_attributes = record[1:]
             dataset[r_id] = r_attributes
 
+        #  Predict labels
         P, N = self.load_labels()
         if P is None and N is None:
             if self.max_p is None:
@@ -113,12 +107,16 @@ class SimEngine(object):
             P, N = labels.predict()
             self.save_labels(P, N)
 
+        print("P:", len(P))
+        print("N:", len(N))
+
+        #  Learn blocking scheme
         self.blocking_key = self.load_blocking_scheme()
         if self.blocking_key is None:
             blocking_keys = []
             for field in range(self.attribute_count):
-                blocking_keys.append(BlockingKey(has_common_token, field, str.split))
-                blocking_keys.append(BlockingKey(is_exact_match, field, lambda x: [x]))
+                blocking_keys.append(BlockingKey(has_common_token, field, tokens))
+                blocking_keys.append(BlockingKey(is_exact_match, field, term_id))
 
             dbs = DisjunctiveBlockingScheme(blocking_keys, P, N)
             self.blocking_key = dbs.transform(dataset)
@@ -126,6 +124,7 @@ class SimEngine(object):
 
         pprint(self.blocking_key)
 
+        #  Learn similarity functions per attribute
         self.similarities = self.load_similarities()
         if self.similarities is None:
             P, N = WeakLabels.filter(self.blocking_key, P, N)
@@ -152,9 +151,34 @@ class SimEngine(object):
             for record in records:
                 r_id = record[0]
                 r_attributes = record[1:]
-                self.indexer.insert(r_id, r_attributes)
+                if self.insert_timer:
+                    with self.insert_timer:
+                        self.indexer.insert(r_id, r_attributes)
+                else:
+                    self.indexer.insert(r_id, r_attributes)
 
             self.indexer.msai.save(self.name)
+
+    def pair_completeness(self):
+        with pd.HDFStore(self.traindatastore_name) as store:
+            gold_ids = list(hp.flatten(self.gold_pairs))
+            query = "index == %r" % gold_ids
+            dataset = {}
+            for record in hp.hdf_records(store, self.name):
+                dataset[record[0]] = record[1:]
+
+        return self.indexer.pair_completeness(self.gold_pairs, dataset)
+
+    def reduction_ratio(self):
+        with pd.HDFStore(self.traindatastore_name) as store:
+            nrecords = store.get_storer(self.name).nrows
+        max_comparisons = (nrecords * 0.5) * (nrecords - 1)
+        blocked_comparsision = 0.
+        print(self.indexer.frequency_distribution())
+        for bsize, nblocks in self.indexer.frequency_distribution().items():
+            blocked_comparsision += nblocks * (bsize * 0.5) * (bsize - 1)
+
+        return 1 - (blocked_comparsision / max_comparisons)
 
     def query_csv(self, query_file, attributes=None):
         store = pd.HDFStore(self.querydatastore_name, mode="w")
@@ -164,7 +188,19 @@ class SimEngine(object):
 
     def query(self, records):
         for record in records:
-            self.indexer.query(record)
+            if self.query_timer:
+                with self.query_timer:
+                    self.indexer.query(record)
+            else:
+                self.indexer.query(record)
+
+    def read_ground_truth(self, gold_standard, gold_attributes):
+        self.gold_pairs = []
+
+        pairs = hp.read_csv(gold_standard, gold_attributes,
+                            dtype=self.index_dtype)
+        for gold_pair in pairs:
+            self.gold_pairs.append(gold_pair)
 
     def save_labels(self, P, N):
         with pd.HDFStore(self.configstore_name,
@@ -192,21 +228,11 @@ class SimEngine(object):
         data = []
         for index, feature in enumerate(self.blocking_key):
             for predicate in feature.predicates:
-                line = [index, predicate.field]
-                if predicate.encoder == str.split:
-                    line.append("str")
-                else:
-                    line.append("id")
-
-                if predicate.predicate == has_common_token:
-                    line.append("common_token")
-                elif predicate.predicate == is_exact_match:
-                    line.append("exact_match")
-
-                data.append(line)
+                data.append([index, predicate.field,
+                             predicate.encoder.__name__,
+                             predicate.predicate.__name__])
 
         return data
-
 
     def save_blocking_scheme(self):
         with pd.HDFStore(self.configstore_name,
@@ -217,35 +243,25 @@ class SimEngine(object):
             store.put("blocking_scheme", df, format="t")
 
     def load_blocking_scheme(self):
+        possibles = globals().copy()
+        possibles.update(locals())
         with pd.HDFStore(self.configstore_name) as store:
             if "/blocking_scheme" in store.keys():
                 id = None
-                blocking_key = []
-                for predicate in hp.hdf_record_attributes(store,
-                                                          "blocking_scheme"):
+                blocking_scheme = []
+                for predicate in hp.hdf_record_attributes(store, "blocking_scheme"):
                     if id != predicate[0]:
-                        blocking_key.append(Feature([], 0, 0))
+                        blocking_scheme.append(Feature([], 0, 0))
 
-                    feature = blocking_key[predicate[0]]
+                    feature = blocking_scheme[predicate[0]]
                     id = predicate[0]
 
-                    encoder = None
-                    if predicate[2] == "str":
-                        encoder = str.split
-                    elif predicate[2] == "id":
-                        encoder = (lambda x: [0])
-
-                    pred = None
-                    if predicate[3] == "common_token":
-                        pred = has_common_token
-                    elif predicate[3] == "exact_match":
-                        pred = is_exact_match
-
+                    encoder = possibles.get(predicate[2])
+                    pred = possibles.get(predicate[3])
                     feature.predicates.append(BlockingKey(pred,
                                                           predicate[1],
                                                           encoder))
-
-                return blocking_key
+                return blocking_scheme
             else:
                 return None
 

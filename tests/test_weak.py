@@ -66,7 +66,8 @@ def test_weak_labels():
 
 
 def test_filter_labels():
-    labels = WeakLabels(2, max_positive_pairs=4, max_negative_pairs=4)
+    labels = WeakLabels(2, max_positive_pairs=4, max_negative_pairs=4,
+                        upper_threshold=0.5, lower_threshold=0.3)
     labels.fit(restaurant_dataset)
     P, N = labels.predict()
 

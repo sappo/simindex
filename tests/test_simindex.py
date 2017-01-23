@@ -10,7 +10,7 @@ Tests for `simindex` module.
 
 import pytest
 from .testprofiler import profile
-from .testhelper import has_common_token
+from .testhelper import has_common_token, tokens
 from .testdata import restaurant_records
 
 from pprint import pprint
@@ -85,10 +85,10 @@ def test_simawareindex_insert():
 
 
 def test_multisimawareindex_insert():
-    dns = [Feature([BlockingKey(has_common_token, 0, str.split),
-                    BlockingKey(has_common_token, 1, str.split)], 0., 0.),
-           Feature([BlockingKey(has_common_token, 0, str.split)], 0., 0.),
-           Feature([BlockingKey(has_common_token, 1, str.split)], 0., 0.)]
+    dns = [Feature([BlockingKey(has_common_token, 0, tokens),
+                    BlockingKey(has_common_token, 1, tokens)], 0., 0.),
+           Feature([BlockingKey(has_common_token, 0, tokens)], 0., 0.),
+           Feature([BlockingKey(has_common_token, 1, tokens)], 0., 0.)]
     s = MultiSimAwareIndex(dns, [_compare, _compare])
     s.insert(restaurant_records[0][0], restaurant_records[0][1:])
     s.insert(restaurant_records[1][0], restaurant_records[1][1:])

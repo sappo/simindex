@@ -12,9 +12,8 @@ import pytest
 import os
 from .testprofiler import profile
 from .testdata import restaurant_records
-from .testhelper import has_common_token
 
-from simindex import SimEngine
+from simindex import SimEngine, MultiSimAwareIndex
 from simindex import DisjunctiveBlockingScheme, WeakLabels, SimLearner
 
 
@@ -23,26 +22,35 @@ from simindex import DisjunctiveBlockingScheme, WeakLabels, SimLearner
                  # WeakLabels.tfidf_similarity,
                  # DisjunctiveBlockingScheme.feature_vector,
                  # DisjunctiveBlockingScheme.transform])
+# @profile(follow=[SimEngine.query_csv,
+                 # MultiSimAwareIndex.insert,
+                 # MultiSimAwareIndex.query])
 def test_engine():
-    pass
-    # engine = SimEngine("ferbl-90k")
-    # engine.fit_csv("../../master_thesis/datasets/febrl/ferbl-90k-10k-1_train.csv",
-                   # ["rec_id", "given_name", "surname", "state", "suburb"])
-    # engine.build_csv("../../master_thesis/datasets/febrl/ferbl-90k-10k-1_index.csv",
-                   # ["rec_id", "given_name", "surname", "state", "suburb"])
-    # engine = SimEngine("ncvoter")
-    # engine.fit_csv("../../master_thesis/datasets/ncvoter/ncvoter_train.csv",
-                   # ["id", "first_name", "middle_name", "last_name", "city", "street_address"])
+    engine = SimEngine("ferbl-9k")
+    print("Fit")
+    engine.fit_csv("../../master_thesis/datasets/febrl/ferbl-9k-1k-1_train.csv",
+                   ["rec_id", "given_name", "surname", "state", "suburb"])
+    print("Build")
+    engine.build_csv("../../master_thesis/datasets/febrl/ferbl-9k-1k-1_index.csv",
+                    ["rec_id", "given_name", "surname", "state", "suburb"])
+    print("Query")
+    engine.query_csv("../../master_thesis/datasets/febrl/ferbl-9k-1k-1_train_query.csv",
+                    ["rec_id", "given_name", "surname", "state", "suburb"])
+    print("Results")
+    gold_csv = "../../master_thesis/datasets/febrl/ferbl-9k-1k-1_train_gold.csv"
+    engine.read_ground_truth(gold_standard=gold_csv, gold_attributes=["id_1", "id_2"])
+    print("Pair completeness:", engine.pair_completeness())
+    print("Reduction ratio:", engine.reduction_ratio())
 
 
-@profile(follow=[])
+# @profile(follow=[])
 def test_engine_restaurant():
     # Expected results
-    blocking_scheme_expected =[[0, 0, 'str', 'common_token'],
-                               [0, 1, 'str', 'common_token'],
-                               [1, 1, 'id', 'exact_match']]
-    sim_strings_expected = ["damerau", "levenshtein", "jaro",
-                            "damerau", "ratio"]
+    blocking_scheme_expected =[[0, 0, 'tokens', 'has_common_token'],
+                               [0, 1, 'tokens', 'has_common_token'],
+                               [1, 1, 'term_id', 'is_exact_match']]
+    sim_strings_expected = ["sim_levenshtein", "sim_levenshtein", "sim_jaro",
+                            "sim_levenshtein", "sim_ratio"]
     # Test fresh engine
     engine = SimEngine("restaurant",
                        max_positive_labels=111, max_negative_labels=333)
@@ -82,6 +90,11 @@ def test_engine_restaurant():
     # Query the index
     engine.query_csv("../../master_thesis/datasets/restaurant/restaurant_train_query.csv",
                      ["id","name","addr","city","phone","type"])
+
+    gold_csv = "../../master_thesis/datasets/restaurant/restaurant_train_gold.csv"
+    engine.read_ground_truth(gold_standard=gold_csv, gold_attributes=["id_1", "id_2"])
+    print("Pair completeness:", engine.pair_completeness())
+    print("Reduction ratio:", engine.reduction_ratio())
 
     # Cleanup
     if os.path.exists(engine.configstore_name):

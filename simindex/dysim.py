@@ -177,32 +177,12 @@ class MDySimII(object):
 
     def __init__(self, count, dns_blocking_scheme, similarity_fns,
                  threshold=-1.0, top_n=-1.0, normalize=False,
-                 gold_standard=None, gold_attributes=None,
                  insert_timer=None, query_timer=None):
         self.count = count
         self.msai = MultiSimAwareIndex(dns_blocking_scheme, similarity_fns)
         self.threshold = threshold
         self.top_n = top_n
         self.normalize = normalize
-        self.insert_timer = insert_timer
-        self.query_timer = query_timer
-        # Read gold standard from csv file
-        self.gold_pairs = None
-        self.gold_records = None
-        if gold_standard and gold_attributes:
-            self.gold_pairs = []
-            pairs = read_csv(gold_standard, gold_attributes)
-            for gold_pair in pairs:
-                self.gold_pairs.append(gold_pair)
-
-            self.gold_records = {}
-            for a, b in self.gold_pairs:
-                if a not in self.gold_records.keys():
-                    self.gold_records[a] = set()
-                if b not in self.gold_records.keys():
-                    self.gold_records[b] = set()
-                self.gold_records[a].add(b)
-                self.gold_records[b].add(a)
         self.candidate_count = 0
 
     def _insert_to_accumulator(self, accumulator, key, value):
@@ -231,39 +211,19 @@ class MDySimII(object):
 
         return accumulator
 
-    def recall(self):
+    def pair_completeness(self, gold_pairs, dataset):
         """
         Returns the recall from the passed gold standard and the index data.
-
-        Warning: The recall calculation does not take the threshold into
-                 account!
         """
-        total_p = len(self.gold_pairs)  # True positives + False negatives
+        total_p = len(gold_pairs)  # True positives + False negatives
         true_p = 0
-        for id1, id2 in self.gold_pairs:
-            # 1. For each duplicate pair
-            hit = False
-            for index in range(self.count):
-                # 2. Look at each indexed attribute
-                for key in self.indicies[index].BI:
-                    # 3. Check every block to find out, if both records have at
-                    # at least one block in common
-                    hit_1, hit_2 = False, False
-                    values = self.indicies[index].BI[key]
-                    for value in values:
-                        if not hit_1:
-                            hit_1 = id1 in self.indicies[index].RI[value]
-                        if not hit_2:
-                            hit_2 = id2 in self.indicies[index].RI[value]
-
-                    if hit_1 and hit_2:
-                        # 4. If both records are in same block abort search
-                        hit = True
-                        break
-
-                if hit:
-                    # 5. If duplicate pair has been found in at least on block
-                    # count it as true positive
+        for id1, id2 in gold_pairs:
+            id1_attributes = dataset[id1]
+            id2_attributes = dataset[id2]
+            for feature in self.msai.dns_blocking_scheme:
+                id1_bkvs = feature.blocking_key_values(id1_attributes)
+                id2_bkvs = feature.blocking_key_values(id2_attributes)
+                if len(id1_bkvs.intersection(id2_bkvs)) > 0:
                     true_p += 1
                     break
 
@@ -273,10 +233,8 @@ class MDySimII(object):
         """
         Returns the frequency distribution for each attribute
         """
-        freq_dis = []
-        for index in self.indicies:
-            freq_dis.append(index.frequency_distribution())
-        return freq_dis
+        print("RI", self.msai.ri_distribution())
+        return self.msai.frequency_distribution()
 
 
 class SimAwareIndex(object):
@@ -323,8 +281,7 @@ class SimAwareIndex(object):
 
     def frequency_distribution(self):
         """
-        Returns the frequency distribution for the block index as dict. Where
-        key is size a block and value number of blocks with this size.
+        Returns the frequency distribution for the block index as dict. Where key is size a block and value number of blocks with this size.
         """
         block_sizes = []
         for block_key in self.BI.keys():
@@ -345,19 +302,12 @@ class MultiSimAwareIndex(object):
 
     def insert(self, r_id, r_attributes):
         for feature in self.dns_blocking_scheme:
-            # Generate blocking keys for feature
-            blocking_key_values = []
-            for blocking_key in feature.predicates:
-                attribute = r_attributes[blocking_key.field]
-                self.RI[attribute].add(r_id)
-                if len(blocking_key_values) == 0:
-                    blocking_key_values = blocking_key.encoder(attribute)
-                else:
-                    for dummy in range(0, len(blocking_key_values)):
-                        f_encoding = blocking_key_values.pop(0)
-                        for bk_encoding in blocking_key.encoder(attribute):
-                            blocking_key_values.append(f_encoding + bk_encoding)
+            # Add id to RI index
+            for field in feature.covered_fields():
+                self.RI[r_attributes[field]].add(r_id)
 
+            # Generate blocking keys for feature
+            blocking_key_values = feature.blocking_key_values(r_attributes)
             # Insert record into block and calculate similarities
             for encoding in blocking_key_values:
                 for blocking_key in feature.predicates:
@@ -391,8 +341,9 @@ class MultiSimAwareIndex(object):
         self.insert(q_id, q_attributes)
 
         for q_attribute in q_attributes:
-            for id in self.RI[q_attribute]:
-                accumulator[id] += 1.0
+            if q_attribute in self.RI:
+                for id in self.RI[q_attribute]:
+                    accumulator[id] += 1.0
 
             if q_attribute in self.SI:
                 for attribute, sim in self.SI[q_attribute].items():
@@ -431,6 +382,13 @@ class MultiSimAwareIndex(object):
         else:
             return False
 
+    def ri_distribution(self):
+        block_sizes = []
+        for block_key in self.RI.keys():
+            block_sizes.append(len(self.RI[block_key]))
+
+        return Counter(block_sizes)
+
     def frequency_distribution(self):
         """
         Returns the frequency distribution for the block index as dict. Where
@@ -439,6 +397,6 @@ class MultiSimAwareIndex(object):
         block_sizes = []
         for BI in self.FBI.values():
             for block_key in BI.keys():
-                block_sizes.append(len(self.BI[block_key]))
+                block_sizes.append(len(BI[block_key]))
 
         return Counter(block_sizes)
