@@ -21,7 +21,7 @@ from difflib import SequenceMatcher
 
 from simindex.dysim import SimAwareIndex, MultiSimAwareIndex
 from simindex import Feature, BlockingKey
-from simindex import DySimII
+from simindex import DySimII, MDySimIII
 from simindex import cli
 
 
@@ -107,6 +107,32 @@ def test_multisimawareindex_insert():
                         "mario'sitalian": {'italian'},
                         'mariositalian': {'italian'},
                         'pizzaitalian': {'italian'}}
+    assert s.SI == {"mario's pizza": {'marios pizza': 1.0},
+                    "marios pizza": {"mario's pizza": 1.0}}
+
+
+def test_dysimIII_insert():
+    dns = [Feature([BlockingKey(has_common_token, 0, tokens),
+                    BlockingKey(has_common_token, 1, tokens)], 0., 0.),
+           Feature([BlockingKey(has_common_token, 0, tokens)], 0., 0.),
+           Feature([BlockingKey(has_common_token, 1, tokens)], 0., 0.)]
+    s = MDySimIII(2, dns, [_compare, _compare])
+    s.insert(restaurant_records[0][0], restaurant_records[0][1:])
+    s.insert(restaurant_records[1][0], restaurant_records[1][1:])
+    result = s.query(restaurant_records[1])
+    assert result == {"0": 2.0}
+    assert s.FBI[0] == {"mario'sitalian": {"mario's pizza": {'0'}},
+                        'mariositalian': {'marios pizza': {'1'}},
+                        'pizzaitalian': {"mario's pizza": {'0'},
+                                         'marios pizza': {'1'}},
+                        "mario's": {"mario's pizza": {'0'}},
+                        'marios': {'marios pizza': {'1'}},
+                        'pizza': {"mario's pizza": {'0'},
+                                  'marios pizza': {'1'}}}
+    assert s.FBI[1] == {"italian": {'italian': {'0', '1'}},
+                        "mario'sitalian": {'italian': {'0'}},
+                        'mariositalian': {'italian': {'1'}},
+                        'pizzaitalian': {'italian': {'0', '1'}}}
     assert s.SI == {"mario's pizza": {'marios pizza': 1.0},
                     "marios pizza": {"mario's pizza": 1.0}}
 

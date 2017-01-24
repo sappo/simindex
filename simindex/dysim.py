@@ -1,7 +1,9 @@
 import os
 import pickle
 from collections import Counter, defaultdict
-from .helper import read_csv, calc_micro_scores, calc_micro_metrics
+from functools import partial
+import simindex.helper as hp
+import numpy as np
 
 
 class DySimII(object):
@@ -25,7 +27,7 @@ class DySimII(object):
         self.gold_records = None
         if gold_standard and gold_attributes:
             self.gold_pairs = []
-            pairs = read_csv(gold_standard, gold_attributes)
+            pairs = hp.read_csv(gold_standard, gold_attributes)
             for gold_pair in pairs:
                 self.gold_pairs.append(gold_pair)
 
@@ -233,8 +235,13 @@ class MDySimII(object):
         """
         Returns the frequency distribution for each attribute
         """
-        print("RI", self.msai.ri_distribution())
         return self.msai.frequency_distribution()
+
+    def load(self, name):
+        return self.msai.load(name)
+
+    def save(self, name):
+        self.msai.save(name)
 
 
 class SimAwareIndex(object):
@@ -400,3 +407,131 @@ class MultiSimAwareIndex(object):
                 block_sizes.append(len(BI[block_key]))
 
         return Counter(block_sizes)
+
+
+class MDySimIII(object):
+
+    def __init__(self, count, dns_blocking_scheme, similarity_fns):
+        self.dns_blocking_scheme = dns_blocking_scheme
+        self.similarity_fns = similarity_fns
+        self.attribute_count = count
+
+        self.FBI = defaultdict(dict)   # Field Block Indicies (FBI)
+        self.SI = defaultdict(dict)    # Similarity Index (SI)
+
+    def insert(self, r_id, r_attributes):
+        for feature in self.dns_blocking_scheme:
+            # Generate blocking keys for feature
+            blocking_key_values = feature.blocking_key_values(r_attributes)
+            # Insert record into block and calculate similarities
+            for encoding in blocking_key_values:
+                for blocking_key in feature.predicates:
+                    field = blocking_key.field
+                    attribute = r_attributes[field]
+
+                    BI = self.FBI[field]
+                    if encoding not in BI.keys():
+                        BI[encoding] = defaultdict(set)
+
+                    BI[encoding][attribute].add(r_id)
+
+                    #  Calculate similarities and update SI
+                    block = filter(lambda x: x != attribute, BI[encoding].keys())
+                    for block_value in block:
+                        if block_value not in self.SI[attribute]:
+                            similarity = self.similarity_fns[field](attribute, block_value)
+                            similarity = round(similarity, 1)
+                            #  Append similarity to block_value
+                            self.SI[block_value][attribute] = similarity
+
+                            #  Append similarity to attribute
+                            self.SI[attribute][block_value] = similarity
+
+    def query(self, q_record):
+        q_id = q_record[0]
+        q_attributes = q_record[1:]
+        accumulator = defaultdict(partial(np.zeros, self.attribute_count, np.float))
+
+        #  Insert new record into index
+        self.insert(q_id, q_attributes)
+
+        # for q_attribute in q_attributes:
+        for feature in self.dns_blocking_scheme:
+            # Generate blocking keys for feature
+            blocking_key_values = feature.blocking_key_values(q_attributes)
+            for encoding in blocking_key_values:
+                for field in feature.covered_fields():
+                    BI = self.FBI[field]
+                    q_attribute = q_attributes[field]
+                    for attribute in BI[encoding].keys():
+                        if attribute == q_attribute:
+                            for id in BI[encoding][q_attribute]:
+                                accumulator[id][field] = 1.0
+                        else:
+                            sim = self.SI[q_attribute][attribute]
+                            for id in BI[encoding][attribute]:
+                                accumulator[id][field] = sim
+
+        del accumulator[q_id]
+        for id in accumulator.keys():
+            accumulator[id] = np.sum(accumulator[id])
+        return accumulator
+
+    def save(self, name):
+        # Dump FBI
+        with open(".%s_FBI.idx" % name, "wb") as handle:
+            pickle.dump(self.FBI, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        # Dump SI
+        with open(".%s_SI.idx" % name, "wb") as handle:
+            pickle.dump(self.SI, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def load(self, name):
+        fbi_filename = ".%s_FBI.idx" % name
+        si_filename = ".%s_SI.idx" % name
+        if os.path.exists(fbi_filename) and \
+           os.path.exists(si_filename):
+            with open(fbi_filename, "rb") as handle:
+                self.FBI = pickle.load(handle)
+            with open(si_filename, "rb") as handle:
+                self.SI = pickle.load(handle)
+
+            return True
+        else:
+            return False
+
+    def ri_distribution(self):
+        block_sizes = []
+        for block_key in self.RI.keys():
+            block_sizes.append(len(self.RI[block_key]))
+
+        return Counter(block_sizes)
+
+    def frequency_distribution(self):
+        """
+        Returns the frequency distribution for the block index as dict. Where
+        key is size a block and value number of blocks with this size.
+        """
+        block_sizes = []
+        for BI in self.FBI.values():
+            for block_key in BI.keys():
+                block_sizes.append(len(BI[block_key]))
+
+        return Counter(block_sizes)
+
+    def pair_completeness(self, gold_pairs, dataset):
+        """
+        Returns the recall from the passed gold standard and the index data.
+        """
+        total_p = len(gold_pairs)  # True positives + False negatives
+        true_p = 0
+        for id1, id2 in gold_pairs:
+            id1_attributes = dataset[id1]
+            id2_attributes = dataset[id2]
+            for feature in self.dns_blocking_scheme:
+                id1_bkvs = feature.blocking_key_values(id1_attributes)
+                id2_bkvs = feature.blocking_key_values(id2_attributes)
+                if len(id1_bkvs.intersection(id2_bkvs)) > 0:
+                    true_p += 1
+                    break
+
+        return true_p / total_p

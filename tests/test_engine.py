@@ -13,7 +13,7 @@ import os
 from .testprofiler import profile
 from .testdata import restaurant_records
 
-from simindex import SimEngine, MultiSimAwareIndex
+from simindex import SimEngine, MDySimII, MDySimIII
 from simindex import DisjunctiveBlockingScheme, WeakLabels, SimLearner
 
 
@@ -25,6 +25,7 @@ from simindex import DisjunctiveBlockingScheme, WeakLabels, SimLearner
 # @profile(follow=[SimEngine.query_csv,
                  # MultiSimAwareIndex.insert,
                  # MultiSimAwareIndex.query])
+@profile(follow=[MDySimII.insert, MDySimII.query])
 def test_engine():
     engine = SimEngine("ferbl-9k")
     print("Fit")
@@ -32,10 +33,10 @@ def test_engine():
                    ["rec_id", "given_name", "surname", "state", "suburb"])
     print("Build")
     engine.build_csv("../../master_thesis/datasets/febrl/ferbl-9k-1k-1_index.csv",
-                    ["rec_id", "given_name", "surname", "state", "suburb"])
+                     ["rec_id", "given_name", "surname", "state", "suburb"])
     print("Query")
     engine.query_csv("../../master_thesis/datasets/febrl/ferbl-9k-1k-1_train_query.csv",
-                    ["rec_id", "given_name", "surname", "state", "suburb"])
+                     ["rec_id", "given_name", "surname", "state", "suburb"])
     print("Results")
     gold_csv = "../../master_thesis/datasets/febrl/ferbl-9k-1k-1_train_gold.csv"
     engine.read_ground_truth(gold_standard=gold_csv, gold_attributes=["id_1", "id_2"])
@@ -43,13 +44,13 @@ def test_engine():
     print("Reduction ratio:", engine.reduction_ratio())
 
 
-# @profile(follow=[])
+# @profile(follow=[MDySimIII.insert, MDySimIII.query])
 def test_engine_restaurant():
     # Expected results
     blocking_scheme_expected =[[0, 0, 'tokens', 'has_common_token'],
                                [0, 1, 'tokens', 'has_common_token'],
                                [1, 1, 'term_id', 'is_exact_match']]
-    sim_strings_expected = ["sim_levenshtein", "sim_levenshtein", "sim_jaro",
+    sim_strings_expected = ["sim_levenshtein", "sim_levenshtein", "sim_levenshtein",
                             "sim_levenshtein", "sim_ratio"]
     # Test fresh engine
     engine = SimEngine("restaurant",

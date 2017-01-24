@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from pprint import pprint
 
-from .dysim import MDySimII
+from .dysim import MDySimII, MDySimIII
 from .weak_labels import WeakLabels, \
                          DisjunctiveBlockingScheme, \
                          BlockingKey, \
@@ -147,7 +147,7 @@ class SimEngine(object):
         self.indexer = MDySimII(self.attribute_count,
                                 self.blocking_key,
                                 self.similarities)
-        if not self.indexer.msai.load(self.name):
+        if not self.indexer.load(self.name):
             for record in records:
                 r_id = record[0]
                 r_attributes = record[1:]
@@ -157,14 +157,14 @@ class SimEngine(object):
                 else:
                     self.indexer.insert(r_id, r_attributes)
 
-            self.indexer.msai.save(self.name)
+            self.indexer.save(self.name)
 
     def pair_completeness(self):
         with pd.HDFStore(self.traindatastore_name) as store:
             gold_ids = list(hp.flatten(self.gold_pairs))
             query = "index == %r" % gold_ids
             dataset = {}
-            for record in hp.hdf_records(store, self.name):
+            for record in hp.hdf_records(store, self.name, query):
                 dataset[record[0]] = record[1:]
 
         return self.indexer.pair_completeness(self.gold_pairs, dataset)

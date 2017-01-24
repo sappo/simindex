@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-import os
 import subprocess
 import pandas as pd
 import itertools as it
+from collections import defaultdict
 
 
 def read_csv(filename, attributes=None, percentage=1.0,
@@ -128,3 +128,11 @@ def file_len(filename):
     if p.returncode != 0:
         raise IOError(err)
     return int(result.strip().split()[0])
+
+
+def merge_sum(collector, *dicts):
+    print(collector)
+    for d in dicts:
+        for k, v in d.items():
+            print(k)
+            collector[k] += v
