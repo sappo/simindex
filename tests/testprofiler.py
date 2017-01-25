@@ -15,7 +15,7 @@ def profile(follow=[]):
                     for f in follow:
                         profiler.add_function(f)
                     profiler.enable_by_count()
-                    return func(*args, **kwargs)
+                    return func(True)
                 finally:
                     profiler.print_stats()
             return profiled_func

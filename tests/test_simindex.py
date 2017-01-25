@@ -19,9 +19,9 @@ from pprint import pprint
 from click.testing import CliRunner
 from difflib import SequenceMatcher
 
-from simindex.dysim import SimAwareIndex, MultiSimAwareIndex
+from simindex.dysim import SimAwareIndex
 from simindex import Feature, BlockingKey
-from simindex import DySimII, MDySimIII
+from simindex import DySimII, MDySimII, MDySimIII
 from simindex import cli
 
 
@@ -84,12 +84,12 @@ def test_simawareindex_insert():
                     'tonia': {'tony': 0.7, 'tonya': 0.8}}
 
 
-def test_multisimawareindex_insert():
+def test_mdysimII():
     dns = [Feature([BlockingKey(has_common_token, 0, tokens),
                     BlockingKey(has_common_token, 1, tokens)], 0., 0.),
            Feature([BlockingKey(has_common_token, 0, tokens)], 0., 0.),
            Feature([BlockingKey(has_common_token, 1, tokens)], 0., 0.)]
-    s = MultiSimAwareIndex(dns, [_compare, _compare])
+    s = MDySimII(2, dns, [_compare, _compare])
     s.insert(restaurant_records[0][0], restaurant_records[0][1:])
     s.insert(restaurant_records[1][0], restaurant_records[1][1:])
     result = s.query(restaurant_records[1])
@@ -111,7 +111,7 @@ def test_multisimawareindex_insert():
                     "marios pizza": {"mario's pizza": 1.0}}
 
 
-def test_dysimIII_insert():
+def test_mdysimIII():
     dns = [Feature([BlockingKey(has_common_token, 0, tokens),
                     BlockingKey(has_common_token, 1, tokens)], 0., 0.),
            Feature([BlockingKey(has_common_token, 0, tokens)], 0., 0.),

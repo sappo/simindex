@@ -167,6 +167,10 @@ class Feature:
         BKVs = set()
         for blocking_key in self.predicates:
             attribute = r_attributes[blocking_key.field]
+            if not attribute:
+                # No need to encode empty attributes
+                continue
+
             if len(BKVs) == 0:
                 BKVs = blocking_key.encoder(attribute)
             else:
@@ -250,6 +254,22 @@ class DisjunctiveBlockingScheme(object):
         Nn = np.mean(Nfi)
         return Pp - Nn
 
+    @staticmethod
+    def f1_score(Pf, Nf, i):
+        Pfi = Pf[i]
+        Nfi = Nf[i]
+
+        TP = np.sum(Pfi)
+        FP = len(Pfi) - TP
+        FN = np.sum(Nfi)
+        TN = len(Nfi) - FN
+
+        recall = TP / (FN + TP)
+        precision = TP / (TP + FP)
+        harmonic_mean = 2 * ((precision * recall) / (precision + recall))
+        accuracy = (TP + TN) / (TP + FP + TN + FN)
+        return recall, precision, harmonic_mean, accuracy
+
     def terms(self, Pf, Nf):
         count = 0
         forbidden = []
@@ -261,7 +281,7 @@ class DisjunctiveBlockingScheme(object):
             Kf = []
             for index, feature in enumerate(self.features):
                 if feature not in forbidden:
-                    feature.fsc = self.fisher_score(PfT, NfT, index)
+                    feature.fsc = self.f1_score(PfT, NfT, index)
                     feature.msc = self.my_score(PfT, NfT, index)
                     Kf.append(feature)
 
@@ -274,7 +294,7 @@ class DisjunctiveBlockingScheme(object):
                         new_feature = feature.union(original_feature)
                         if new_feature not in self.features:
                             # Calculate new scores
-                            new_feature.fsc = self.fisher_score([new_feature.pv], [new_feature.nv], 0)
+                            new_feature.fsc = self.f1_score([new_feature.pv], [new_feature.nv], 0)
                             new_feature.msc = self.my_score([new_feature.pv], [new_feature.nv], 0)
                             # Add new feature if above average score
                             if new_feature.msc > fsc_avg:
@@ -370,10 +390,12 @@ def has_common_token(t1, t2):
     else:
         return 0
 
+
 def term_id(term):
     r = set()
     r.add(term)
     return r
+
 
 def is_exact_match(t1, t2):
     if len(term_id(t1).intersection(term_id(t2))) > 0:

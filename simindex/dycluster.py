@@ -669,18 +669,10 @@ class MultiSimAwareAttributeIndex(object):
             return
 
         for feature in self.dns_blocking_scheme:
-            feature_encodings = []
-            for blocking_key in feature.predicates:
-                attribute = r_attributes[blocking_key.field]
-                if len(feature_encodings) == 0:
-                    feature_encodings = blocking_key.encoder(attribute)
-                else:
-                    for dummy in range(0, len(feature_encodings)):
-                        f_encoding = feature_encodings.pop(0)
-                        for bk_encoding in blocking_key.encoder(attribute):
-                            feature_encodings.append(f_encoding + bk_encoding)
-
-            for encoding in feature_encodings:
+            # Generate blocking keys for feature
+            blocking_key_values = feature.blocking_key_values(r_attributes)
+            # Insert record into block and calculate similarities
+            for encoding in blocking_key_values:
                 for blocking_key in feature.predicates:
                     field = blocking_key.field
                     attribute = r_attributes[field]

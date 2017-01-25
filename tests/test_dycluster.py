@@ -16,8 +16,7 @@ from .testhelper import has_common_token
 from pprint import pprint
 from difflib import SequenceMatcher
 
-from simindex import draw_frequency_distribution, show
-from simindex import DyKMeans, DyLSH, SimAwareAttributeIndex, MultiSimAwareAttributeIndex, DyNearPy
+from simindex import DyKMeans, DyLSH, MultiSimAwareAttributeIndex, DyNearPy
 from simindex import Feature, BlockingKey
 
 def __compare(a, b):

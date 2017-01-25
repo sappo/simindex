@@ -21,13 +21,13 @@ class SimEngine(object):
 
     def __init__(self, name, indexer=MDySimII,
                  max_positive_labels=None, max_negative_labels=None,
-                 insert_timer=None, query_timer=None):
+                 insert_timer=None, query_timer=None, verbose=False):
         self.name = name
         self.configstore_name = ".%s_config.h5" % self.name
         self.traindatastore_name = ".%s_traindata.h5" % self.name
         self.indexdatastore_name = ".%s_indexdata.h5" % self.name
         self.querydatastore_name = ".%s_querydata.h5" % self.name
-        self.indexer = indexer
+        self.indexer_class = indexer
         self.attribute_count = None
         self.stoplist = set('for a of the and to in'.split())
 
@@ -36,6 +36,7 @@ class SimEngine(object):
 
         self.insert_timer = insert_timer
         self.query_timer = query_timer
+        self.verbose = verbose
 
         # Gold Standard/Ground Truth attributes
         self.gold_pairs = None
@@ -75,7 +76,6 @@ class SimEngine(object):
         # Create index on index column for the whole dataset
         store.create_table_index(self.name, columns=['index'], optlevel=9, kind='full')
 
-
     def fit_csv(self, train_file, attributes=None):
         store = pd.HDFStore(self.traindatastore_name, mode="w")
         self.pre_process_data(store, train_file, attributes)
@@ -85,11 +85,13 @@ class SimEngine(object):
     def fit(self, records):
         dataset = {}
         for record in records:
-            if self.attribute_count == None:
+            if self.attribute_count is None:
                 self.attribute_count = len(record[1:])
             r_id = record[0]
             r_attributes = record[1:]
             dataset[r_id] = r_attributes
+
+        print(len(dataset))
 
         #  Predict labels
         P, N = self.load_labels()
@@ -107,32 +109,39 @@ class SimEngine(object):
             P, N = labels.predict()
             self.save_labels(P, N)
 
-        print("P:", len(P))
-        print("N:", len(N))
+        if self.verbose:
+            print("Generated %d P and %d N labels" % (len(P), len(N)))
 
-        #  Learn blocking scheme
-        self.blocking_key = self.load_blocking_scheme()
-        if self.blocking_key is None:
+        # Learn blocking scheme
+        self.blocking_scheme = self.load_blocking_scheme()
+        if self.blocking_scheme is None:
             blocking_keys = []
             for field in range(self.attribute_count):
                 blocking_keys.append(BlockingKey(has_common_token, field, tokens))
                 blocking_keys.append(BlockingKey(is_exact_match, field, term_id))
 
             dbs = DisjunctiveBlockingScheme(blocking_keys, P, N)
-            self.blocking_key = dbs.transform(dataset)
+            self.blocking_scheme = dbs.transform(dataset)
             self.save_blocking_scheme()
 
-        pprint(self.blocking_key)
+        if self.verbose:
+            print("Learned the following blocking scheme:")
+            pprint(self.blocking_scheme)
 
-        #  Learn similarity functions per attribute
+        # Learn similarity functions per attribute
         self.similarities = self.load_similarities()
         if self.similarities is None:
-            P, N = WeakLabels.filter(self.blocking_key, P, N)
-            sl = SimLearner(dataset)
+            P, N = WeakLabels.filter(self.blocking_scheme, P, N)
+            if self.verbose:
+                print("Have %d P and %d N filtered labels" % (len(P), len(N)))
+
+            sl = SimLearner(self.attribute_count, dataset)
             self.similarities = sl.predict(P, N)
             self.save_similarities()
 
-        pprint(self.similarities)
+        if self.verbose:
+            print("Predicted the following similarities:")
+            pprint(self.similarities)
 
         # Cleanup
         del dataset
@@ -144,9 +153,13 @@ class SimEngine(object):
         self.build(hp.hdf_records(store, self.name))
 
     def build(self, records):
-        self.indexer = MDySimII(self.attribute_count,
-                                self.blocking_key,
-                                self.similarities)
+        similarity_fns = []
+        for measure in SimLearner.strings_to_prediction(self.similarities):
+            similarity_fns.append(measure().compare)
+
+        self.indexer = self.indexer_class(self.attribute_count,
+                                          self.blocking_scheme,
+                                          similarity_fns)
         if not self.indexer.load(self.name):
             for record in records:
                 r_id = record[0]
@@ -174,7 +187,6 @@ class SimEngine(object):
             nrecords = store.get_storer(self.name).nrows
         max_comparisons = (nrecords * 0.5) * (nrecords - 1)
         blocked_comparsision = 0.
-        print(self.indexer.frequency_distribution())
         for bsize, nblocks in self.indexer.frequency_distribution().items():
             blocked_comparsision += nblocks * (bsize * 0.5) * (bsize - 1)
 
@@ -190,9 +202,10 @@ class SimEngine(object):
         for record in records:
             if self.query_timer:
                 with self.query_timer:
-                    self.indexer.query(record)
+                    result = self.indexer.query(record)
             else:
-                self.indexer.query(record)
+                result = self.indexer.query(record)
+                # print("--  Results:", len(result))
 
     def read_ground_truth(self, gold_standard, gold_attributes):
         self.gold_pairs = []
@@ -226,7 +239,7 @@ class SimEngine(object):
 
     def blocking_scheme_to_strings(self):
         data = []
-        for index, feature in enumerate(self.blocking_key):
+        for index, feature in enumerate(self.blocking_scheme):
             for predicate in feature.predicates:
                 data.append([index, predicate.field,
                              predicate.encoder.__name__,
@@ -268,16 +281,13 @@ class SimEngine(object):
     def save_similarities(self):
         with pd.HDFStore(self.configstore_name,
                          complevel=9, complib='blosc') as store:
-            df = pd.DataFrame(SimLearner.prediction_to_strings(self.similarities),
-                              columns=["function"])
+            df = pd.DataFrame(self.similarities, columns=["function"])
             store.put("similarities", df, format="t")
 
     def load_similarities(self):
         with pd.HDFStore(self.configstore_name) as store:
             if "/similarities" in store.keys():
-                prediction_strings = \
-                    [s[0] for s in hp.hdf_record_attributes(store,
-                                                            "similarities")]
-                return SimLearner.strings_to_prediction(prediction_strings)
+                return [s[0] for s in hp.hdf_record_attributes(store,
+                                                               "similarities")]
             else:
                 return None

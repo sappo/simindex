@@ -58,7 +58,7 @@ class DySimII(object):
             return cur_val + new_val + max - current - 1
 
     def fit_csv(self, filename, attributes=[]):
-        records = read_csv(filename, attributes)
+        records = hp.read_csv(filename, attributes)
         for record in records:
             if self.insert_timer:
                 with self.insert_timer:
@@ -175,75 +175,6 @@ class DySimII(object):
         return freq_dis
 
 
-class MDySimII(object):
-
-    def __init__(self, count, dns_blocking_scheme, similarity_fns,
-                 threshold=-1.0, top_n=-1.0, normalize=False,
-                 insert_timer=None, query_timer=None):
-        self.count = count
-        self.msai = MultiSimAwareIndex(dns_blocking_scheme, similarity_fns)
-        self.threshold = threshold
-        self.top_n = top_n
-        self.normalize = normalize
-        self.candidate_count = 0
-
-    def _insert_to_accumulator(self, accumulator, key, value):
-        nom_value = value
-        if self.normalize:
-            nom_value /= self.count
-
-        if key in accumulator:
-            accumulator[key] += nom_value
-        else:
-            accumulator[key] = nom_value
-
-    def insert(self, r_id, r_attributes):
-        self.msai.insert(r_id, r_attributes)
-
-    def query(self, q_record):
-        accumulator = {}
-        m = self.msai.query(q_record)
-        self.candidate_count += len(m.items())
-        for key, value in m.items():
-            if value > self.threshold:
-                self._insert_to_accumulator(accumulator, key, value)
-
-        if self.top_n > 0:
-            return dict(Counter(accumulator).most_common(self.top_n))
-
-        return accumulator
-
-    def pair_completeness(self, gold_pairs, dataset):
-        """
-        Returns the recall from the passed gold standard and the index data.
-        """
-        total_p = len(gold_pairs)  # True positives + False negatives
-        true_p = 0
-        for id1, id2 in gold_pairs:
-            id1_attributes = dataset[id1]
-            id2_attributes = dataset[id2]
-            for feature in self.msai.dns_blocking_scheme:
-                id1_bkvs = feature.blocking_key_values(id1_attributes)
-                id2_bkvs = feature.blocking_key_values(id2_attributes)
-                if len(id1_bkvs.intersection(id2_bkvs)) > 0:
-                    true_p += 1
-                    break
-
-        return true_p / total_p
-
-    def frequency_distribution(self):
-        """
-        Returns the frequency distribution for each attribute
-        """
-        return self.msai.frequency_distribution()
-
-    def load(self, name):
-        return self.msai.load(name)
-
-    def save(self, name):
-        self.msai.save(name)
-
-
 class SimAwareIndex(object):
 
     def __init__(self, simmetric_fn, encode_fn):
@@ -297,15 +228,23 @@ class SimAwareIndex(object):
         return Counter(block_sizes)
 
 
-class MultiSimAwareIndex(object):
+class MDySimII(object):
 
-    def __init__(self, dns_blocking_scheme, similarity_fns):
+    def __init__(self, count, dns_blocking_scheme, similarity_fns,
+                 threshold=-1.0, top_n=-1.0, normalize=False):
+        self.count = count
         self.dns_blocking_scheme = dns_blocking_scheme
         self.similarity_fns = similarity_fns
 
+        # Class structure
         self.RI = defaultdict(set)     # Record Index (RI)
         self.FBI = defaultdict(dict)  # Field Block Indicies (FBI)
         self.SI = defaultdict(dict)    # Similarity Index (SI)
+
+        # Format output
+        self.threshold = threshold
+        self.top_n = top_n
+        self.normalize = normalize
 
     def insert(self, r_id, r_attributes):
         for feature in self.dns_blocking_scheme:
@@ -358,6 +297,14 @@ class MultiSimAwareIndex(object):
                         accumulator[id] += sim
 
         del accumulator[q_id]
+
+        for key, value in accumulator.items():
+            if value < self.threshold:
+                del accumulator[key]
+
+        if self.top_n > 0:
+            return dict(Counter(accumulator).most_common(self.top_n))
+
         return accumulator
 
     def save(self, name):
@@ -389,6 +336,24 @@ class MultiSimAwareIndex(object):
         else:
             return False
 
+    def pair_completeness(self, gold_pairs, dataset):
+        """
+        Returns the recall from the passed gold standard and the index data.
+        """
+        total_p = len(gold_pairs)  # True positives + False negatives
+        true_p = 0
+        for id1, id2 in gold_pairs:
+            id1_attributes = dataset[id1]
+            id2_attributes = dataset[id2]
+            for feature in self.dns_blocking_scheme:
+                id1_bkvs = feature.blocking_key_values(id1_attributes)
+                id2_bkvs = feature.blocking_key_values(id2_attributes)
+                if len(id1_bkvs.intersection(id2_bkvs)) > 0:
+                    true_p += 1
+                    break
+
+        return true_p / total_p
+
     def ri_distribution(self):
         block_sizes = []
         for block_key in self.RI.keys():
@@ -411,13 +376,19 @@ class MultiSimAwareIndex(object):
 
 class MDySimIII(object):
 
-    def __init__(self, count, dns_blocking_scheme, similarity_fns):
+    def __init__(self, count, dns_blocking_scheme, similarity_fns,
+                 threshold=-1.0, top_n=-1.0, normalize=False):
         self.dns_blocking_scheme = dns_blocking_scheme
         self.similarity_fns = similarity_fns
-        self.attribute_count = count
 
+        # Class structure
         self.FBI = defaultdict(dict)   # Field Block Indicies (FBI)
         self.SI = defaultdict(dict)    # Similarity Index (SI)
+
+        # Format output
+        self.attribute_count = count
+        self.threshold = threshold
+        self.top_n = top_n
 
     def insert(self, r_id, r_attributes):
         for feature in self.dns_blocking_scheme:
@@ -464,6 +435,8 @@ class MDySimIII(object):
                     BI = self.FBI[field]
                     q_attribute = q_attributes[field]
                     for attribute in BI[encoding].keys():
+                        # print("Added %d for %r in %r" %
+                                # (len(BI[encoding][attribute]), attribute, encoding))
                         if attribute == q_attribute:
                             for id in BI[encoding][q_attribute]:
                                 accumulator[id][field] = 1.0
@@ -473,8 +446,17 @@ class MDySimIII(object):
                                 accumulator[id][field] = sim
 
         del accumulator[q_id]
-        for id in accumulator.keys():
-            accumulator[id] = np.sum(accumulator[id])
+
+        for id, sim_values in accumulator.items():
+            sim_sum = np.sum(sim_values)
+            if sim_sum > self.threshold:
+                accumulator[id] = sim_sum
+            else:
+                del accumulator[id]
+
+        if self.top_n > 0:
+            return dict(Counter(accumulator).most_common(self.top_n))
+
         return accumulator
 
     def save(self, name):
