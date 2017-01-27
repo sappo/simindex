@@ -11,10 +11,13 @@ Tests for `simindex` module.
 import os
 import pytest
 from pprint import pprint
+import tempfile
+import pandas as pd
 
 from .testprofiler import profile
 from .testdata import restaurant_records
 
+import simindex.helper as hp
 from simindex import SimEngine, MDySimII, MDySimIII
 from simindex import DisjunctiveBlockingScheme, WeakLabels, SimLearner
 
@@ -45,15 +48,19 @@ def test_engine(verbose):
     print("Reduction ratio:", engine.reduction_ratio())
 
 
-# @profile(follow=[MDySimII.insert, MDySimII.query,
-#                  MDySimIII.insert, MDySimIII.query])
+@profile(follow=[MDySimII.insert, MDySimII.query,
+                 MDySimIII.insert, MDySimIII.query])
 def test_engine_restaurant(verbose):
     # Expected results
-    blocking_scheme_expected =[[0, 0, 'tokens', 'has_common_token'],
-                               [0, 1, 'tokens', 'has_common_token'],
-                               [1, 1, 'term_id', 'is_exact_match']]
-    sim_strings_expected = ["SimDamerau", "SimLevenshtein", "SimDamerau",
-                            "SimDamerau", "SimRatio"]
+    blocking_scheme_expected = [[0, 0, 'term_id', 'is_exact_match'],
+                                [0, 1, 'tokens', 'has_common_token'],
+                                [1, 1, 'term_id', 'is_exact_match'],
+                                [1, 1, 'tokens', 'has_common_token'],
+                                [2, 0, 'tokens', 'has_common_token'],
+                                [2, 1, 'tokens', 'has_common_token']]
+
+    sim_strings_expected = ['SimDamerau', 'SimLevenshtein', 'SimDamerau',
+                            'SimDamerau', 'SimRatio']
     for indexer in [MDySimII, MDySimIII]:
         print()
         print("--------------------------------------------------------------")
@@ -139,3 +146,23 @@ def restaurant_cleanup(engine):
         os.remove(".%s_FBI.idx" % engine.name)
     if os.path.exists(".%s_SI.idx" % engine.name):
         os.remove(".%s_SI.idx" % engine.name)
+
+
+def test_engine_preprocessing(verbose):
+    test_store = pd.HDFStore("preproc.th5",
+                             driver="H5FD_CORE",
+                             driver_core_backing_store=0)
+    engine = SimEngine("preproc", indexer=None, verbose=verbose)
+
+    with tempfile.NamedTemporaryFile() as fp:
+        fp.write(b'id, attr1, attr2\n')
+        fp.write(b'1, This is aNd a test, And for another the test in\n')
+        fp.flush()
+        fp.seek(0)
+        engine.pre_process_data(test_store, fp.name, None)
+
+        expected_attr1 = 'this is test'
+        expected_attr2 = 'another test'
+        for row in hp.hdf_record_attributes(test_store, 'preproc'):
+            assert row[0] == expected_attr1
+            assert row[1] == expected_attr2

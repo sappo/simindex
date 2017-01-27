@@ -2,7 +2,8 @@
 import math
 import heapq
 import numpy as np
-from collections import defaultdict, namedtuple
+from pprint import pprint
+from collections import defaultdict, namedtuple, Counter
 from gensim import corpora, models
 
 
@@ -210,7 +211,7 @@ class Feature:
 
 class DisjunctiveBlockingScheme(object):
 
-    def __init__(self, blocking_keys, P, N, k=2):
+    def __init__(self, blocking_keys, P, N, k=1):
         self.P = P
         self.N = N
         self.features = []
@@ -244,7 +245,6 @@ class DisjunctiveBlockingScheme(object):
                  ((d * math.pow(vpi, 2)) + (nd * math.pow(vni, 2)))
             return pi
 
-    # TODO: Try Mutual Information
     @staticmethod
     def my_score(Pf, Nf, i):
         Pfi = Pf[i]
@@ -267,8 +267,11 @@ class DisjunctiveBlockingScheme(object):
         recall = TP / (FN + TP)
         precision = TP / (TP + FP)
         harmonic_mean = 2 * ((precision * recall) / (precision + recall))
-        accuracy = (TP + TN) / (TP + FP + TN + FN)
-        return recall, precision, harmonic_mean, accuracy
+        return harmonic_mean
+
+    @staticmethod
+    def overall_score(key_coverage, bavg, bvar, cavg, cvar):
+        return 1 - key_coverage + bavg + bvar + cavg + cvar
 
     def terms(self, Pf, Nf):
         count = 0
@@ -281,11 +284,14 @@ class DisjunctiveBlockingScheme(object):
             Kf = []
             for index, feature in enumerate(self.features):
                 if feature not in forbidden:
-                    feature.fsc = self.f1_score(PfT, NfT, index)
+                    bmean, bvar, cmean, cvar = self.block_metrics(feature)
+                    feature.fsc = self.overall_score(
+                            self.f1_score(PfT, NfT, index),
+                            bmean, bvar, cmean, cvar)
                     feature.msc = self.my_score(PfT, NfT, index)
                     Kf.append(feature)
 
-            fsc_avg = np.mean([feature.msc for feature in self.features])
+            fsc_avg = np.mean([feature.fsc for feature in self.features])
             Kf = sorted(Kf, key=lambda feature: feature.msc, reverse=True)
             for feature in Kf:
                 for original_feature in original_features:
@@ -294,10 +300,13 @@ class DisjunctiveBlockingScheme(object):
                         new_feature = feature.union(original_feature)
                         if new_feature not in self.features:
                             # Calculate new scores
-                            new_feature.fsc = self.f1_score([new_feature.pv], [new_feature.nv], 0)
+                            bmean, bvar, cmean, cvar = self.block_metrics(new_feature)
+                            new_feature.fsc = self.overall_score(
+                                    self.f1_score([new_feature.pv], [new_feature.nv], 0),
+                                    bmean, bvar, cmean, cvar)
                             new_feature.msc = self.my_score([new_feature.pv], [new_feature.nv], 0)
                             # Add new feature if above average score
-                            if new_feature.msc > fsc_avg:
+                            if new_feature.fsc < fsc_avg:
                                 self.features.append(new_feature)
                                 PfT.append(new_feature.pv)
                                 NfT.append(new_feature.nv)
@@ -307,6 +316,39 @@ class DisjunctiveBlockingScheme(object):
             count += 1
 
         return PfT, NfT
+
+    def block_metrics(self, feature):
+        FBI = defaultdict(dict)
+        for r_id, r_attributes in self.dataset.items():
+            blocking_key_values = feature.blocking_key_values(r_attributes)
+            for encoding in blocking_key_values:
+                for blocking_key in feature.predicates:
+                    field = blocking_key.field
+                    attribute = r_attributes[field]
+
+                    BI = FBI[field]
+                    if encoding not in BI.keys():
+                        BI[encoding] = defaultdict(set)
+
+                    BI[encoding][attribute].add(r_id)
+
+        block_sizes = []
+        candidate_sizes = []
+        for BI in FBI.values():
+            for block_key in BI.keys():
+                block_sizes.append(len(BI[block_key]))
+                for attribute in BI[block_key]:
+                    candidate_sizes.append(len(BI[block_key][attribute]))
+
+        # Calculate Block metrics
+        bmax = np.max(block_sizes)
+        bavg = np.mean(block_sizes)
+        bvar = np.var(block_sizes)
+        # Calculate Candidate metrics
+        cmax = np.max(candidate_sizes)
+        cavg = np.mean(candidate_sizes)
+        cvar = np.var(candidate_sizes)
+        return bavg, bvar, cavg, cvar
 
     def feature_vector(self, feature):
             pv = np.empty(len(self.P), np.bool)
@@ -357,17 +399,17 @@ class DisjunctiveBlockingScheme(object):
         # Sort features
         Kf = []
         Km = []
-        for index, feature in enumerate(self.features):
+        for feature in self.features:
             Kf.append(feature)
             Km.append(feature)
 
-        Kf = sorted(Kf, key=lambda feature: feature.fsc, reverse=True)
+        Kf = sorted(Kf, key=lambda feature: feature.fsc)
         Km = sorted(Km, key=lambda feature: feature.msc, reverse=True)
 
         fPDisj = []
         fPDisj_p = None
         # Example coverage variant
-        for feature in Km:
+        for feature in Kf:
             if fPDisj_p is None:
                 # Init NULL-vector
                 fPDisj_p = np.array([0 for index in range(0, len(feature.pv))])
@@ -376,6 +418,12 @@ class DisjunctiveBlockingScheme(object):
             if not np.array_equal(new_sig, fPDisj_p):
                 fPDisj_p = new_sig
                 fPDisj.append(feature)
+
+        # Post filter bad scores: Those bad scores might be considerable smaller
+        # than those of other but may still be considerable larger then the top
+        # ranked.
+        score_mean = np.mean([feature.fsc for feature in fPDisj])
+        fPDisj[:] = filter(lambda f: f.fsc < 100, fPDisj)
 
         return fPDisj
 

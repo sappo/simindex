@@ -44,13 +44,9 @@ class SimLearner():
         prediction = defaultdict(OrderedDict)
         for field in range(self.attribute_count):
             for sim_obj in self.similarity_objs:
-                mean = self.mean_similarity(P, field, sim_obj.compare)
-                prediction[field][type(sim_obj).__name__] = 1 - mean
-
-        for field in range(self.attribute_count):
-            for sim_obj in self.similarity_objs:
-                mean = self.mean_similarity(N, field, sim_obj.compare)
-                prediction[field][type(sim_obj).__name__] += mean
+                pmean = self.mean_similarity(P, field, sim_obj.compare)
+                nmean = self.mean_similarity(N, field, sim_obj.compare)
+                prediction[field][type(sim_obj).__name__] = 1 - pmean + nmean
 
         result = OrderedDict()
         for field in prediction.keys():

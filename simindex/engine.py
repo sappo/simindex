@@ -19,7 +19,7 @@ import simindex.helper as hp
 
 class SimEngine(object):
 
-    def __init__(self, name, indexer=MDySimII,
+    def __init__(self, name, indexer=MDySimII, max_bk_conjunction=1,
                  max_positive_labels=None, max_negative_labels=None,
                  insert_timer=None, query_timer=None, verbose=False):
         self.name = name
@@ -30,6 +30,7 @@ class SimEngine(object):
         self.indexer_class = indexer
         self.attribute_count = None
         self.stoplist = set('for a of the and to in'.split())
+        self.max_bk_conjunction = max_bk_conjunction
 
         self.max_p = max_positive_labels
         self.max_n = max_negative_labels
@@ -60,8 +61,9 @@ class SimEngine(object):
             for dataframe in csv_frames:
                 dataframe.fillna('', inplace=True)
                 # Pre-process data
-                dataframe.applymap(lambda x: x if type(x) != str else x.lower())
-                dataframe.applymap(lambda x: x if type(x) != str else \
+                dataframe = dataframe.applymap(lambda x: x if type(x) != str else x.lower())
+                # Pre-process data
+                dataframe = dataframe.applymap(lambda x: x if type(x) != str else \
                         ' '.join(filter(lambda s: s not in self.stoplist, x.split())))
 
                 # Append chunk to store
@@ -120,7 +122,8 @@ class SimEngine(object):
                 blocking_keys.append(BlockingKey(has_common_token, field, tokens))
                 blocking_keys.append(BlockingKey(is_exact_match, field, term_id))
 
-            dbs = DisjunctiveBlockingScheme(blocking_keys, P, N)
+            dbs = DisjunctiveBlockingScheme(blocking_keys, P, N,
+                                            self.max_bk_conjunction)
             self.blocking_scheme = dbs.transform(dataset)
             self.save_blocking_scheme()
 
@@ -171,6 +174,8 @@ class SimEngine(object):
                     self.indexer.insert(r_id, r_attributes)
 
             self.indexer.save(self.name)
+
+        # pprint(self.indexer.FBI)
 
     def pair_completeness(self):
         with pd.HDFStore(self.traindatastore_name) as store:
