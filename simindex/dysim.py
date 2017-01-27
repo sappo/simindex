@@ -31,12 +31,8 @@ class DySimII(object):
             for gold_pair in pairs:
                 self.gold_pairs.append(gold_pair)
 
-            self.gold_records = {}
+            self.gold_records = defaultdict(set)
             for a, b in self.gold_pairs:
-                if a not in self.gold_records.keys():
-                    self.gold_records[a] = set()
-                if b not in self.gold_records.keys():
-                    self.gold_records[b] = set()
                 self.gold_records[a].add(b)
                 self.gold_records[b].add(a)
         self.candidate_count = 0
@@ -237,8 +233,9 @@ class MDySimII(object):
         self.similarity_fns = similarity_fns
 
         # Class structure
+        self.nrecords = 0              # Number of records indexed
         self.RI = defaultdict(set)     # Record Index (RI)
-        self.FBI = defaultdict(dict)  # Field Block Indicies (FBI)
+        self.FBI = defaultdict(dict)   # Field Block Indicies (FBI)
         self.SI = defaultdict(dict)    # Similarity Index (SI)
 
         # Format output
@@ -278,6 +275,8 @@ class MDySimII(object):
                             #  Append similarity to attribute
                             self.SI[attribute][block_value] = similarity
 
+        self.nrecords += 1
+
     def query(self, q_record):
         accumulator = defaultdict(float)
         q_id = q_record[0]
@@ -308,6 +307,9 @@ class MDySimII(object):
         return accumulator
 
     def save(self, name):
+        # Dump number of records
+        with open(".%s_nrecords.idx" % name, "wb") as handle:
+            pickle.dump(self.nrecords, handle, protocol=pickle.HIGHEST_PROTOCOL)
         # Dump RI
         with open(".%s_RI.idx" % name, "wb") as handle:
             pickle.dump(self.RI, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -319,12 +321,15 @@ class MDySimII(object):
             pickle.dump(self.SI, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load(self, name):
+        nrecords_filename = ".%s_nrecords.idx" % name
         ri_filename = ".%s_RI.idx" % name
         fbi_filename = ".%s_FBI.idx" % name
         si_filename = ".%s_SI.idx" % name
         if os.path.exists(ri_filename) and \
            os.path.exists(fbi_filename) and \
            os.path.exists(si_filename):
+            with open(nrecords_filename, "rb") as handle:
+                self.nrecords = pickle.load(handle)
             with open(ri_filename, "rb") as handle:
                 self.RI = pickle.load(handle)
             with open(fbi_filename, "rb") as handle:
@@ -343,14 +348,26 @@ class MDySimII(object):
         total_p = len(gold_pairs)  # True positives + False negatives
         true_p = 0
         for id1, id2 in gold_pairs:
+            hit = False
             id1_attributes = dataset[id1]
             id2_attributes = dataset[id2]
-            for feature in self.dns_blocking_scheme:
-                id1_bkvs = feature.blocking_key_values(id1_attributes)
-                id2_bkvs = feature.blocking_key_values(id2_attributes)
-                if len(id1_bkvs.intersection(id2_bkvs)) > 0:
-                    true_p += 1
+            # Check RI
+            for attributes in id1_attributes:
+                if id2 in self.RI[attributes]:
+                    hit = True
                     break
+
+            # Check FBI
+            if not hit:
+                for feature in self.dns_blocking_scheme:
+                    id1_bkvs = feature.blocking_key_values(id1_attributes)
+                    id2_bkvs = feature.blocking_key_values(id2_attributes)
+                    if len(id1_bkvs.intersection(id2_bkvs)) > 0:
+                        hit = True
+                        break
+
+            if hit:
+                true_p += 1
 
         return true_p / total_p
 
@@ -382,6 +399,7 @@ class MDySimIII(object):
         self.similarity_fns = similarity_fns
 
         # Class structure
+        self.nrecords = 0              # Number of records indexed
         self.FBI = defaultdict(dict)   # Field Block Indicies (FBI)
         self.SI = defaultdict(dict)    # Similarity Index (SI)
 
@@ -417,6 +435,8 @@ class MDySimIII(object):
 
                             #  Append similarity to attribute
                             self.SI[attribute][block_value] = similarity
+
+        self.nrecords += 1
 
     def query(self, q_record):
         q_id = q_record[0]
@@ -460,6 +480,9 @@ class MDySimIII(object):
         return accumulator
 
     def save(self, name):
+        # Dump number of records
+        with open(".%s_nrecords.idx" % name, "wb") as handle:
+            pickle.dump(self.nrecords, handle, protocol=pickle.HIGHEST_PROTOCOL)
         # Dump FBI
         with open(".%s_FBI.idx" % name, "wb") as handle:
             pickle.dump(self.FBI, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -468,10 +491,13 @@ class MDySimIII(object):
             pickle.dump(self.SI, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load(self, name):
+        nrecords_filename = ".%s_nrecords.idx" % name
         fbi_filename = ".%s_FBI.idx" % name
         si_filename = ".%s_SI.idx" % name
         if os.path.exists(fbi_filename) and \
            os.path.exists(si_filename):
+            with open(nrecords_filename, "rb") as handle:
+                self.nrecords = pickle.load(handle)
             with open(fbi_filename, "rb") as handle:
                 self.FBI = pickle.load(handle)
             with open(si_filename, "rb") as handle:

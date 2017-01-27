@@ -27,8 +27,8 @@ from simindex import DisjunctiveBlockingScheme, WeakLabels, SimLearner
                  # WeakLabels.tfidf_similarity,
                  # DisjunctiveBlockingScheme.feature_vector,
                  # DisjunctiveBlockingScheme.transform])
-# @profile(follow=[MDySimII.insert, MDySimII.query,
-                 # MDySimIII.insert, MDySimIII.query])
+@profile(follow=[MDySimII.insert, MDySimII.query,
+                 MDySimIII.insert, MDySimIII.query])
 def test_engine(verbose):
     engine = SimEngine("ferbl-90k", indexer=MDySimIII, verbose=verbose)
     print("Fit")
@@ -48,8 +48,8 @@ def test_engine(verbose):
     print("Reduction ratio:", engine.reduction_ratio())
 
 
-@profile(follow=[MDySimII.insert, MDySimII.query,
-                 MDySimIII.insert, MDySimIII.query])
+# @profile(follow=[MDySimII.insert, MDySimII.query,
+                 # MDySimIII.insert, MDySimIII.query])
 def test_engine_restaurant(verbose):
     # Expected results
     blocking_scheme_expected = [[0, 0, 'term_id', 'is_exact_match'],
@@ -83,16 +83,18 @@ def test_engine_restaurant(verbose):
                          ["id","name","addr","city","phone","type"])
 
         # Query the index
+        gold_csv = "../../master_thesis/datasets/restaurant/restaurant_train_gold.csv"
+        engine.read_ground_truth(gold_standard=gold_csv, gold_attributes=["id_1", "id_2"])
         engine.query_csv("../../master_thesis/datasets/restaurant/restaurant_train_query.csv",
                          ["id","name","addr","city","phone","type"])
 
         # Metrics
-        gold_csv = "../../master_thesis/datasets/restaurant/restaurant_train_gold.csv"
-        engine.read_ground_truth(gold_standard=gold_csv, gold_attributes=["id_1", "id_2"])
         fresh_pc = engine.pair_completeness()
         fresh_rr = engine.reduction_ratio()
         print("Pair completeness:", fresh_pc)
         print("Reduction ratio:", fresh_rr)
+        print("Recall:", engine.recall())
+        print("Precision:", engine.precision())
         del engine
 
         print()
@@ -113,18 +115,20 @@ def test_engine_restaurant(verbose):
                          ["id","name","addr","city","phone","type"])
 
         # Query the index
+        gold_csv = "../../master_thesis/datasets/restaurant/restaurant_train_gold.csv"
+        engine.read_ground_truth(gold_standard=gold_csv, gold_attributes=["id_1", "id_2"])
         engine.query_csv("../../master_thesis/datasets/restaurant/restaurant_train_query.csv",
                          ["id","name","addr","city","phone","type"])
 
         # Metrics
-        gold_csv = "../../master_thesis/datasets/restaurant/restaurant_train_gold.csv"
-        engine.read_ground_truth(gold_standard=gold_csv, gold_attributes=["id_1", "id_2"])
         saved_pc = engine.pair_completeness()
         saved_rr = engine.reduction_ratio()
         assert fresh_pc == saved_pc
         assert fresh_rr == saved_rr
         print("Pair completeness:", saved_pc)
         print("Reduction ratio:", saved_rr)
+        print("Recall:", engine.recall())
+        print("Precision:", engine.precision())
 
         # Cleanup
         restaurant_cleanup(engine)

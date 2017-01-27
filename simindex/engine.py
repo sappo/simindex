@@ -3,6 +3,9 @@ import pandas as pd
 import numpy as np
 from pprint import pprint
 
+from collections import defaultdict
+from sklearn.metrics import recall_score, precision_score
+
 from .dysim import MDySimII, MDySimIII
 from .weak_labels import WeakLabels, \
                          DisjunctiveBlockingScheme, \
@@ -35,12 +38,14 @@ class SimEngine(object):
         self.max_p = max_positive_labels
         self.max_n = max_negative_labels
 
+        self.reductionratio = None
         self.insert_timer = insert_timer
         self.query_timer = query_timer
         self.verbose = verbose
 
         # Gold Standard/Ground Truth attributes
         self.gold_pairs = None
+        self.gold_records = None
 
     def pre_process_data(self, store, csvfile, attributes):
         group_name = "/%s" % self.name
@@ -177,6 +182,54 @@ class SimEngine(object):
 
         # pprint(self.indexer.FBI)
 
+    def query_csv(self, query_file, attributes=None):
+        store = pd.HDFStore(self.querydatastore_name, mode="w")
+        self.pre_process_data(store, query_file, attributes)
+        store.close()
+        self.query(hp.hdf_records(store, self.name))
+
+    def query(self, records):
+        for q_record in records:
+            if self.query_timer:
+                with self.query_timer:
+                    result = self.indexer.query(q_record)
+            else:
+                result = self.indexer.query(q_record)
+                # print("--  Results:", len(result))
+
+            query_reduction_ratio = 1 - len(result)/self.indexer.nrecords
+            if self.reductionratio:
+                self.reductionratio = np.mean([self.reductionratio,
+                                                query_reduction_ratio])
+            else:
+                self.reductionratio = query_reduction_ratio
+
+            if self.gold_records:
+                q_id = q_record[0]
+                hp.calc_micro_scores(q_id, result, self.y_true_score,
+                                     self.y_scores, self.gold_records)
+                hp.calc_micro_metrics(q_id, result, self.y_true,
+                                      self.y_pred, self.gold_records)
+
+    def read_ground_truth(self, gold_standard, gold_attributes):
+        self.gold_pairs = []
+        self.gold_records = defaultdict(set)
+
+        pairs = hp.read_csv(gold_standard, gold_attributes,
+                            dtype=self.index_dtype)
+        for gold_pair in pairs:
+            self.gold_pairs.append(gold_pair)
+
+            for a, b in self.gold_pairs:
+                self.gold_records[a].add(b)
+                self.gold_records[b].add(a)
+
+        # Initialize evaluation
+        self.y_true_score = []
+        self.y_scores = []
+        self.y_true = []
+        self.y_pred = []
+
     def pair_completeness(self):
         with pd.HDFStore(self.traindatastore_name) as store:
             gold_ids = list(hp.flatten(self.gold_pairs))
@@ -188,37 +241,13 @@ class SimEngine(object):
         return self.indexer.pair_completeness(self.gold_pairs, dataset)
 
     def reduction_ratio(self):
-        with pd.HDFStore(self.traindatastore_name) as store:
-            nrecords = store.get_storer(self.name).nrows
-        max_comparisons = (nrecords * 0.5) * (nrecords - 1)
-        blocked_comparsision = 0.
-        for bsize, nblocks in self.indexer.frequency_distribution().items():
-            blocked_comparsision += nblocks * (bsize * 0.5) * (bsize - 1)
+        return self.reductionratio
 
-        return 1 - (blocked_comparsision / max_comparisons)
+    def recall(self):
+        return recall_score(self.y_true, self.y_pred)
 
-    def query_csv(self, query_file, attributes=None):
-        store = pd.HDFStore(self.querydatastore_name, mode="w")
-        self.pre_process_data(store, query_file, attributes)
-        store.close()
-        self.query(hp.hdf_records(store, self.name))
-
-    def query(self, records):
-        for record in records:
-            if self.query_timer:
-                with self.query_timer:
-                    result = self.indexer.query(record)
-            else:
-                result = self.indexer.query(record)
-                # print("--  Results:", len(result))
-
-    def read_ground_truth(self, gold_standard, gold_attributes):
-        self.gold_pairs = []
-
-        pairs = hp.read_csv(gold_standard, gold_attributes,
-                            dtype=self.index_dtype)
-        for gold_pair in pairs:
-            self.gold_pairs.append(gold_pair)
+    def precision(self):
+        return precision_score(self.y_true, self.y_pred)
 
     def save_labels(self, P, N):
         with pd.HDFStore(self.configstore_name,

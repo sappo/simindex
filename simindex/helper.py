@@ -2,6 +2,7 @@
 import subprocess
 import pandas as pd
 import itertools as it
+from pprint import pprint
 from collections import defaultdict
 
 
@@ -52,6 +53,7 @@ def hdf_records(store, group, query=None):
 
     frames = store.select(group, where=query, iterator=True, chunksize=50000)
     for df in frames:
+
         df.fillna('', inplace=True)
         for record in df.to_records():
             yield list(record)
@@ -70,44 +72,47 @@ def prepare_record_fitting(dataset, ground_truth):
 
 
 def calc_micro_scores(q_id, result, y_true, y_score, gold_records):
-    # Disregards True negatives (TN)
-    for a in result.keys():
-        # Only consider querys with relevant records
-        if q_id in gold_records.keys():
-            y_score.append(result[a])
-            if a in gold_records[q_id]:
-                # True Positive (TP)
-                y_true.append(1)
-            else:
-                # False Positive (FP)
-                y_true.append(0)
-                # print("For", q_id, "falsly predicted:", a, "with score", result[a], ".")
+    # Only consider querys with relevant records
+    if q_id in gold_records.keys():
+        # Disregards True negatives (TN)
+        for result_id in result.keys():
+                result_score = result[result_id]
+                y_score.append(result_score)
+                if result_id in gold_records[q_id]:
+                    # True Positive (TP)
+                    y_true.append(1)
+                else:
+                    # False Positive (FP)
+                    y_true.append(0)
+                    # print("For", q_id, "falsly predicted:", a, "with score", result[a], ".")
 
-    # Fill in False Negatives (FN) with score 0.0
-    if q_id in gold_records:
+        # Fill in False Negatives (FN) with score 0.0
         for fn in gold_records[q_id].difference(result.keys()):
             y_true.append(1)
             y_score.append(0.)
 
 def calc_micro_metrics(q_id, result, y_true, y_pred, gold_records):
-    # Disregards True negatives (TN)
-    for a in result.keys():
-        # Only consider querys with relevant records
-        if q_id in gold_records.keys():
-            y_pred.append(1)
-            if a in gold_records[q_id]:
-                # True Positive (TP)
-                y_true.append(1)
-            else:
-                # False Positive (FP)
-                y_true.append(0)
+    test = False
+    # Only consider querys with relevant records
+    if q_id in gold_records.keys():
+        # Disregards True negatives (TN)
+        for result_id in result.keys():
+                y_pred.append(1)
+                if result_id in gold_records[q_id]:
+                    # True Positive (TP)
+                    y_true.append(1)
+                    test = True
+                else:
+                    # False Positive (FP)
+                    y_true.append(0)
 
-    # Fill in False Negatives (FN)
-    if q_id in gold_records:
+        # Fill in False Negatives (FN)
         for fn in gold_records[q_id].difference(result.keys()):
             y_true.append(1)
             y_pred.append(0)
 
+        if not test:
+            print("Didn't find match for %s" % q_id)
 
 def grouper(iterable, n, fillvalue=None):
     "Collect data into fixed-length chunks or blocks"
