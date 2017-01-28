@@ -111,9 +111,6 @@ def calc_micro_metrics(q_id, result, y_true, y_pred, gold_records):
             y_true.append(1)
             y_pred.append(0)
 
-        if not test:
-            print("Didn't find match for %s" % q_id)
-
 def grouper(iterable, n, fillvalue=None):
     "Collect data into fixed-length chunks or blocks"
     # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx"

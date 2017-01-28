@@ -93,7 +93,7 @@ def test_mdysimII():
     s.insert(restaurant_records[0][0], restaurant_records[0][1:])
     s.insert(restaurant_records[1][0], restaurant_records[1][1:])
     result = s.query(restaurant_records[1])
-    assert result == {"0": 2.0}
+    assert result == {"0": 1.96}
     assert s.RI == {"mario's pizza": {"0"},
                     "marios pizza": {"1"},
                     "italian": {"0", "1"}}
@@ -107,8 +107,8 @@ def test_mdysimII():
                         "mario'sitalian": {'italian'},
                         'mariositalian': {'italian'},
                         'pizzaitalian': {'italian'}}
-    assert s.SI == {"mario's pizza": {'marios pizza': 1.0},
-                    "marios pizza": {"mario's pizza": 1.0}}
+    assert s.SI == {"mario's pizza": {'marios pizza': 0.96},
+                    "marios pizza": {"mario's pizza": 0.96}}
 
 
 def test_mdysimIII():
@@ -120,7 +120,7 @@ def test_mdysimIII():
     s.insert(restaurant_records[0][0], restaurant_records[0][1:])
     s.insert(restaurant_records[1][0], restaurant_records[1][1:])
     result = s.query(restaurant_records[1])
-    assert result == {"0": 2.0}
+    assert result == {"0": 1.96}
     assert s.FBI[0] == {"mario'sitalian": {"mario's pizza": {'0'}},
                         'mariositalian': {'marios pizza': {'1'}},
                         'pizzaitalian': {"mario's pizza": {'0'},
@@ -133,8 +133,8 @@ def test_mdysimIII():
                         "mario'sitalian": {'italian': {'0'}},
                         'mariositalian': {'italian': {'1'}},
                         'pizzaitalian': {'italian': {'0', '1'}}}
-    assert s.SI == {"mario's pizza": {'marios pizza': 1.0},
-                    "marios pizza": {"mario's pizza": 1.0}}
+    assert s.SI == {"mario's pizza": {'marios pizza': 0.96},
+                    "marios pizza": {"mario's pizza": 0.96}}
 
 
 def test_simawareindex_query():

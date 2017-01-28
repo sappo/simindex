@@ -18,7 +18,7 @@ from .testprofiler import profile
 from .testdata import restaurant_records
 
 import simindex.helper as hp
-from simindex import SimEngine, MDySimII, MDySimIII
+from simindex import SimEngine, MDySimII, MDySimIII, MDyLSH
 from simindex import DisjunctiveBlockingScheme, WeakLabels, SimLearner
 
 
@@ -61,7 +61,7 @@ def test_engine_restaurant(verbose):
 
     sim_strings_expected = ['SimDamerau', 'SimLevenshtein', 'SimDamerau',
                             'SimDamerau', 'SimRatio']
-    for indexer in [MDySimII, MDySimIII]:
+    for indexer in [MDyLSH, MDySimII, MDySimIII]:
         print()
         print("--------------------------------------------------------------")
         print("Testing fresh engine (%s) on restaurant dataset:" % indexer.__name__)
@@ -81,12 +81,15 @@ def test_engine_restaurant(verbose):
         # Build the index
         engine.build_csv("../../master_thesis/datasets/restaurant/restaurant_index.csv",
                          ["id","name","addr","city","phone","type"])
+        fresh_nrecords = engine.indexer.nrecords
+        assert fresh_nrecords == 431
 
         # Query the index
         gold_csv = "../../master_thesis/datasets/restaurant/restaurant_train_gold.csv"
         engine.read_ground_truth(gold_standard=gold_csv, gold_attributes=["id_1", "id_2"])
         engine.query_csv("../../master_thesis/datasets/restaurant/restaurant_train_query.csv",
                          ["id","name","addr","city","phone","type"])
+        assert engine.indexer.nrecords == 576
 
         # Metrics
         fresh_pc = engine.pair_completeness()
@@ -95,6 +98,7 @@ def test_engine_restaurant(verbose):
         print("Reduction ratio:", fresh_rr)
         print("Recall:", engine.recall())
         print("Precision:", engine.precision())
+        print("F1 Score:", engine.f1_score())
         del engine
 
         print()
@@ -113,6 +117,8 @@ def test_engine_restaurant(verbose):
         # Build the index
         engine.build_csv("../../master_thesis/datasets/restaurant/restaurant_index.csv",
                          ["id","name","addr","city","phone","type"])
+        saved_nrecords = engine.indexer.nrecords
+        assert fresh_nrecords == saved_nrecords
 
         # Query the index
         gold_csv = "../../master_thesis/datasets/restaurant/restaurant_train_gold.csv"
@@ -129,6 +135,7 @@ def test_engine_restaurant(verbose):
         print("Reduction ratio:", saved_rr)
         print("Recall:", engine.recall())
         print("Precision:", engine.precision())
+        print("F1 Score:", engine.f1_score())
 
         # Cleanup
         restaurant_cleanup(engine)
@@ -144,6 +151,10 @@ def restaurant_cleanup(engine):
         os.remove(engine.indexdatastore_name)
     if os.path.exists(engine.querydatastore_name):
         os.remove(engine.querydatastore_name)
+    if os.path.exists(".%s_lsh.idx" % engine.name):
+        os.remove(".%s_lsh.idx" % engine.name)
+    if os.path.exists(".%s_nrecords.idx" % engine.name):
+        os.remove(".%s_nrecords.idx" % engine.name)
     if os.path.exists(".%s_RI.idx" % engine.name):
         os.remove(".%s_RI.idx" % engine.name)
     if os.path.exists(".%s_FBI.idx" % engine.name):

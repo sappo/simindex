@@ -227,7 +227,7 @@ class SimAwareIndex(object):
 class MDySimII(object):
 
     def __init__(self, count, dns_blocking_scheme, similarity_fns,
-                 threshold=-1.0, top_n=-1.0, normalize=False):
+                 normalize=False):
         self.count = count
         self.dns_blocking_scheme = dns_blocking_scheme
         self.similarity_fns = similarity_fns
@@ -239,8 +239,6 @@ class MDySimII(object):
         self.SI = defaultdict(dict)    # Similarity Index (SI)
 
         # Format output
-        self.threshold = threshold
-        self.top_n = top_n
         self.normalize = normalize
 
     def insert(self, r_id, r_attributes):
@@ -268,7 +266,6 @@ class MDySimII(object):
                     for block_value in block:
                         if block_value not in self.SI[attribute]:
                             similarity = self.similarity_fns[field](attribute, block_value)
-                            similarity = round(similarity, 1)
                             #  Append similarity to block_value
                             self.SI[block_value][attribute] = similarity
 
@@ -296,14 +293,6 @@ class MDySimII(object):
                         accumulator[id] += sim
 
         del accumulator[q_id]
-
-        for key, value in accumulator.items():
-            if value < self.threshold:
-                del accumulator[key]
-
-        if self.top_n > 0:
-            return dict(Counter(accumulator).most_common(self.top_n))
-
         return accumulator
 
     def save(self, name):
@@ -343,7 +332,8 @@ class MDySimII(object):
 
     def pair_completeness(self, gold_pairs, dataset):
         """
-        Returns the recall from the passed gold standard and the index data.
+        Returns the pair completeness from the passed gold standard and the
+        index data.
         """
         total_p = len(gold_pairs)  # True positives + False negatives
         true_p = 0
@@ -394,7 +384,7 @@ class MDySimII(object):
 class MDySimIII(object):
 
     def __init__(self, count, dns_blocking_scheme, similarity_fns,
-                 threshold=-1.0, top_n=-1.0, normalize=False):
+                 normalize=False):
         self.dns_blocking_scheme = dns_blocking_scheme
         self.similarity_fns = similarity_fns
 
@@ -405,8 +395,6 @@ class MDySimIII(object):
 
         # Format output
         self.attribute_count = count
-        self.threshold = threshold
-        self.top_n = top_n
 
     def insert(self, r_id, r_attributes):
         for feature in self.dns_blocking_scheme:
@@ -429,7 +417,6 @@ class MDySimIII(object):
                     for block_value in block:
                         if block_value not in self.SI[attribute]:
                             similarity = self.similarity_fns[field](attribute, block_value)
-                            similarity = round(similarity, 1)
                             #  Append similarity to block_value
                             self.SI[block_value][attribute] = similarity
 
@@ -466,16 +453,8 @@ class MDySimIII(object):
                                 accumulator[id][field] = sim
 
         del accumulator[q_id]
-
         for id, sim_values in accumulator.items():
-            sim_sum = np.sum(sim_values)
-            if sim_sum > self.threshold:
-                accumulator[id] = sim_sum
-            else:
-                del accumulator[id]
-
-        if self.top_n > 0:
-            return dict(Counter(accumulator).most_common(self.top_n))
+            accumulator[id] = np.sum(sim_values)
 
         return accumulator
 
@@ -507,6 +486,25 @@ class MDySimIII(object):
         else:
             return False
 
+    def pair_completeness(self, gold_pairs, dataset):
+        """
+        Returns the pair completeness from the passed gold standard and the
+        index data.
+        """
+        total_p = len(gold_pairs)  # True positives + False negatives
+        true_p = 0
+        for id1, id2 in gold_pairs:
+            id1_attributes = dataset[id1]
+            id2_attributes = dataset[id2]
+            for feature in self.dns_blocking_scheme:
+                id1_bkvs = feature.blocking_key_values(id1_attributes)
+                id2_bkvs = feature.blocking_key_values(id2_attributes)
+                if len(id1_bkvs.intersection(id2_bkvs)) > 0:
+                    true_p += 1
+                    break
+
+        return true_p / total_p
+
     def ri_distribution(self):
         block_sizes = []
         for block_key in self.RI.keys():
@@ -525,21 +523,3 @@ class MDySimIII(object):
                 block_sizes.append(len(BI[block_key]))
 
         return Counter(block_sizes)
-
-    def pair_completeness(self, gold_pairs, dataset):
-        """
-        Returns the recall from the passed gold standard and the index data.
-        """
-        total_p = len(gold_pairs)  # True positives + False negatives
-        true_p = 0
-        for id1, id2 in gold_pairs:
-            id1_attributes = dataset[id1]
-            id2_attributes = dataset[id2]
-            for feature in self.dns_blocking_scheme:
-                id1_bkvs = feature.blocking_key_values(id1_attributes)
-                id2_bkvs = feature.blocking_key_values(id2_attributes)
-                if len(id1_bkvs.intersection(id2_bkvs)) > 0:
-                    true_p += 1
-                    break
-
-        return true_p / total_p

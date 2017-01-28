@@ -16,7 +16,7 @@ from .testhelper import has_common_token
 from pprint import pprint
 from difflib import SequenceMatcher
 
-from simindex import DyKMeans, DyLSH, MultiSimAwareAttributeIndex, DyNearPy
+from simindex import DyKMeans, DyLSH, MultiSimAwareAttributeIndex
 from simindex import Feature, BlockingKey
 
 def __compare(a, b):
@@ -114,35 +114,17 @@ def test_lsh():
                               'tonia': {'tony': 0.7, 'tonya': 0.8}}
 
 
-def test_dynearpy():
-    dy_nearpy = DyNearPy(__encode, __compare)
-    # dy_nearpy.fit([["r1", "tony"],
-                   # ["r5", "tonya"],
-                   # ["r8", "tonia"],
-                   # ["r2", "cathrine"],
-                   # ["r4", "catrine"]])
-    # dy_nearpy.insert(["r1", "tony"])
-    # dy_nearpy.insert(["r5", "tonya"])
-    # dy_nearpy.insert(["r8", "tonia"])
-    # dy_nearpy.insert(["r2", "cathrine"])
-    # dy_nearpy.insert(["r4", "catrine"])
-    # dy_nearpy.query(["r1", "tony"])
-
-    # dy_nearpy = DyNearPy(__encode, __compare, npy_projections=2, npy_vector_dimensions=1)
-    # dy_nearpy.fit_csv("restaurant.csv", ["id", "name", "addr", "city"])
-    # dy_nearpy.query_from_csv("restaurant.csv", ["id", "name", "addr", "city"])
-
 def test_MultiSimAwareAttributeIndex():
     dnf = [Feature([BlockingKey(has_common_token, 0, str.split),
                     BlockingKey(has_common_token, 1, str.split)], 0., 0.),
            Feature([BlockingKey(has_common_token, 0, str.split)], 0., 0.),
            Feature([BlockingKey(has_common_token, 1, str.split)], 0., 0.)]
 
-    msaai = MultiSimAwareAttributeIndex(dnf, __compare)
+    msaai = MultiSimAwareAttributeIndex(dnf, [__compare, __compare])
 
-    msaai.insert(restaurant_records[0])
+    msaai.insert(restaurant_records[0][0], restaurant_records[0][1:])
     result = msaai.query(restaurant_records[1], ["0"])
-    assert result == {"0": 2.0}
+    assert result == {"0": 1.96}
     assert msaai.FBI[0] == {"mario'sitalian": {"mario's pizza"},
                            'mariositalian': {'marios pizza'},
                            'pizzaitalian': {"mario's pizza", 'marios pizza'},
@@ -153,12 +135,13 @@ def test_MultiSimAwareAttributeIndex():
                            "mario'sitalian": {'italian'},
                            'mariositalian': {'italian'},
                            'pizzaitalian': {'italian'}}
-    assert msaai.SI == {"mario's pizza": {'marios pizza': 1.0},
-                        "marios pizza": {"mario's pizza": 1.0}}
+    assert msaai.SI == {"mario's pizza": {'marios pizza': 0.96},
+                        "marios pizza": {"mario's pizza": 0.96}}
 
-    msaai.insert(restaurant_records[4])
+    msaai.insert(restaurant_records[4][0], restaurant_records[4][1:])
+    result = msaai.query(restaurant_records[1], ["0"])
     result = msaai.query(restaurant_records[5], ["4"])
-    assert result == {"4": 1.9}
+    assert result == {"4": 1.8727272727272726}
     assert msaai.FBI[0] == {"mario'sitalian": {"mario's pizza"},
                            'mariositalian': {'marios pizza'},
                            'pizzaitalian': {"mario's pizza", 'marios pizza'},
@@ -191,10 +174,10 @@ def test_MultiSimAwareAttributeIndex():
                            "bestasian": {"asian"},
                            "gourmetasian": {"asian"},
                            "cuisineasian": {"asian"}}
-    assert msaai.SI == {"mario's pizza": {'marios pizza': 1.0},
-                        "marios pizza": {"mario's pizza": 1.0},
-                        "yujean kang's best cuisine": {"yujean kang's gourmet cuisine": 0.9},
-                        "yujean kang's gourmet cuisine": {"yujean kang's best cuisine": 0.9}
+    assert msaai.SI == {"mario's pizza": {'marios pizza': 0.96},
+                        "marios pizza": {"mario's pizza": 0.96},
+                        "yujean kang's best cuisine": {"yujean kang's gourmet cuisine": 0.8727272727272727},
+                        "yujean kang's gourmet cuisine": {"yujean kang's best cuisine": 0.8727272727272727}
                        }
 
 

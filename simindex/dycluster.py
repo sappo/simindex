@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+import os
+import pickle
+from time import time
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import HashingVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
@@ -6,12 +9,6 @@ from sklearn.pipeline import make_pipeline
 from sklearn.metrics import silhouette_score
 from sklearn.cluster import MiniBatchKMeans
 from datasketch import MinHash, MinHashLSH
-from nearpy import Engine
-from nearpy.hashes import RandomBinaryProjections
-from nearpy.distances import CosineDistance
-from nearpy.storage import MemoryStorage
-from nearpy.filters import NearestFilter
-from time import time
 from collections import Counter, defaultdict
 from .weak_labels import Feature, BlockingKey
 from .helper import read_csv, calc_micro_scores, calc_micro_metrics
@@ -347,6 +344,7 @@ class DyLSH(object):
         self.saai.insert(record)
 
     def query(self, q_record):
+        q_id = q_record[0]
         q_attributes = q_record[1:]
         self.mhash.clear()
         for attribute in q_attributes:
@@ -354,6 +352,7 @@ class DyLSH(object):
         # if self.query_timer:
             # self.query_timer.mark_run()
         candidate_ids = self.lsh.query(self.mhash)
+        self.lsh.insert(q_id, self.mhash)
         assert len(candidate_ids) == len(set(candidate_ids))
         self.candidate_count += len(candidate_ids)
         # if self.query_timer:
@@ -433,107 +432,6 @@ class DyLSH(object):
 
         return {'Records': Counter(cluster_sizes)}
 
-
-class DyNearPy(object):
-
-    def __init__(self, encode_fn, similarity_fn, threshold=-1.0, top_n=-1.0,
-                 gold_standard=None, gold_attributes=None,
-                 npy_projections=1, npy_vector_dimensions=1, verbose=False,
-                 insert_timer=None, query_timer=None):
-        self.verbose = verbose
-        self.insert_timer = insert_timer
-        self.query_timer = query_timer
-        self.saai = SimAwareAttributeIndex(encode_fn, similarity_fn, threshold,
-                                           top_n, verbose=verbose)
-        # Gold Standard/Ground Truth attributes
-        self.gold_pairs = None
-        self.gold_records = None
-        if gold_standard and gold_attributes:
-            self.gold_pairs = []
-            pairs = read_csv(gold_standard, gold_attributes)
-            for gold_pair in pairs:
-                self.gold_pairs.append(gold_pair)
-
-            self.gold_records = {}
-            for a, b in self.gold_pairs:
-                if a not in self.gold_records.keys():
-                    self.gold_records[a] = set()
-                if b not in self.gold_records.keys():
-                    self.gold_records[b] = set()
-                self.gold_records[a].add(b)
-                self.gold_records[b].add(a)
-        # LSH Attributes
-        # Create a random binary hash with 10 bits
-        rbp = RandomBinaryProjections('rbp', npy_projections)
-        # Create engine with pipeline configuration
-        self.lsh = Engine(npy_vector_dimensions,
-                          lshashes=[rbp],
-                          distance=CosineDistance(),
-                          vector_filters=[NearestFilter(1)],
-                          storage=MemoryStorage())
-        self.vectorizer = Vectorizer(True, True)
-        self.candidate_count = 0
-
-    def fit_csv(self, recordset, attributes):
-        self.fit(read_csv(recordset, attributes))
-        for record in read_csv(recordset, attributes):
-            if self.insert_timer:
-                with self.insert_timer:
-                    self.insert(record)
-            else:
-                self.insert(record)
-
-    def fit(self, records):
-        data = []
-        for record in records:
-            data.append(' '.join(record[1:]))
-
-        self.vectorizer.fit(data)
-
-    def insert(self, record):
-        r_id = record[0]
-        r_attributes = record[1:]
-        X = self.vectorizer.fit_transform([' '.join(r_attributes)])
-        self.lsh.store_vector(X[0], r_id)
-        self.saai.insert(record)
-
-    def query(self, q_record):
-        q_attributes = q_record[1:]
-        X = self.vectorizer.fit_transform([' '.join(q_attributes)])
-        self.insert(q_record)
-        neighbors = self.lsh.neighbours(X[0])
-        candidate_ids = []
-        for neighbor in neighbors:
-            candidate_ids.append(neighbor[1])
-
-        return self.saai.query(q_record, candidate_ids)
-
-    def query_from_csv(self, filename, attributes=[]):
-        records = read_csv(filename, attributes)
-        accumulator = {}
-        y_true1 = []
-        y_true2 = []
-        y_pred = []
-        y_scores = []
-        for record in records:
-            r_id = record[0]
-            if self.query_timer:
-                with self.query_timer:
-                    accumulator[r_id] = self.query(record)
-            else:
-                accumulator[r_id] = self.query(record)
-
-            if self.gold_records:
-                calc_micro_scores(r_id, accumulator[r_id],
-                                  y_true1, y_scores, self.gold_records)
-                calc_micro_metrics(r_id, accumulator[r_id],
-                                   y_true2, y_pred, self.gold_records)
-
-        if self.gold_records:
-            return accumulator, y_true1, y_scores, y_true2, y_pred
-        else:
-            print(accumulator)
-            return accumulator
 
 class SimAwareAttributeIndex(object):
 
@@ -647,24 +545,125 @@ class SimAwareAttributeIndex(object):
         return accumulator
 
 
+class MDyLSH(object):
+
+    def __init__(self, count, dnf_blocking_scheme, similarity_fns,
+                 lsh_threshold=0.2, lsh_num_perm=128, verbose=False):
+        self.verbose = verbose
+        self.msaai = MultiSimAwareAttributeIndex(dnf_blocking_scheme,
+                                                 similarity_fns,
+                                                 verbose=verbose)
+        # LSH Attributes
+        self.lsh_threshold = lsh_threshold
+        self.lsh_num_perm = lsh_num_perm
+        self.lsh = MinHashLSH(threshold=self.lsh_threshold,
+                              num_perm=self.lsh_num_perm,
+                              weights=(0.4, 0.6))
+        self.mhash = MinHash(num_perm=self.lsh_num_perm)
+
+        self.attribute_count = count
+        self.nrecords = 0               # Number of records indexed
+
+    def insert(self, r_id, r_attributes):
+        min_hash = MinHash(num_perm=self.lsh_num_perm)
+        for attribute in r_attributes:
+            min_hash.update(attribute.encode('utf-8'))
+
+        self.lsh.insert(r_id, min_hash)
+        self.msaai.insert(r_id, r_attributes)
+        self.nrecords += 1
+
+    def query(self, q_record):
+        q_id = q_record[0]
+        q_attributes = q_record[1:]
+        self.mhash.clear()
+        for attribute in q_attributes:
+            self.mhash.update(attribute.encode('utf-8'))
+        # if self.query_timer:
+            # self.query_timer.mark_run()
+        candidate_ids = self.lsh.query(self.mhash)
+        self.lsh.insert(q_id, self.mhash)
+        # if self.query_timer:
+            # self.query_timer.mark_run()
+        result = self.msaai.query(q_record, candidate_ids)
+        # if self.query_timer:
+        # if self.query_timer:
+            # self.query_timer.mark_run()
+        self.nrecords += 1
+        return result
+
+    def pair_completeness(self, gold_pairs, dataset):
+        """
+        Returns the pair completeness from the passed gold standard and the
+        index data.
+        """
+        total_p = len(gold_pairs)  # True positives + False negatives
+        true_p = 0
+
+        for id1, id2 in gold_pairs:
+            id1_attributes = dataset[id1]
+            self.mhash.clear()
+            for attribute in id1_attributes:
+                self.mhash.update(attribute.encode('utf-8'))
+
+            candidate_ids = self.lsh.query(self.mhash)
+            if id2 in candidate_ids:
+                true_p += 1
+
+        return true_p / total_p
+
+    def frequency_distribution(self):
+        """
+        Returns the frequency distribution of the minhash table as dict. Where
+        key is size of a cluster and value is the number of clusters with this
+        size.
+        """
+        self.lsh.hashtables
+        pass
+        cluster_sizes = []
+        for table in self.lsh.hashtables:
+            for values in table.values():
+                cluster_sizes.append(len(values))
+
+        return Counter(cluster_sizes)
+
+    def save(self, name):
+        # Dump number of records
+        with open(".%s_nrecords.idx" % name, "wb") as handle:
+            pickle.dump(self.nrecords, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(".%s_lsh.idx" % name, "wb") as handle:
+            pickle.dump(self.lsh, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        self.msaai.save(name)
+
+    def load(self, name):
+        nrecords_filename = ".%s_nrecords.idx" % name
+        lsh_filename = ".%s_lsh.idx" % name
+        if os.path.exists(nrecords_filename):
+            with open(nrecords_filename, "rb") as handle:
+                self.nrecords = pickle.load(handle)
+            with open(lsh_filename, "rb") as handle:
+                self.lsh = pickle.load(handle)
+
+            return self.msaai.load(name)
+        else:
+            return False
+
+
 class MultiSimAwareAttributeIndex(object):
 
-    def __init__(self, dns_blocking_scheme, similarity_fn, threshold=-1.0, top_n=-1.0,
-                 verbose=False):
+    def __init__(self, dns_blocking_scheme, similarity_fns, verbose=False):
         self.verbose = verbose
 
         self.FBI = defaultdict(dict)    # Field Block Indicies (FBI)
         self.SI = defaultdict(dict)     # Similarity Index (SI)
+        # TODO: Get dataset from somewhere else
         self.dataset = {}
 
-        self.similarity_fn = similarity_fn
+        self.similarity_fns = similarity_fns
         self.dns_blocking_scheme = dns_blocking_scheme
-        self.threshold = threshold
-        self.top_n = top_n
 
-    def insert(self, record):
-        r_id = record[0]
-        r_attributes = record[1:]
+    def insert(self, r_id, r_attributes):
         if r_id in self.dataset:
             return
 
@@ -687,11 +686,7 @@ class MultiSimAwareAttributeIndex(object):
                     block = list(filter(lambda x: x != attribute, BI[encoding]))
                     for block_value in block:
                         if block_value not in self.SI[attribute]:
-                            if isinstance(self.similarity_fn, list):
-                                similarity = self.similarity_fn[field](attribute, block_value)
-                            else:
-                                similarity = self.similarity_fn(attribute, block_value)
-                            similarity = round(similarity, 1)
+                            similarity = self.similarity_fns[field](attribute, block_value)
                             #  Append similarity to block_value
                             self.SI[block_value][attribute] = similarity
 
@@ -710,7 +705,7 @@ class MultiSimAwareAttributeIndex(object):
         q_attributes = q_record[1:]
 
         #  Insert new record into index
-        self.insert(q_record)
+        self.insert(q_id, q_attributes)
 
         for c_id in candidate_ids:
             if q_id == c_id:
@@ -728,10 +723,34 @@ class MultiSimAwareAttributeIndex(object):
                     # too much time!
                     pass
 
-            if s > self.threshold:
-                accumulator[c_id] = s
-
-        if self.top_n > 0:
-            return dict(Counter(accumulator).most_common(self.top_n))
+            accumulator[c_id] = s
 
         return accumulator
+
+    def save(self, name):
+        # Dataset
+        with open(".%s_RI.idx" % name, "wb") as handle:
+            pickle.dump(self.dataset, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        # Dump FBI
+        with open(".%s_FBI.idx" % name, "wb") as handle:
+            pickle.dump(self.FBI, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        # Dump SI
+        with open(".%s_SI.idx" % name, "wb") as handle:
+            pickle.dump(self.SI, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def load(self, name):
+        dataset_filename = ".%s_RI.idx" % name
+        fbi_filename = ".%s_FBI.idx" % name
+        si_filename = ".%s_SI.idx" % name
+        if os.path.exists(fbi_filename) and \
+           os.path.exists(si_filename):
+            with open(dataset_filename, "rb") as handle:
+                self.dataset = pickle.load(handle)
+            with open(fbi_filename, "rb") as handle:
+                self.FBI = pickle.load(handle)
+            with open(si_filename, "rb") as handle:
+                self.SI = pickle.load(handle)
+
+            return True
+        else:
+            return False

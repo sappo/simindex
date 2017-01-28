@@ -4,10 +4,7 @@ import time
 class RecordTimer(object):
 
     def __init__(self):
-        self.run = 0
-        self.times = []
-        self.marker = []
-        self.common_time = [0]
+        self.reset()
 
     def __enter__(self):
         self.start_run()
@@ -15,6 +12,13 @@ class RecordTimer(object):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop_run()
+
+    def reset(self):
+        self.run = 0
+        self.times = []
+        self.marker = []
+        self.common_time = [0]
+
 
     def start_run(self):
         """

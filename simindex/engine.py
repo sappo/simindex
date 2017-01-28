@@ -4,7 +4,7 @@ import numpy as np
 from pprint import pprint
 
 from collections import defaultdict
-from sklearn.metrics import recall_score, precision_score
+import sklearn.metrics as skm
 
 from .dysim import MDySimII, MDySimIII
 from .weak_labels import WeakLabels, \
@@ -24,6 +24,7 @@ class SimEngine(object):
 
     def __init__(self, name, indexer=MDySimII, max_bk_conjunction=1,
                  max_positive_labels=None, max_negative_labels=None,
+                 threshold=0.0, top_n=0,
                  insert_timer=None, query_timer=None, verbose=False):
         self.name = name
         self.configstore_name = ".%s_config.h5" % self.name
@@ -37,6 +38,8 @@ class SimEngine(object):
 
         self.max_p = max_positive_labels
         self.max_n = max_negative_labels
+        self.threshold = threshold
+        self.top_n = top_n
 
         self.reductionratio = None
         self.insert_timer = insert_timer
@@ -186,17 +189,19 @@ class SimEngine(object):
         store = pd.HDFStore(self.querydatastore_name, mode="w")
         self.pre_process_data(store, query_file, attributes)
         store.close()
-        self.query(hp.hdf_records(store, self.name))
 
-    def query(self, records):
-        for q_record in records:
+        for q_record in hp.hdf_records(store, self.name):
             if self.query_timer:
                 with self.query_timer:
-                    result = self.indexer.query(q_record)
+                    result = self.query(q_record)
             else:
-                result = self.indexer.query(q_record)
-                # print("--  Results:", len(result))
+                result = self.query(q_record)
 
+    def query(self, q_record):
+            # Run Query
+            result = self.indexer.query(q_record)
+
+            # Calculate reduction ratio
             query_reduction_ratio = 1 - len(result)/self.indexer.nrecords
             if self.reductionratio:
                 self.reductionratio = np.mean([self.reductionratio,
@@ -204,12 +209,23 @@ class SimEngine(object):
             else:
                 self.reductionratio = query_reduction_ratio
 
+            # Apply filters
+            if self.threshold > 0:
+                result = {k: v for k, v in result.items() if v > self.threshold}
+
+            if self.top_n > 0:
+                result = dict(Counter(result).most_common(self.top_n))
+
+            # Calculate ground truth metrics
             if self.gold_records:
                 q_id = q_record[0]
                 hp.calc_micro_scores(q_id, result, self.y_true_score,
                                      self.y_scores, self.gold_records)
                 hp.calc_micro_metrics(q_id, result, self.y_true,
                                       self.y_pred, self.gold_records)
+
+            return result
+
 
     def read_ground_truth(self, gold_standard, gold_attributes):
         self.gold_pairs = []
@@ -244,10 +260,19 @@ class SimEngine(object):
         return self.reductionratio
 
     def recall(self):
-        return recall_score(self.y_true, self.y_pred)
+        return skm.recall_score(self.y_true, self.y_pred)
 
     def precision(self):
-        return precision_score(self.y_true, self.y_pred)
+        return skm.precision_score(self.y_true, self.y_pred)
+
+    def f1_score(self):
+        return skm.f1_score(self.y_true, self.y_pred)
+
+    def precision_recall_curve(self):
+        return skm.precision_recall_curve(self.y_true_score, self.y_scores)
+
+    def roc_curve(self):
+        return skm.roc_curve(self.y_true_score, self.y_scores)
 
     def save_labels(self, P, N):
         with pd.HDFStore(self.configstore_name,
