@@ -1,12 +1,9 @@
 # -*- coding: utf-8 -*-
 import math
 import heapq
-import random
 import numpy as np
-from pprint import pprint
-from collections import defaultdict, namedtuple, Counter
+from collections import defaultdict, namedtuple
 from gensim import corpora, models
-import simindex.helper as hp
 
 try:
     profile

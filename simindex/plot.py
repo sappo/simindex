@@ -1,10 +1,6 @@
-from collections import Counter
 import matplotlib.pyplot as plt
 import numpy as np
-from itertools import cycle
-from sklearn.metrics import (precision_recall_curve,
-                             recall_score,
-                             precision_score)
+from sklearn.metrics import precision_recall_curve
 
 # setup plot details
 lw = 2

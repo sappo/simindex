@@ -2,8 +2,6 @@
 import subprocess
 import pandas as pd
 import itertools as it
-from pprint import pprint
-from collections import defaultdict
 
 
 def read_csv(filename, attributes=None, percentage=1.0,

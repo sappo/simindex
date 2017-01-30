@@ -5,8 +5,6 @@ from pprint import pprint
 
 from collections import defaultdict, Counter
 import sklearn.metrics as skm
-import redislite
-import redis_collections
 
 from .dysim import MDySimIII
 from .weak_labels import WeakLabels, \

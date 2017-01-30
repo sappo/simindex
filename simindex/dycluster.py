@@ -10,9 +10,7 @@ from sklearn.metrics import silhouette_score
 from sklearn.cluster import MiniBatchKMeans
 from datasketch import MinHash, MinHashLSH
 from collections import Counter, defaultdict
-from .weak_labels import Feature, BlockingKey
 from .helper import read_csv, calc_micro_scores, calc_micro_metrics
-from .plot import *
 
 
 class Vectorizer(object):

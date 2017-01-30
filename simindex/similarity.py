@@ -6,7 +6,6 @@ import numpy as np
 import jellyfish
 from difflib import SequenceMatcher
 from harry import Measures, Hstring
-from pprint import pprint
 
 import simindex.helper as hp
 
