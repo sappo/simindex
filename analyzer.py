@@ -1,17 +1,19 @@
 import os
 import glob
 import sys
-import time
 import json
 import click
 import numpy as np
-from pprint import pprint
 from simindex import SimEngine, MDySimII, MDySimIII, MDyLSH, RecordTimer
-from simindex import draw_precision_recall_curve, \
-                     draw_record_time_curve, \
-                     draw_frequency_distribution, \
-                     draw_bar_chart, \
-                     show
+
+try:
+    profile
+except NameError as e:
+    def profile(func):
+        def inner(*args, **kwargs):
+            return func(*args, **kwargs)
+        return inner
+
 
 @click.command(context_settings=dict(help_option_names=[u'-h', u'--help']))
 @click.argument('index_file', type=click.Path(exists=True))
@@ -42,9 +44,11 @@ from simindex import draw_precision_recall_curve, \
            Use multiple times if needed!'
 )
 @click.option(
+    u'-m', u'--indexer', help=u'Which indexer to use!'
+)
+@click.option(
     u'-rt', u'--run-type', help=u'What are you benchmarking?\
                                  evaluation - calculate all metrics\
-                                 index - measure indexing time\
                                  plot - draw results'
 )
 @click.option(
@@ -55,29 +59,69 @@ from simindex import draw_precision_recall_curve, \
     u'-r', u'--run_name', help=u'Common prefix of output file from one\
                                  run to draw measures collectively.'
 )
-@click.option(
-    u'-m', u'--indexer', help=u'Which method to use for indexing?\
-                                     MDySimII\
-                                     MDySimIII\
-                                     MDyLSH'
-)
+@profile
 def main(index_file, index_attributes,
          query_file, query_attributes,
          train_file, train_attributes,
          gold_standard, gold_attributes,
          run_type, output, run_name, indexer):
-    """Run a basic matching task on input file."""
+    """
+    Analyze simindex engine!
+    """
     # Sanity check
     if (len(index_attributes) != len(query_attributes)):
         print("Query attribute count must equal index attribute count!")
         sys.exit(0)
 
     name = os.path.basename(train_file).split('_')[0]
-    for engine_state in glob.glob("./.%s*" % name):
-        os.remove(engine_state)
 
-    if run_type == "evaluation":
+    if run_type == "fit":
+        for index_state in glob.glob("./.%s*" % name):
+            os.remove(index_state)
+
+        print()
+        print("##############################################################")
+        print("  Fitting training dataset.")
+        print("##############################################################")
+        engine = SimEngine(name, verbose=False)
+        engine.fit_csv(train_file, train_attributes)
+
+    elif run_type == "build":
+        engine = None
+        if indexer == "MDySimII":
+            engine = SimEngine(name, indexer=MDySimII, verbose=False)
+        elif indexer == "MDySimIII":
+            engine = SimEngine(name, indexer=MDySimIII, verbose=False)
+        elif indexer == "MDyLSH":
+            engine = SimEngine(name, indexer=MDyLSH, verbose=False)
+
+        print()
+        print("##############################################################")
+        print("  Build and Query without calculating metrics")
+        print("##############################################################")
+
+        print()
+        print("------------------------------ 1 -----------------------------")
+        print("Loading fitted model.")
+        engine.fit_csv(train_file, train_attributes)
+
+        print()
+        print("------------------------------ 2 -----------------------------")
+        print("Building the index.")
+        engine.build_csv(index_file, index_attributes)
+
+        print()
+        print("------------------------------ 3 -----------------------------")
+        print("Run Queries.")
+        engine.query_csv(query_file, query_attributes)
+
+        # Cleanup index state
+        for index_state in glob.glob("./.%s*.idx" % name):
+            os.remove(index_state)
+
+    elif run_type == "evaluation":
         measurements = {}
+
         # Prepare record timers
         insert_timer = RecordTimer()
         query_timer = RecordTimer()
@@ -103,7 +147,7 @@ def main(index_file, index_attributes,
 
         print()
         print("------------------------------ 1 -----------------------------")
-        print("Fitting training dataset.")
+        print("Loading fitted training dataset.")
         with timer:
             engine.fit_csv(train_file, train_attributes)
         measurements["fit_time"] = timer.times.pop()
@@ -117,9 +161,13 @@ def main(index_file, index_attributes,
         with timer:
             engine.build_csv(index_file, index_attributes)
         measurements["build_time"] = timer.times.pop()
+        measurements["build_time_sum"] = sum(insert_timer.times) + \
+                                         sum(insert_timer.common_time)
+        measurements["inserts_mean"] = np.mean(insert_timer.times)
+        measurements["inserts_sec"] = 1 / measurements["inserts_mean"]
         print("\tBuild time: %fs" % measurements["build_time"])
-        print("\tBuild time (sum): %fs" % (sum(insert_timer.times) +
-                                                sum(insert_timer.common_time)))
+        print("\tBuild time (sum): %fs" % measurements["build_time_sum"])
+
         insert_timer.apply_common()
         measurements["insert_times"] = insert_timer.times
         print("\tIndex mean insert time: %fs" % np.mean(insert_timer.times))
@@ -130,14 +178,16 @@ def main(index_file, index_attributes,
         with timer:
             engine.query_csv(query_file, query_attributes)
         measurements["query_time"] = timer.times.pop()
+        measurements["query_time_sum"] = sum(query_timer.times) + \
+                                         sum(query_timer.common_time)
         print("\tQuery time: %fs" % measurements["query_time"])
-        print("\tQuery time (sum): %fs" % (sum(query_timer.times) +
-                                          sum(query_timer.common_time)))
+        print("\tQuery time (sum): %fs" % measurements["query_time_sum"])
         query_timer.apply_common()
         measurements["query_times"] = query_timer.times
-        mean = np.mean(query_timer.times)
-        print("\tQuery mean time: %fs" % mean)
-        print("\tQueries (s):", 1 / mean)
+        measurements["queries_mean"] = np.mean(query_timer.times)
+        measurements["queries_sec"] = 1 / measurements["queries_mean"]
+        print("\tQuery mean time: %fs" % measurements["queries_mean"])
+        print("\tQueries (s):", measurements["queries_sec"])
 
         print()
         print("------------------------------ 4 -----------------------------")
@@ -157,75 +207,16 @@ def main(index_file, index_attributes,
         print("\tPrecision:", measurements["precision"])
         print("\tF1-Score:", measurements["f1_score"])
 
-        # Save results
+        # Save metrics
         fp = open(output, mode='w')
         json.dump(measurements, fp, sort_keys=True, indent=4)
 
-    elif run_type == "index":
-        fp = open(output)
-        measurements = json.load(fp)
-        fp.close()
-
-        engine = None
-        if indexer == "MDySimII":
-            engine = SimEngine(name, indexer=MDySimII)
-        elif indexer == "MDySimIII":
-            engine = SimEngine(name, indexer=MDySimIII)
-        elif indexer == "MDyLSH":
-            engine = SimEngine(name, indexer=MDyLSH)
-
-        # TODO: after fitting
-        engine.read_ground_truth(gold_standard, gold_attributes)
-
-        fp = open(output, mode='w')
-        json.dump(measurements, fp, sort_keys=True, indent=4)
-
-    elif run_type == "plot":
-        memory_usage = {}
-        index_build_time = {}
-        insert_times = {}
-        query_times = {}
-        for resultfile in glob.glob("./%s*" % run_name):
-            fp = open(resultfile)
-            measurements = json.load(fp)
-            fp.close()
-            indexer_dataset = resultfile[resultfile.index('_') + 1:]
-            indexer = indexer_dataset[:indexer_dataset.index('_')]
-            dataset = indexer_dataset[indexer_dataset.index('_') + 1:]
-
-            if dataset not in insert_times:
-                insert_times[dataset] = {}
-                query_times[dataset] = {}
-
-            insert_times[dataset][indexer] = measurements["insert_times"]
-            query_times[dataset][indexer] = measurements["query_times"]
-
-            draw_precision_recall_curve2(measurements["prc_curve"],
-                                        indexer_dataset)
-
-            # Sort data by indexer and then by dataset
-            # if indexer not in memory_usage:
-                # memory_usage[indexer] = {}
-                # index_build_time[indexer] = {}
-
-            # memory_usage[indexer][dataset] = measurements["memory_usage"] / 1024
-            index_build_time[indexer][dataset] = measurements["build_time"]
-
-        for dataset in insert_times.keys():
-            draw_record_time_curve(insert_times[dataset], dataset, "insertion")
-
-        for dataset in query_times.keys():
-            draw_record_time_curve(query_times[dataset], dataset, "query")
-
-        # draw_bar_chart(memory_usage, "Memory usage", "MiB")
-        draw_bar_chart(index_build_time, "Index build time", "Seconds (s)")
-
-        # Show plots
-        show()
+        # Clean engine state
+        for index_state in glob.glob("./.%s*" % name):
+            os.remove(index_state)
 
     sys.exit(0)
 
 
 if __name__ == "__main__":  # pragma: no cover
         main(prog_name="benchmark")
-

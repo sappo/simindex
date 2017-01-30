@@ -63,3 +63,5 @@ target/
 
 [1-9]*_*
 evaluation/*
+reports
+results
