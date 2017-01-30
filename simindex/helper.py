@@ -15,7 +15,7 @@ def read_csv(filename, attributes=None, percentage=1.0,
                              chunksize=10000,
                              error_bad_lines=False,
                              index_col=False,
-                             dtype=dtype,
+                             # dtype=dtype,
                              encoding=encoding)
 
     for chunk in csv_chunks:

@@ -21,6 +21,13 @@ restaurant_records = [
     ["15", "nobu", "japanese"],
 ]
 
+restaurant_gold_pairs = [
+    (0, 1),
+    (2, 3),
+    (4, 5),
+    (6, 7)
+]
+
 restaurant_dataset = {x[0]: x[1:] for x in restaurant_records}
 
 restaurant_df = pd.DataFrame([[r[1], r[2]] for r in restaurant_records],

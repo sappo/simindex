@@ -1,10 +1,20 @@
 # -*- coding: utf-8 -*-
 import math
 import heapq
+import random
 import numpy as np
 from pprint import pprint
 from collections import defaultdict, namedtuple, Counter
 from gensim import corpora, models
+import simindex.helper as hp
+
+try:
+    profile
+except NameError as e:
+    def profile(func):
+        def inner(*args, **kwargs):
+            return func(*args, **kwargs)
+        return inner
 
 
 def wglobal(doc_freq, total_docs):
@@ -15,19 +25,17 @@ SimTupel = namedtuple('SimTupel', ['t1', 't2', 'sim'])
 
 class WeakLabels(object):
 
-    def __init__(self, attribute_count, stoplist=None,
+    def __init__(self, attribute_count,
+                 gold_pairs=None,
                  max_positive_pairs=100,
                  max_negative_pairs=200,
                  upper_threshold=0.6,
                  lower_threshold=0.1):
         self.attribute_count = attribute_count
-        if stoplist:
-            self.stoplist = stoplist
-        else:
-            self.stoplist = set('for a of the and to in'.split())
 
         self.P = None
         self.N = None
+        self.gold_pairs = gold_pairs
         self.max_positive_pairs = max_positive_pairs
         self.max_negative_pairs = max_negative_pairs
         self.upper_threshold = upper_threshold
@@ -36,7 +44,6 @@ class WeakLabels(object):
     def string_to_bow(self, record):
         # Remove stop words from record
         words = record.split()
-        words = [word for word in words if word not in self.stoplist]
         return self.dictionary.doc2bow(words)
 
     def fit(self, dataset):
@@ -45,8 +52,7 @@ class WeakLabels(object):
         for r_attributes in dataset.values():
             # Remove stop words
             for attribute in r_attributes:
-                words = attribute.split()
-                texts.append([word for word in words if word not in self.stoplist])
+                texts.append(attribute.split())
 
         self.dictionary = corpora.Dictionary(texts)
         corpus = [self.dictionary.doc2bow(text) for text in texts]
@@ -75,22 +81,34 @@ class WeakLabels(object):
 
         return similarity
 
+    @profile
     def predict(self):
         blocker = {}
         candidates = set()
         window_size = 5
-        max_positive_pairs = self.max_positive_pairs
-        max_negative_pairs = self.max_negative_pairs
+        bins = 20
+        # Set max_candidates depending on available gold pairs and user definded
+        # values
+        if self.gold_pairs:
+            max_positive_pairs = len(self.gold_pairs)
+        else:
+            if self.max_positive_pairs:
+                max_positive_pairs = self.max_positive_pairs
+            else:
+                max_positive_pairs = len(self.dataset) * 0.05
+
+        if self.max_negative_pairs:
+            max_negative_pairs = self.max_negative_pairs
+        else:
+            max_negative_pairs = max_positive_pairs * 3
 
         P = []
         N = []
-
         for field in range(0, self.attribute_count):
             blocker[field] = defaultdict(list)
             for r_id, r_attributes in self.dataset.items():
                 attribute = r_attributes[field]
-                words = attribute.split()
-                tokens = [word for word in words if word not in self.stoplist]
+                tokens = attribute.split()
                 for tokens in tokens:
                     if r_id not in blocker[field][tokens]:
                         blocker[field][tokens].append(r_id)
@@ -107,20 +125,46 @@ class WeakLabels(object):
                         candidates.add((token_block[index], candidate))
                     index += 1
 
-        trim_threshold = max_negative_pairs * 3
-        for index, (t1, t2) in enumerate(candidates):
-            sim = self.tfidf_similarity(t1, t2)
-            if sim >= self.upper_threshold:
-                P.append(SimTupel(t1, t2, sim))
-            if sim < self.lower_threshold:
-                N.append(SimTupel(t1, t2, sim))
+        if self.gold_pairs:
+            for t1, t2 in self.gold_pairs:
+                P.append(SimTupel(t1, t2, 1))
 
-            if index % trim_threshold == 0:
-                P = heapq.nlargest(max_positive_pairs, P, key=lambda pair: pair.sim)
-                N = heapq.nlargest(max_negative_pairs, N, key=lambda pair: pair.sim)
+            trim_threshold = max_negative_pairs * 3
+            candidate = candidates.difference(self.gold_pairs)
+            N_bins = [[] for x in range(bins)]
+            for t1, t2 in candidates:
+                sim = self.tfidf_similarity(t1, t2)
+                N_bins[int(sim * bins)].append(SimTupel(t1, t2, sim))
 
-        P = heapq.nlargest(max_positive_pairs, P, key=lambda pair: pair.sim)
-        N = heapq.nlargest(max_negative_pairs, N, key=lambda pair: pair.sim)
+            # Calculate probability distribution
+            weights = [len(bin) for bin in N_bins]
+            wsum = sum(weights)
+            weights[:] = [float(weight)/wsum for weight in weights]
+
+            # Select pairs by probability distribution
+            for dummy in range(max_negative_pairs):
+                bin = np.random.choice(range(bins), p=weights)
+                N_choice = N_bins[bin]
+                if len(N_choice) > 0:
+                    r_choice = np.random.choice(range(len(N_choice)))
+                    N.append(N_choice[r_choice])
+                    del N_choice[r_choice]
+
+        else:
+            trim_threshold = max_negative_pairs * 3
+            for index, (t1, t2) in enumerate(candidates):
+                sim = self.tfidf_similarity(t1, t2)
+                if sim >= self.upper_threshold:
+                    P.append(SimTupel(t1, t2, sim))
+                if sim < self.lower_threshold:
+                    N.append(SimTupel(t1, t2, sim))
+
+                if index % trim_threshold == 0:
+                    P = heapq.nlargest(max_positive_pairs, P, key=lambda pair: pair.sim)
+                    N = heapq.nlargest(max_negative_pairs, N, key=lambda pair: pair.sim)
+
+            P = heapq.nlargest(max_positive_pairs, P, key=lambda pair: pair.sim)
+            N = heapq.nlargest(max_negative_pairs, N, key=lambda pair: pair.sim)
 
         return P, N
 
@@ -264,6 +308,9 @@ class DisjunctiveBlockingScheme(object):
         FN = np.sum(Nfi)
         TN = len(Nfi) - FN
 
+        if TP == 0:
+            return 0
+
         recall = TP / (FN + TP)
         precision = TP / (TP + FP)
         harmonic_mean = 2 * ((precision * recall) / (precision + recall))
@@ -381,6 +428,7 @@ class DisjunctiveBlockingScheme(object):
 
             return pv, nv
 
+    @profile
     def transform(self, dataset):
         Pf = []
         Nf = []

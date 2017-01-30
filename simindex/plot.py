@@ -85,9 +85,6 @@ def draw_precision_recall_curve(y_true, y_scores, dataset):
     if (thresholds[0] == 0):
         recall = recall[1:]
         precision = precision[1:]
-    print(thresholds)
-    print(recall)
-    print(precision)
     # Plot Precision-Recall curve
     plt.clf()
     plt.plot(recall, precision, 'yo-', lw=lw, color='navy', picker=True)

@@ -9,8 +9,9 @@ Tests for `weak` module.
 """
 
 import pytest
+import math
 from .testprofiler import profile
-from .testdata import restaurant_dataset
+from .testdata import restaurant_dataset, restaurant_gold_pairs
 from .testhelper import has_common_token
 
 from pprint import pprint
@@ -18,7 +19,7 @@ from pprint import pprint
 from simindex.weak_labels import WeakLabels, SimTupel, \
                                  Feature, DisjunctiveBlockingScheme, \
                                  BlockingKey
-from simindex.helper import read_csv
+import simindex.helper as hp
 
 
 def test_weak_labels():
@@ -94,6 +95,59 @@ def test_filter_labels():
         assert(hit)
 
     assert fN == []
+
+
+def test_probability_distribution_choice_small():
+    labels = WeakLabels(2, max_positive_pairs=4, max_negative_pairs=4,
+                        gold_pairs=restaurant_gold_pairs,
+                        upper_threshold=0.5, lower_threshold=0.3)
+    labels.fit(restaurant_dataset)
+    P, N = labels.predict()
+
+    for simtupel in P:
+        assert (simtupel.t1, simtupel.t2) in restaurant_gold_pairs
+
+    assert len(N) <= 4
+
+
+def test_probability_distribution_choice_large():
+    gold_csv = "../../master_thesis/datasets/restaurant/restaurant_train_gold.csv"
+    gold_lines = hp.read_csv(gold_csv, ["id_1", "id_2"])
+    gold_paris = []
+    for line in gold_lines:
+        gold_paris.append((line[0], line[1]))
+
+    dataset = {}
+    records = hp.read_csv("../../master_thesis/datasets/restaurant/restaurant_train.csv",
+                          ["id","name","addr","city","phone","type"])
+    for record in records:
+        dataset[record[0]] = record[1:]
+
+    labels = WeakLabels(5, gold_pairs=gold_paris)
+    labels.fit(dataset)
+    P, N = labels.predict()
+
+    assert len(P) == 38
+
+    bins = 20
+    N_bins = [[] for x in range(bins)]
+    for simtupel in N:
+        N_bins[int(simtupel.sim * bins)].append(simtupel)
+
+    actual_weights = [len(bin) for bin in N_bins]
+    wsum = sum(actual_weights)
+    actual_weights[:] = [float(weight)/wsum for weight in actual_weights]
+
+    expected_weights = [0.19546968687541638, 0.33111259160559625, 0.24703530979347102,
+                        0.12271818787475017, 0.05063291139240506, 0.02731512325116589,
+                        0.011992005329780146, 0.0054630246502331775, 0.0014656895403064624,
+                        0.000932711525649567, 0.0013324450366422385, 0.0007994670219853431,
+                        0.000932711525649567, 0.0010659560293137908, 0.000932711525649567,
+                        0.0006662225183211193, 0.00013324450366422385, 0.0, 0.0, 0.0]
+
+    for ex_weight, ac_weight in zip (expected_weights, actual_weights):
+        diff = abs(ex_weight - ac_weight)
+        assert diff < 0.075
 
 
 def test_fisher_score():

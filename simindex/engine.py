@@ -3,10 +3,12 @@ import pandas as pd
 import numpy as np
 from pprint import pprint
 
-from collections import defaultdict
+from collections import defaultdict, Counter
 import sklearn.metrics as skm
+import redislite
+import redis_collections
 
-from .dysim import MDySimII, MDySimIII
+from .dysim import MDySimIII
 from .weak_labels import WeakLabels, \
                          DisjunctiveBlockingScheme, \
                          BlockingKey, \
@@ -19,10 +21,18 @@ from .weak_labels import WeakLabels, \
 from simindex.similarity import SimLearner
 import simindex.helper as hp
 
+try:
+    profile
+except NameError as e:
+    def profile(func):
+        def inner(*args, **kwargs):
+            return func(*args, **kwargs)
+        return inner
+
 
 class SimEngine(object):
 
-    def __init__(self, name, indexer=MDySimII, max_bk_conjunction=1,
+    def __init__(self, name, indexer=MDySimIII, max_bk_conjunction=1,
                  max_positive_labels=None, max_negative_labels=None,
                  threshold=0.0, top_n=0,
                  insert_timer=None, query_timer=None, verbose=False):
@@ -50,6 +60,7 @@ class SimEngine(object):
         self.gold_pairs = None
         self.gold_records = None
 
+    @profile
     def pre_process_data(self, store, csvfile, attributes):
         group_name = "/%s" % self.name
         if group_name not in store.keys():
@@ -92,6 +103,7 @@ class SimEngine(object):
         store.close()
         self.fit(hp.hdf_records(store, self.name))
 
+    @profile
     def fit(self, records):
         dataset = {}
         for record in records:
@@ -101,7 +113,8 @@ class SimEngine(object):
             r_attributes = record[1:]
             dataset[r_id] = r_attributes
 
-        print(len(dataset))
+        if self.verbose:
+            print("Dataset has %d records" % len(dataset))
 
         #  Predict labels
         P, N = self.load_labels()
@@ -113,11 +126,13 @@ class SimEngine(object):
                 self.max_n = int(len(dataset) * 0.25)
 
             labels = WeakLabels(self.attribute_count,
+                                gold_pairs=self.gold_pairs,
                                 max_positive_pairs=self.max_p,
                                 max_negative_pairs=self.max_n)
             labels.fit(dataset)
             P, N = labels.predict()
             self.save_labels(P, N)
+            del labels
 
         if self.verbose:
             print("Generated %d P and %d N labels" % (len(P), len(N)))
@@ -134,6 +149,7 @@ class SimEngine(object):
                                             self.max_bk_conjunction)
             self.blocking_scheme = dbs.transform(dataset)
             self.save_blocking_scheme()
+            del dbs
 
         if self.verbose:
             print("Learned the following blocking scheme:")
@@ -149,6 +165,7 @@ class SimEngine(object):
             sl = SimLearner(self.attribute_count, dataset)
             self.similarities = sl.predict(P, N)
             self.save_similarities()
+            del sl
 
         if self.verbose:
             print("Predicted the following similarities:")
@@ -156,6 +173,7 @@ class SimEngine(object):
 
         # Cleanup
         del dataset
+        del P, N
 
     def build_csv(self, index_file, attributes=None):
         store = pd.HDFStore(self.indexdatastore_name, mode="w")
@@ -163,6 +181,7 @@ class SimEngine(object):
         store.close()
         self.build(hp.hdf_records(store, self.name))
 
+    @profile
     def build(self, records):
         similarity_fns = []
         for measure in SimLearner.strings_to_prediction(self.similarities):
@@ -185,6 +204,7 @@ class SimEngine(object):
 
         # pprint(self.indexer.FBI)
 
+    @profile
     def query_csv(self, query_file, attributes=None):
         store = pd.HDFStore(self.querydatastore_name, mode="w")
         self.pre_process_data(store, query_file, attributes)
@@ -228,13 +248,12 @@ class SimEngine(object):
 
 
     def read_ground_truth(self, gold_standard, gold_attributes):
-        self.gold_pairs = []
+        self.gold_pairs = set()
         self.gold_records = defaultdict(set)
 
-        pairs = hp.read_csv(gold_standard, gold_attributes,
-                            dtype=self.index_dtype)
+        pairs = hp.read_csv(gold_standard, gold_attributes)#, dtype=self.index_dtype)
         for gold_pair in pairs:
-            self.gold_pairs.append(gold_pair)
+            self.gold_pairs.add((gold_pair[0], gold_pair[1]))
 
             for a, b in self.gold_pairs:
                 self.gold_records[a].add(b)

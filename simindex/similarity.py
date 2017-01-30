@@ -10,6 +10,14 @@ from pprint import pprint
 
 import simindex.helper as hp
 
+try:
+    profile
+except NameError as e:
+    def profile(func):
+        def inner(*args, **kwargs):
+            return func(*args, **kwargs)
+        return inner
+
 
 class SimLearner():
 
@@ -40,6 +48,7 @@ class SimLearner():
                 self.gold_records[a].add(b)
                 self.gold_records[b].add(a)
 
+    @profile
     def predict(self, P, N):
         prediction = defaultdict(OrderedDict)
         for field in range(self.attribute_count):
