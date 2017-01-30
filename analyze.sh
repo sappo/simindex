@@ -1,5 +1,6 @@
 #!/bin/bash
 timestamp=$(date +%s)
+mkdir -p ./reports
 
 # Run ferbl datasets
 #for dataset in "ferbl-4k-1k-1" "ferbl-9k-1k-1" "ferbl-90k-10k-1"

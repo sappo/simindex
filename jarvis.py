@@ -185,7 +185,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
     def save_report(self, button):
         name = self.edit.edit_text
-        for report in glob.glob("%s/*%s*" % (self.prefix, self.run)):
+        for report in glob.glob("%s/*%s*%s*" % (self.prefix, self.run, self.dataset)):
             reportname = os.path.basename(report)
             parts = reportname.split('_')
             if reportname.startswith('mprofile'):
@@ -201,14 +201,14 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         self.refresh_menu()
 
     def delete_report(self, button):
-        for report in glob.glob("%s/*%s*" % (self.prefix, self.run)):
+        for report in glob.glob("%s/*%s*%s*" % (self.prefix, self.run, self.dataset)):
             os.remove(report)
 
         self.refresh_menu()
 
     def read_metrics(self):
         metrics = {}
-        for resultfile in glob.glob("%s/%s*" % (self.prefix, self.run)):
+        for resultfile in glob.glob("%s/%s*%s" % (self.prefix, self.run, self.dataset)):
             with open(resultfile) as fp:
                 measurements = json.load(fp)
 
@@ -233,7 +233,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         index_build_time = defaultdict(dict)
         insert_times = defaultdict(dict)
         query_times = defaultdict(dict)
-        for resultfile in glob.glob("%s/%s*" % (self.prefix, self.run)):
+        for resultfile in glob.glob("%s/%s*%s" % (self.prefix, self.run, self.dataset)):
             fp = open(resultfile)
             measurements = json.load(fp)
             fp.close()
