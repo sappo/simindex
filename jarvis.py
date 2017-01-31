@@ -8,7 +8,7 @@ import urwid
 import subprocess
 import itertools as it
 from collections import defaultdict
-from simindex import draw_precision_recall_curve, \
+from simindex.plot import draw_precision_recall_curve, \
                      draw_record_time_curve, \
                      draw_bar_chart, \
                      show
@@ -31,14 +31,19 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
     def refresh_menu(self):
         reports = defaultdict(list)
-        for report in glob.glob("./reports/14*"):
+        for report in sorted(glob.glob("./reports/*"), reverse=True):
+            if os.path.basename(report).startswith("mprofile") \
+                    or report.count('fit'):
+                continue
+
             report = os.path.basename(report)
             reports[(report.split('_')[0],
                      report.split('_')[2])].append(report.split('_')[1])
 
         saved_reports = defaultdict(list)
-        for report in glob.glob("./evaluation/*"):
-            if os.path.basename(report).startswith("mprofile"):
+        for report in sorted(glob.glob("./evaluation/*"), reverse=True):
+            if os.path.basename(report).startswith("mprofile") \
+                    or report.count('fit'):
                 continue
 
             report = os.path.basename(report)
@@ -69,7 +74,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                 urwid.Overlay(urwid.LineBox(box),
                               self.original_widget,
                               align='center', width=('relative', 90),
-                              valign='middle', height=('relative', 90),
+                              valign='middle', height=('relative', 94),
                               min_width=24, min_height=8,
                               left=self.box_level * 3,
                               right=(self.max_box_levels - self.box_level - 1) * 3,
@@ -99,7 +104,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         btn_caption = "%s (%s) - %s" % (run, dataset, ', '.join(indexer))
         title = "Choose an option for %s!" % btn_caption
         contents = self.menu(title, [
-                        self.menu_button(u'Metrics', self.item_chosen),
+                        self.menu_button(u'Model', self.model_info),
+                        self.menu_button(u'Metrics', self.metrics_info),
                         self.menu_button(u'Plots', self.show_plots),
                         self.sub_menu(u'Memory Usage', [
                             self.menu_button(idx, self.show_mprof) for idx in
@@ -138,7 +144,71 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         urwid.connect_signal(button, 'click', callback)
         return urwid.AttrMap(button, None, focus_map='reversed')
 
-    def item_chosen(self, button):
+    def model_info(self, button):
+        model_report = "%s/%s_fit_%s" % (self.prefix, self.run, self.dataset)
+        with open(model_report) as fp:
+            model = json.load(fp)
+
+        simlearner_P = '?'
+        simlearner_N = '?'
+        if "positive_filtered_labels" in model:
+            simlearner_P = model["positive_filtered_labels"]
+        if "negative_filtered_labels" in model:
+            simlearner_N = model["negative_filtered_labels"]
+
+        simrow = [urwid.Text(u'Similarities - P (%s), N (%s)' % (
+                        simlearner_P, simlearner_N))]
+        for index, similarity in enumerate(model["similarities"]):
+            simrow.append(urwid.Text(u'Field %d: %s' % (index, similarity)))
+
+        # Format blocking scheme
+        blocking = defaultdict(list)
+        for blocking_key in model["blocking_scheme"]:
+            blocking[blocking_key[0]].append(blocking_key[1:])
+
+        maxconjunction = max(len(blocking[x]) for x in blocking.keys())
+        columns = [[] for x in range(maxconjunction)]
+        for keyid in blocking.keys():
+            curcol = 0
+            while curcol < maxconjunction:
+                if curcol < len(blocking[keyid]):
+                    blocking_key = blocking[keyid][curcol]
+                    text  = "Field     %s\n" % blocking_key[0]
+                    text += "Encoder   %s\n" % blocking_key[1]
+                    text += "Score     %s" % blocking_key[2]
+                    columns[curcol].append(urwid.Divider('-'))
+                    columns[curcol].append(urwid.Text([text]))
+                else:
+                    columns[curcol].append(urwid.Divider('-'))
+                    columns[curcol].append(urwid.Divider())
+                    columns[curcol].append(urwid.Divider())
+                    columns[curcol].append(urwid.Divider())
+
+                curcol += 1
+
+        for index, col in enumerate(columns):
+            columns[index] = urwid.Pile(col)
+
+        blocking_P = '?'
+        blocking_N = '?'
+        if "positive_labels" in model:
+            blocking_P = model["positive_labels"]
+        if "negative_labels" in model:
+            blocking_N = model["negative_labels"]
+
+        self.open_box(
+            urwid.ListBox([
+                urwid.Text("Model."), urwid.Divider(),
+                urwid.Columns(simrow), urwid.Divider(),
+                urwid.Text("Blocking Scheme - P (%s), N (%s)" % (
+                    blocking_P, blocking_N)),
+                urwid.Divider(),
+                urwid.Columns(columns),
+                urwid.Divider(),
+            ])
+         )
+
+    def metrics_info(self, button):
         metrics = self.read_metrics()
 
         columns_data = defaultdict(list)
@@ -209,6 +279,9 @@ class JarvisMenu(urwid.WidgetPlaceholder):
     def read_metrics(self):
         metrics = {}
         for resultfile in glob.glob("%s/%s*%s" % (self.prefix, self.run, self.dataset)):
+            if resultfile.count("fit"):
+                continue
+
             with open(resultfile) as fp:
                 measurements = json.load(fp)
 
@@ -234,6 +307,9 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         insert_times = defaultdict(dict)
         query_times = defaultdict(dict)
         for resultfile in glob.glob("%s/%s*%s" % (self.prefix, self.run, self.dataset)):
+            if resultfile.count("fit"):
+                continue
+
             fp = open(resultfile)
             measurements = json.load(fp)
             fp.close()
@@ -266,6 +342,10 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
 
 def parse_mprofile(filename):
+    # Make sure mprofile hasn't been processed
+    if filename.count('_') > 1:
+        return
+
     python_overhead = 0
     peak_memory = 0
     prefix = None
@@ -285,20 +365,20 @@ def parse_mprofile(filename):
                         peak_memory = function_peak_memory
 
             elif line_parts[0] == 'CMDLINE':
-                dataset_matches = re.finditer(r'([a-zA-Z0-9-]+)[\w]+.csv', line)
+                dataset_matches = re.finditer(r'([^/_]+)\w+.csv', line)
                 dataset_match = next(dataset_matches)
                 dataset = dataset_match.group(1)
 
-                prefix_matches = re.finditer(r'-r (\w+)', line)
+                prefix_matches = re.finditer(r'-r ([^ ]+)', line)
                 prefix_match = next(prefix_matches, None)
                 prefix = prefix_match.group(1)
 
-                type_matches = re.finditer(r'--run-type (\w+)', line)
+                type_matches = re.finditer(r'--run-type ([^ ]+)', line)
                 type_match = next(type_matches, None)
                 if type_match:
                     run_type = type_match.group(1)
 
-                idx_matches = re.finditer(r'-m (\w+)', line)
+                idx_matches = re.finditer(r'-m ([^ ]+)', line)
                 idx_match = next(idx_matches, None)
                 if idx_match:
                     indexer = idx_match.group(1)
@@ -341,7 +421,7 @@ def parse_mprofile(filename):
 def main():
 
     # Parse memory usage output
-    for mprofile in glob.glob("./reports/mprofile_2*"):
+    for mprofile in glob.glob("./reports/mprofile*"):
         parse_mprofile(mprofile)
 
 

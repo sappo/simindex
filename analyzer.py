@@ -4,7 +4,7 @@ import sys
 import json
 import click
 import numpy as np
-from simindex import SimEngine, MDySimII, MDySimIII, MDyLSH, RecordTimer
+from simindex import SimEngine, MDySimII, MDySimIII, MDyLSH, RecordTimer, BlockingKey
 
 try:
     profile
@@ -44,6 +44,10 @@ except NameError as e:
            Use multiple times if needed!'
 )
 @click.option(
+    u'-b', u'--baseline', multiple=True,
+    help=u'Baseline to fit. Use multiple times if needed!'
+)
+@click.option(
     u'-m', u'--indexer', help=u'Which indexer to use!'
 )
 @click.option(
@@ -64,7 +68,8 @@ def main(index_file, index_attributes,
          query_file, query_attributes,
          train_file, train_attributes,
          gold_standard, gold_attributes,
-         run_type, output, run_name, indexer):
+         run_type, output, run_name, indexer,
+         baseline):
     """
     Analyze simindex engine!
     """
@@ -73,27 +78,62 @@ def main(index_file, index_attributes,
         print("Query attribute count must equal index attribute count!")
         sys.exit(0)
 
-    name = os.path.basename(train_file).split('_')[0]
+    # Get a name for this analyze run
+    datasetname = os.path.basename(train_file).split('_')[0]
 
     if run_type == "fit":
-        for index_state in glob.glob("./.%s*" % name):
+        # Clean engine state
+        for index_state in glob.glob("./.%s*" % datasetname):
             os.remove(index_state)
 
         print()
         print("##############################################################")
         print("  Fitting training dataset.")
         print("##############################################################")
-        engine = SimEngine(name, verbose=False)
+        engine = SimEngine(datasetname, verbose=True)
+
+        if len(baseline) > 0:
+            baseline_scheme = []
+            for line in baseline:
+                field = 0
+                lineattrs = line.split(' ')
+                for index, train_attribute in enumerate(train_attributes):
+                    if train_attribute == lineattrs[1]:
+                        field = index - 1  # -1 for record id
+
+                baseline_scheme.append([int(lineattrs[0]), int(field), lineattrs[2]])
+
+            similarities = []
+            for train_attribute in train_attributes:
+                similarities.append('SimDamerau')
+
+            engine.set_baseline({'scheme': baseline_scheme,
+                                 'similarities': similarities})
+
+        engine.read_ground_truth(gold_standard, gold_attributes)
         engine.fit_csv(train_file, train_attributes)
+
+        model = {}
+        model["blocking_scheme"] = engine.blocking_scheme_to_strings()
+        model["similarities"] = engine.similarities
+        if len(baseline) == 0:
+            model["positive_labels"] = engine.nP
+            model["negative_labels"] = engine.nN
+            model["positive_filtered_labels"] = engine.nfP
+            model["negative_filtered_labels"] = engine.nfN
+
+        # Save metrics
+        fp = open(output, mode='w')
+        json.dump(model, fp, sort_keys=True, indent=4)
 
     elif run_type == "build":
         engine = None
         if indexer == "MDySimII":
-            engine = SimEngine(name, indexer=MDySimII, verbose=False)
+            engine = SimEngine(datasetname, indexer=MDySimII, verbose=False)
         elif indexer == "MDySimIII":
-            engine = SimEngine(name, indexer=MDySimIII, verbose=False)
+            engine = SimEngine(datasetname, indexer=MDySimIII, verbose=False)
         elif indexer == "MDyLSH":
-            engine = SimEngine(name, indexer=MDyLSH, verbose=False)
+            engine = SimEngine(datasetname, indexer=MDyLSH, verbose=False)
 
         print()
         print("##############################################################")
@@ -115,10 +155,6 @@ def main(index_file, index_attributes,
         print("Run Queries.")
         engine.query_csv(query_file, query_attributes)
 
-        # Cleanup index state
-        for index_state in glob.glob("./.%s*.idx" % name):
-            os.remove(index_state)
-
     elif run_type == "evaluation":
         measurements = {}
 
@@ -129,19 +165,19 @@ def main(index_file, index_attributes,
 
         print()
         print("##############################################################")
-        print("Analyzing engine (%s) on %s dataset:" % (indexer, name))
+        print("Analyzing engine (%s) on %s dataset:" % (indexer, datasetname))
 
         engine = None
         if indexer == "MDySimII":
-            engine = SimEngine(name, indexer=MDySimII, verbose=True,
+            engine = SimEngine(datasetname, indexer=MDySimII, verbose=True,
                                insert_timer=insert_timer,
                                query_timer=query_timer)
         elif indexer == "MDySimIII":
-            engine = SimEngine(name, indexer=MDySimIII, verbose=True,
+            engine = SimEngine(datasetname, indexer=MDySimIII, verbose=True,
                                insert_timer=insert_timer,
                                query_timer=query_timer)
         elif indexer == "MDyLSH":
-            engine = SimEngine(name, indexer=MDyLSH, verbose=True,
+            engine = SimEngine(datasetname, indexer=MDyLSH, verbose=True,
                                insert_timer=insert_timer,
                                query_timer=query_timer)
 
@@ -211,9 +247,9 @@ def main(index_file, index_attributes,
         fp = open(output, mode='w')
         json.dump(measurements, fp, sort_keys=True, indent=4)
 
-        # Clean engine state
-        for index_state in glob.glob("./.%s*" % name):
-            os.remove(index_state)
+    # Cleanup index state - next run might use a different
+    for index_state in glob.glob("./.%s*.idx" % datasetname):
+        os.remove(index_state)
 
     sys.exit(0)
 
