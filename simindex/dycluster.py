@@ -670,7 +670,7 @@ class MultiSimAwareAttributeIndex(object):
             blocking_key_values = feature.blocking_key_values(r_attributes)
             # Insert record into block and calculate similarities
             for encoding in blocking_key_values:
-                for blocking_key in feature.predicates:
+                for blocking_key in feature.blocking_keys:
                     field = blocking_key.field
                     attribute = r_attributes[field]
 

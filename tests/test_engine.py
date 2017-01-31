@@ -54,12 +54,12 @@ def test_engine_restaurant(verbose):
     # Expected results
     # @Warning: Testing blocking scheme and similiarites doesn't work as the
     # result vary due to randomness
-    blocking_scheme_expected = [[0, 0, 'term_id', 'is_exact_match'],
-                                [0, 1, 'tokens', 'has_common_token'],
-                                [1, 1, 'term_id', 'is_exact_match'],
-                                [1, 1, 'tokens', 'has_common_token'],
-                                [2, 0, 'tokens', 'has_common_token'],
-                                [2, 1, 'tokens', 'has_common_token']]
+    blocking_scheme_expected = [[0, 0, 'term_id'],
+                                [0, 1, 'tokens'],
+                                [1, 1, 'term_id'],
+                                [1, 1, 'tokens'],
+                                [2, 0, 'tokens'],
+                                [2, 1, 'tokens']]
 
     sim_strings_expected = ['SimDamerau', 'SimLevenshtein', 'SimDamerau',
                             'SimDamerau', 'SimRatio']

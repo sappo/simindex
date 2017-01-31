@@ -12,7 +12,7 @@ import pytest
 import math
 from .testprofiler import profile
 from .testdata import restaurant_dataset, restaurant_gold_pairs
-from .testhelper import has_common_token
+from .testhelper import tokens
 
 from pprint import pprint
 
@@ -54,15 +54,15 @@ def test_weak_labels():
         assert hit is True
 
     blocking_keys = []
-    blocking_keys.append(BlockingKey(has_common_token, 0, str.split))
-    blocking_keys.append(BlockingKey(has_common_token, 1, str.split))
+    blocking_keys.append(BlockingKey(0, tokens))
+    blocking_keys.append(BlockingKey(1, tokens))
 
     dnfblock = DisjunctiveBlockingScheme(blocking_keys, P_actual, N_actual)
     dnf = dnfblock.transform(restaurant_dataset)
-    dnf_expected = [Feature([BlockingKey(has_common_token, 0, None),
-                             BlockingKey(has_common_token, 1, None)], 0., 0.),
-                    Feature([BlockingKey(has_common_token, 0, None)], 0., 0.),
-                    Feature([BlockingKey(has_common_token, 1, None)], 0., 0.)]
+    dnf_expected = [Feature([BlockingKey(0, tokens),
+                             BlockingKey(1, tokens)], 0., 0.),
+                    Feature([BlockingKey(0, tokens)], 0., 0.),
+                    Feature([BlockingKey(1, tokens)], 0., 0.)]
     assert(dnf == dnf_expected)
 
 
@@ -73,8 +73,8 @@ def test_filter_labels():
     P, N = labels.predict()
 
     blocking_keys = []
-    blocking_keys.append(BlockingKey(has_common_token, 0, str.split))
-    blocking_keys.append(BlockingKey(has_common_token, 1, str.split))
+    blocking_keys.append(BlockingKey(0, tokens))
+    blocking_keys.append(BlockingKey(1, tokens))
 
     dnfblock = DisjunctiveBlockingScheme(blocking_keys, P, N)
     dnf = dnfblock.transform(restaurant_dataset)
@@ -217,12 +217,12 @@ def test_tfidf_similarity():
     # labels.predict()
 
     # blocking_keys = []
-    # blocking_keys.append(BlockingKey(has_common_token, 0, str.split))
-    # blocking_keys.append(BlockingKey(has_common_token, 1, str.split))
-    # blocking_keys.append(BlockingKey(has_common_token, 2, str.split))
-    # blocking_keys.append(BlockingKey(has_common_token, 3, str.split))
-    # blocking_keys.append(BlockingKey(has_common_token, 4, str.split))
-    # blocking_keys.append(BlockingKey(has_common_token, 5, str.split))
+    # blocking_keys.append(BlockingKey(0, tokens))
+    # blocking_keys.append(BlockingKey(1, tokens))
+    # blocking_keys.append(BlockingKey(2, tokens))
+    # blocking_keys.append(BlockingKey(3, tokens))
+    # blocking_keys.append(BlockingKey(4, tokens))
+    # blocking_keys.append(BlockingKey(5, tokens))
 
     # dnfblock = DisjunctiveBlockingScheme(blocking_keys, labels)
     # dnfblock.transform()

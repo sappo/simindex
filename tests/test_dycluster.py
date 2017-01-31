@@ -11,7 +11,7 @@ Tests for `simindex` module.
 import pytest
 from .testprofiler import profile
 from .testdata import restaurant_records
-from .testhelper import has_common_token
+from .testhelper import tokens
 
 from pprint import pprint
 from difflib import SequenceMatcher
@@ -115,10 +115,10 @@ def test_lsh():
 
 
 def test_MultiSimAwareAttributeIndex():
-    dnf = [Feature([BlockingKey(has_common_token, 0, str.split),
-                    BlockingKey(has_common_token, 1, str.split)], 0., 0.),
-           Feature([BlockingKey(has_common_token, 0, str.split)], 0., 0.),
-           Feature([BlockingKey(has_common_token, 1, str.split)], 0., 0.)]
+    dnf = [Feature([BlockingKey(0, tokens),
+                    BlockingKey(1, tokens)], 0., 0.),
+           Feature([BlockingKey(0, tokens)], 0., 0.),
+           Feature([BlockingKey(1, tokens)], 0., 0.)]
 
     msaai = MultiSimAwareAttributeIndex(dnf, [__compare, __compare])
 

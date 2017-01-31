@@ -13,10 +13,8 @@ from .weak_labels import WeakLabels, \
                          Feature, \
                          SimTupel, \
                          tokens, \
-                         has_common_token, \
-                         term_id, \
-                         is_exact_match
-from simindex.similarity import SimLearner
+                         term_id
+from .similarity import SimLearner
 import simindex.helper as hp
 
 try:
@@ -134,14 +132,16 @@ class SimEngine(object):
 
         if self.verbose:
             print("Generated %d P and %d N labels" % (len(P), len(N)))
+            self.nP = len(P)
+            self.nN = len(N)
 
         # Learn blocking scheme
         self.blocking_scheme = self.load_blocking_scheme()
         if self.blocking_scheme is None:
             blocking_keys = []
             for field in range(self.attribute_count):
-                blocking_keys.append(BlockingKey(has_common_token, field, tokens))
-                blocking_keys.append(BlockingKey(is_exact_match, field, term_id))
+                blocking_keys.append(BlockingKey(field, tokens))
+                blocking_keys.append(BlockingKey(field, term_id))
 
             dbs = DisjunctiveBlockingScheme(blocking_keys, P, N,
                                             self.max_bk_conjunction)
@@ -159,6 +159,8 @@ class SimEngine(object):
             P, N = WeakLabels.filter(self.blocking_scheme, P, N)
             if self.verbose:
                 print("Have %d P and %d N filtered labels" % (len(P), len(N)))
+                self.nfP = len(P)
+                self.nfN = len(N)
 
             sl = SimLearner(self.attribute_count, dataset)
             self.similarities = sl.predict(P, N)
@@ -313,13 +315,19 @@ class SimEngine(object):
             else:
                 return None, None
 
+    def set_baseline(self, baseline):
+        self.blocking_scheme = self.read_blocking_scheme(baseline['scheme'])
+        self.similarities = baseline['similarities']
+        self.save_blocking_scheme()
+        self.save_similarities()
+
     def blocking_scheme_to_strings(self):
         data = []
         for index, feature in enumerate(self.blocking_scheme):
-            for predicate in feature.predicates:
+            for predicate in feature.blocking_keys:
                 data.append([index, predicate.field,
                              predicate.encoder.__name__,
-                             predicate.predicate.__name__])
+                             feature.fsc])
 
         return data
 
@@ -328,29 +336,32 @@ class SimEngine(object):
                          complevel=9, complib='blosc') as store:
             data = self.blocking_scheme_to_strings()
             df = pd.DataFrame(data, columns=["feature", "field",
-                                             "encoder", "predicate"])
+                                             "encoder", "score"])
             store.put("blocking_scheme", df, format="t")
 
-    def load_blocking_scheme(self):
+    @staticmethod
+    def read_blocking_scheme(blocking_keys):
+        id = None
+        blocking_scheme = []
         possibles = globals().copy()
         possibles.update(locals())
+        for predicate in blocking_keys:
+            if id != predicate[0]:
+                blocking_scheme.append(Feature([], 0, 0))
+
+            feature = blocking_scheme[predicate[0]]
+            id = predicate[0]
+
+            encoder = possibles.get(predicate[2])
+            feature.blocking_keys.append(BlockingKey(predicate[1], encoder))
+
+        return blocking_scheme
+
+    def load_blocking_scheme(self):
         with pd.HDFStore(self.configstore_name) as store:
             if "/blocking_scheme" in store.keys():
-                id = None
-                blocking_scheme = []
-                for predicate in hp.hdf_record_attributes(store, "blocking_scheme"):
-                    if id != predicate[0]:
-                        blocking_scheme.append(Feature([], 0, 0))
-
-                    feature = blocking_scheme[predicate[0]]
-                    id = predicate[0]
-
-                    encoder = possibles.get(predicate[2])
-                    pred = possibles.get(predicate[3])
-                    feature.predicates.append(BlockingKey(pred,
-                                                          predicate[1],
-                                                          encoder))
-                return blocking_scheme
+                return self.read_blocking_scheme(
+                        hp.hdf_record_attributes(store, "blocking_scheme"))
             else:
                 return None
 

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import math
 import heapq
+from joblib import Parallel, delayed
 import numpy as np
 from collections import defaultdict, namedtuple
 from gensim import corpora, models
@@ -131,7 +132,11 @@ class WeakLabels(object):
             N_bins = [[] for x in range(bins)]
             for t1, t2 in candidates:
                 sim = self.tfidf_similarity(t1, t2)
-                N_bins[int(sim * bins)].append(SimTupel(t1, t2, sim))
+                bin = int(sim * bins)
+                if bin >= bins:
+                    bin = bins - 1
+
+                N_bins[bin].append(SimTupel(t1, t2, sim))
 
             # Calculate probability distribution
             weights = [len(bin) for bin in N_bins]
@@ -184,30 +189,30 @@ class WeakLabels(object):
         return filtered_P, filtered_N
 
 
-BlockingKey = namedtuple('BlockingKey', ['predicate', 'field', 'encoder'])
+BlockingKey = namedtuple('BlockingKey', ['field', 'encoder'])
 
 
 class Feature:
-    def __init__(self, predicates, fsc, msc):
-        self.predicates = predicates
+    def __init__(self, blocking_keys, fsc, msc):
+        self.blocking_keys = blocking_keys
         self.fsc = fsc
         self.msc = msc
         self.pv = None
         self.nv = None
 
     def union(self, other):
-        pred_conjunction = self.predicates + other.predicates
-        feature = Feature(pred_conjunction, None, None)
+        bk_conjunction = self.blocking_keys + other.blocking_keys
+        feature = Feature(bk_conjunction, None, None)
         feature.pv = self.pv & other.pv
         feature.nv = self.nv & other.nv
         return feature
 
     def signature(self):
-        return set((p.predicate, p.field) for p in self.predicates)
+        return set((bk.encoder, bk.field) for bk in self.blocking_keys)
 
     def blocking_key_values(self, r_attributes):
         BKVs = set()
-        for blocking_key in self.predicates:
+        for blocking_key in self.blocking_keys:
             attribute = r_attributes[blocking_key.field]
             if not attribute:
                 # No need to encode empty attributes
@@ -228,13 +233,13 @@ class Feature:
 
     def covered_fields(self):
         fields = set()
-        for blocking_key in self.predicates:
+        for blocking_key in self.blocking_keys:
             fields.add(blocking_key.field)
 
         return fields
 
     def __repr__(self):
-        return "Feature(%s, fsc=%s, msc=%s)" % (self.predicates,
+        return "Feature(%s, fsc=%s, msc=%s)" % (self.blocking_keys,
                                                 self.fsc,
                                                 self.msc)
 
@@ -366,7 +371,7 @@ class DisjunctiveBlockingScheme(object):
         for r_id, r_attributes in self.dataset.items():
             blocking_key_values = feature.blocking_key_values(r_attributes)
             for encoding in blocking_key_values:
-                for blocking_key in feature.predicates:
+                for blocking_key in feature.blocking_keys:
                     field = blocking_key.field
                     attribute = r_attributes[field]
 
@@ -399,12 +404,12 @@ class DisjunctiveBlockingScheme(object):
             nv = np.empty(len(self.N), np.bool)
             for index, pair in enumerate(self.P):
                 result = True
-                for predicate in feature.predicates:
-                    field = predicate.field
-                    pred = predicate.predicate
+                for blocking_key in feature.blocking_keys:
+                    field = blocking_key.field
+                    encode = blocking_key.encoder
                     t1_field = self.dataset[pair.t1][field]
                     t2_field = self.dataset[pair.t2][field]
-                    result &= pred(t1_field, t2_field)
+                    result &= bool(encode(t1_field).intersection(encode(t2_field)))
                     if not result:
                         break
 
@@ -412,12 +417,12 @@ class DisjunctiveBlockingScheme(object):
 
             for index, pair in enumerate(self.N):
                 result = True
-                for predicate in feature.predicates:
-                    field = predicate.field
-                    pred = predicate.predicate
+                for blocking_key in feature.blocking_keys:
+                    field = blocking_key.field
+                    encode = blocking_key.encoder
                     t1_field = self.dataset[pair.t1][field]
                     t2_field = self.dataset[pair.t2][field]
-                    result &= pred(t1_field, t2_field)
+                    result &= bool(encode(t1_field).intersection(encode(t2_field)))
                     if not result:
                         break
 

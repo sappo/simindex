@@ -7,6 +7,7 @@ lw = 2
 
 
 def show():
+    plt.tight_layout()
     plt.show()
 
 
@@ -42,12 +43,21 @@ def draw_frequency_distribution(data, dataset, type):
     plt.legend(loc="upper right")
 
 
-def draw_record_time_curve(times, dataset, action):
-    title = "%s time for a single record (%s)" % (action.capitalize(), dataset)
+def new_figure(title):
     fig = plt.figure(dpi=None, facecolor="white")
     fig.canvas.set_window_title(title)
-    # Plot Precision-Recall curve
     plt.clf()
+    plt.title(title)
+
+
+def draw_record_time_curve(times, dataset, action):
+    title = "%s time for a single record (%s)" % (action.capitalize(), dataset)
+    new_figure(title)
+    draw_time_curve(times, action)
+
+
+def draw_time_curve(times, action, ax=plt):
+    # Plot Precision-Recall curve
     # These are the colors that will be used in the plot
     color_sequence = ['#1f77b4', '#aec7e8', '#ff7f0e', '#ffbb78', '#2ca02c',
                       '#98df8a', '#d62728', '#ff9896', '#9467bd', '#c5b0d5',
@@ -57,11 +67,11 @@ def draw_record_time_curve(times, dataset, action):
         x_pos = np.arange(0, len(times[indexer]), 1)
         mean = np.mean(times[indexer])
         times_mean = [mean for i in x_pos]
-        plt.plot(x_pos, times[indexer], lw=lw,
-                 color=color_sequence[2 * index + 1], label=indexer)
+        ax.plot(x_pos, times[indexer], lw=lw,
+                color=color_sequence[2 * index + 1], label=indexer)
         # zorder assures that mean lines are always printed above
-        plt.plot(x_pos, times_mean, color=color_sequence[2 * index],
-                 zorder=index + 100, linestyle='--', label='%s mean' % indexer)
+        ax.plot(x_pos, times_mean, color=color_sequence[2 * index],
+                zorder=index + 100, linestyle='--', label='%s mean' % indexer)
 
     xlabel = "Record %s number" % action
     plt.xlabel(xlabel)
@@ -70,8 +80,7 @@ def draw_record_time_curve(times, dataset, action):
     plt.yscale('log')
     # plt.autoscale(enable=True, axis='y')
     plt.xlim([0, max(x_pos)])
-    plt.title(title)
-    plt.legend(loc="upper right")
+    ax.legend(loc="upper right")
 
 
 def draw_precision_recall_curve(y_true, y_scores, dataset):

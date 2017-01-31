@@ -85,10 +85,10 @@ def test_simawareindex_insert():
 
 
 def test_mdysimII():
-    dns = [Feature([BlockingKey(has_common_token, 0, tokens),
-                    BlockingKey(has_common_token, 1, tokens)], 0., 0.),
-           Feature([BlockingKey(has_common_token, 0, tokens)], 0., 0.),
-           Feature([BlockingKey(has_common_token, 1, tokens)], 0., 0.)]
+    dns = [Feature([BlockingKey(0, tokens),
+                    BlockingKey(1, tokens)], 0., 0.),
+           Feature([BlockingKey(0, tokens)], 0., 0.),
+           Feature([BlockingKey(1, tokens)], 0., 0.)]
     s = MDySimII(2, dns, [_compare, _compare])
     s.insert(restaurant_records[0][0], restaurant_records[0][1:])
     s.insert(restaurant_records[1][0], restaurant_records[1][1:])
@@ -112,10 +112,10 @@ def test_mdysimII():
 
 
 def test_mdysimIII():
-    dns = [Feature([BlockingKey(has_common_token, 0, tokens),
-                    BlockingKey(has_common_token, 1, tokens)], 0., 0.),
-           Feature([BlockingKey(has_common_token, 0, tokens)], 0., 0.),
-           Feature([BlockingKey(has_common_token, 1, tokens)], 0., 0.)]
+    dns = [Feature([BlockingKey(0, tokens),
+                    BlockingKey(1, tokens)], 0., 0.),
+           Feature([BlockingKey(0, tokens)], 0., 0.),
+           Feature([BlockingKey(1, tokens)], 0., 0.)]
     s = MDySimIII(2, dns, [_compare, _compare])
     s.insert(restaurant_records[0][0], restaurant_records[0][1:])
     s.insert(restaurant_records[1][0], restaurant_records[1][1:])
