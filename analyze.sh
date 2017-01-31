@@ -8,7 +8,7 @@ for dataset in "ferbl-4k-1k-1" "ferbl-9k-1k-1" "ferbl-90k-10k-1"
 do
     datasetprefix="../../master_thesis/datasets/febrl/"
 
-    if [ "$1" != '-b' ]; then
+    if [ "$1" == '-b' ]; then
         # Fit baseline model once!
         mprof run analyzer.py \
             --run-type fit -r "${timestamp}" \
