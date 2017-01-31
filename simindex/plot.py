@@ -84,9 +84,13 @@ def draw_time_curve(times, action, ax=plt):
 
 
 def draw_precision_recall_curve(y_true, y_scores, dataset):
+    precision, recall, thresholds = precision_recall_curve(y_true, y_scores)
+    draw_prc(precision, recall, thresholds, dataset)
+
+
+def draw_prc(precision, recall, thresholds, dataset):
     fig = plt.figure(dpi=None, facecolor="white")
     fig.canvas.set_window_title("PRC (%s)" % dataset)
-    precision, recall, thresholds = precision_recall_curve(y_true, y_scores)
     if (thresholds[0] == 0):
         recall = recall[1:]
         precision = precision[1:]

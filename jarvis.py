@@ -7,8 +7,9 @@ import click
 import urwid
 import subprocess
 import itertools as it
+import numpy as np
 from collections import defaultdict
-from simindex.plot import draw_precision_recall_curve, \
+from simindex.plot import draw_prc, \
                      draw_record_time_curve, \
                      draw_bar_chart, \
                      show
@@ -320,9 +321,10 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             insert_times[dataset][indexer] = measurements["insert_times"]
             query_times[dataset][indexer] = measurements["query_times"]
 
-            draw_precision_recall_curve(measurements["y_true"],
-                                        measurements["y_scores"],
-                                        indexer_dataset)
+            draw_prc(np.array(measurements["prc_precisions"]),
+                     np.array(measurements["prc_recalls"]),
+                     np.array(measurements["prc_thresholds"]),
+                     indexer_dataset)
 
             # Sort data by indexer and then by dataset
             memory_usage[indexer][dataset] = measurements["build_memory_peak"]

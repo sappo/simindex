@@ -233,9 +233,10 @@ def main(index_file, index_attributes,
         measurements["recall"] = engine.recall()
         measurements["precision"] = engine.precision()
         measurements["f1_score"] = engine.f1_score()
-        measurements["y_true"] = engine.y_true
-        measurements["y_pred"] = engine.y_pred
-        measurements["y_scores"] = engine.y_scores
+        precisions, recalls, thresholds = engine.precision_recall_curve()
+        measurements["prc_precisions"] = precisions.tolist()
+        measurements["prc_recalls"] = recalls.tolist()
+        measurements["prc_thresholds"] = thresholds.tolist()
 
         print("\tPair completeness:", measurements["pair_completeness"])
         print("\tReduction ratio:", measurements["reduction_ratio"])
