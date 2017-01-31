@@ -56,13 +56,15 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             self.box_level -= 1
 
         menu_elements = [
-            self.result_menu(key[0], key[1],
-                             value, './reports') for key, value in reports.items()
+            self.result_menu(key[0], key[1], value, './reports',
+                             reports, saved_reports)
+            for key, value in reports.items()
         ]
         menu_elements.extend([
             self.sub_menu(u'Saved reports ...', [
-                self.result_menu(key[0], key[1],
-                                 value, './evaluation') for key, value in saved_reports.items()
+                self.result_menu(key[0], key[1], value, './evaluation',
+                                 reports, saved_reports)
+                for key, value in saved_reports.items()
             ])
         ])
         menu_elements.append(self.menu_button(u'Quit', exit_program))
@@ -101,9 +103,24 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         body.extend(choices)
         return urwid.ListBox(urwid.SimpleFocusListWalker(body))
 
-    def result_menu(self, run, dataset, indexer, prefix):
+    def result_menu(self, run, dataset, indexer, prefix,
+                    reports, saved_reports):
         btn_caption = "%s (%s) - %s" % (run, dataset, ', '.join(indexer))
         title = "Choose an option for %s!" % btn_caption
+        compare_elements = [
+            self.compare_menu(key[0], key[1], value, './reports', 1)
+            for key, value in reports.items()
+        ]
+        compare_elements.extend([
+            self.sub_menu(u'Saved reports ...', [
+                self.compare_menu(key[0], key[1], value, './evaluation', 2)
+                for key, value in saved_reports.items()
+            ])
+        ])
+        compare_contents = self.menu("Choose a report to compare!", compare_elements)
+        def open_comparemenu(button):
+            return self.open_box(compare_contents)
+
         contents = self.menu(title, [
                         self.menu_button(u'Model', self.model_info),
                         self.menu_button(u'Metrics', self.metrics_info),
@@ -112,6 +129,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                             self.menu_button(idx, self.show_mprof) for idx in
                             sorted(it.chain(indexer, ['fit']))
                             ]),
+                        self.menu_button(u'Compare', open_comparemenu),
                         self.save_menu(),
                         self.menu_button(u'Delete', self.delete_report),
                    ])
@@ -120,6 +138,15 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             self.run = run
             self.dataset = dataset
             return self.open_box(contents)
+        return self.menu_button([btn_caption], open_menu)
+
+    def compare_menu(self, run, dataset, indexer, prefix, level):
+        btn_caption = "%s (%s) - %s" % (run, dataset, ', '.join(indexer))
+        def open_menu(button):
+            self.compareprefix = prefix
+            self.comparerun = run
+            self.comparedataset = dataset
+            return self.comparison()
         return self.menu_button([btn_caption], open_menu)
 
     def save_menu(self):
@@ -209,9 +236,28 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             ])
          )
 
-    def metrics_info(self, button):
+    def comparison(self):
         metrics = self.read_metrics()
+        othermetrics = self.read_metrics(True)
 
+        mcolumns = self.metrics_columns(metrics)
+        ocolumns = self.metrics_columns(othermetrics)
+
+        columns = []
+        for indexer in sorted(mcolumns.keys()):
+            if indexer in ocolumns:
+                columns.append(urwid.Pile(mcolumns[indexer]))
+                columns.append(urwid.Pile(ocolumns[indexer]))
+
+        self.open_box(
+            urwid.ListBox([
+                urwid.Text("Comparison."), urwid.Divider(),
+                urwid.Columns(columns),
+                urwid.Divider(),
+            ])
+        )
+
+    def metrics_columns(self, metrics):
         columns_data = defaultdict(list)
         for indexer in metrics.keys():
             columns_data[indexer].append(urwid.Text([indexer]))
@@ -242,6 +288,11 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             text += "Memory peak        %f\n" % measurements["build_memory_peak"]
             columns_data[indexer].append(urwid.Text([text]))
 
+        return columns_data
+
+    def metrics_info(self, button):
+        metrics = self.read_metrics()
+        columns_data = self.metrics_columns(metrics)
         columns = []
         for indexer in sorted(columns_data.keys()):
             columns.append(urwid.Pile(columns_data[indexer]))
@@ -277,9 +328,18 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
         self.refresh_menu()
 
-    def read_metrics(self):
+    def read_metrics(self, compare=False):
         metrics = {}
-        for resultfile in glob.glob("%s/%s*%s" % (self.prefix, self.run, self.dataset)):
+        if compare:
+            prefix = self.compareprefix
+            run = self.comparerun
+            dataset = self.comparedataset
+        else:
+            prefix = self.prefix
+            run = self.run
+            dataset = self.dataset
+
+        for resultfile in glob.glob("%s/%s*%s" % (prefix, run, dataset)):
             if resultfile.count("fit"):
                 continue
 
@@ -388,12 +448,16 @@ def parse_mprofile(filename):
     # Save memory consumption to resultfile
     if indexer:
         resultfile = "./reports/%s_%s_%s" % (prefix, indexer, dataset)
-        with open(resultfile, mode='r') as fp:
-            measurements = json.load(fp)
-            measurements["build_memory_peak"] = peak_memory - python_overhead
+        try:
+            with open(resultfile, mode='r') as fp:
+                measurements = json.load(fp)
+                measurements["build_memory_peak"] = peak_memory - python_overhead
 
-        with open(resultfile, mode='w') as fp:
-            json.dump(measurements, fp, sort_keys=True, indent=4)
+            with open(resultfile, mode='w') as fp:
+                json.dump(measurements, fp, sort_keys=True, indent=4)
+        except FileNotFoundError:
+            os.remove(filename)
+            return
 
     # Modify memory usage report to only contain useful information
     if indexer:
