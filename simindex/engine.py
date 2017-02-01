@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import pandas as pd
 import numpy as np
 from pprint import pprint
@@ -30,13 +31,15 @@ class SimEngine(object):
 
     def __init__(self, name, indexer=MDySimIII, max_bk_conjunction=1,
                  max_positive_labels=None, max_negative_labels=None,
-                 threshold=0.0, top_n=0,
+                 threshold=0.0, top_n=0, datadir='.',
                  insert_timer=None, query_timer=None, verbose=False):
         self.name = name
-        self.configstore_name = ".%s_config.h5" % self.name
-        self.traindatastore_name = ".%s_traindata.h5" % self.name
-        self.indexdatastore_name = ".%s_indexdata.h5" % self.name
-        self.querydatastore_name = ".%s_querydata.h5" % self.name
+        self.datadir = datadir.strip('/')
+        os.makedirs(self.datadir, exist_ok=True)
+        self.configstore_name = "%s/.%s_config.h5" % (self.datadir, self.name)
+        self.traindatastore_name = "%s/.%s_traindata.h5" % (self.datadir, self.name)
+        self.indexdatastore_name = "%s/.%s_indexdata.h5" % (self.datadir, self.name)
+        self.querydatastore_name = "%s/.%s_querydata.h5" % (self.datadir, self.name)
         self.indexer_class = indexer
         self.attribute_count = None
         self.stoplist = set('for a of the and to in'.split())
@@ -190,7 +193,7 @@ class SimEngine(object):
         self.indexer = self.indexer_class(self.attribute_count,
                                           self.blocking_scheme,
                                           similarity_fns)
-        if not self.indexer.load(self.name):
+        if not self.indexer.load(self.name, self.datadir):
             for record in records:
                 r_id = record[0]
                 r_attributes = record[1:]
@@ -200,7 +203,7 @@ class SimEngine(object):
                 else:
                     self.indexer.insert(r_id, r_attributes)
 
-            self.indexer.save(self.name)
+            self.indexer.save(self.name, self.datadir)
 
         # pprint(self.indexer.FBI)
 

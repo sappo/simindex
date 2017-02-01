@@ -295,25 +295,25 @@ class MDySimII(object):
         del accumulator[q_id]
         return accumulator
 
-    def save(self, name):
+    def save(self, name, datadir):
         # Dump number of records
-        with open(".%s_nrecords.idx" % name, "wb") as handle:
+        with open("%s/.%s_nrecords.idx" % (datadir, name), "wb") as handle:
             pickle.dump(self.nrecords, handle, protocol=pickle.HIGHEST_PROTOCOL)
         # Dump RI
-        with open(".%s_RI.idx" % name, "wb") as handle:
+        with open("%s/.%s_RI.idx" % (datadir, name), "wb") as handle:
             pickle.dump(self.RI, handle, protocol=pickle.HIGHEST_PROTOCOL)
         # Dump FBI
-        with open(".%s_FBI.idx" % name, "wb") as handle:
+        with open("%s/.%s_FBI.idx" % (datadir, name), "wb") as handle:
             pickle.dump(self.FBI, handle, protocol=pickle.HIGHEST_PROTOCOL)
         # Dump SI
-        with open(".%s_SI.idx" % name, "wb") as handle:
+        with open("%s/.%s_SI.idx" % (datadir, name), "wb") as handle:
             pickle.dump(self.SI, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    def load(self, name):
-        nrecords_filename = ".%s_nrecords.idx" % name
-        ri_filename = ".%s_RI.idx" % name
-        fbi_filename = ".%s_FBI.idx" % name
-        si_filename = ".%s_SI.idx" % name
+    def load(self, name, datadir):
+        nrecords_filename = "%s/.%s_nrecords.idx" % (name, datadir)
+        ri_filename = "%s/.%s_RI.idx" % (datadir, name)
+        fbi_filename = "%s/.%s_FBI.idx" % (datadir, name)
+        si_filename = "%s/.%s_SI.idx" % (datadir, name)
         if os.path.exists(ri_filename) and \
            os.path.exists(fbi_filename) and \
            os.path.exists(si_filename):
@@ -458,21 +458,21 @@ class MDySimIII(object):
 
         return accumulator
 
-    def save(self, name):
+    def save(self, name, datadir):
         # Dump number of records
-        with open(".%s_nrecords.idx" % name, "wb") as handle:
+        with open("%s/.%s_nrecords.idx" % (datadir, name), "wb") as handle:
             pickle.dump(self.nrecords, handle, protocol=pickle.HIGHEST_PROTOCOL)
         # Dump FBI
-        with open(".%s_FBI.idx" % name, "wb") as handle:
+        with open("%s/.%s_FBI.idx" % (datadir, name), "wb") as handle:
             pickle.dump(self.FBI, handle, protocol=pickle.HIGHEST_PROTOCOL)
         # Dump SI
-        with open(".%s_SI.idx" % name, "wb") as handle:
+        with open("%s/.%s_SI.idx" % (datadir, name), "wb") as handle:
             pickle.dump(self.SI, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    def load(self, name):
-        nrecords_filename = ".%s_nrecords.idx" % name
-        fbi_filename = ".%s_FBI.idx" % name
-        si_filename = ".%s_SI.idx" % name
+    def load(self, name, datadir):
+        nrecords_filename = "%s/.%s_nrecords.idx" % (datadir, name)
+        fbi_filename = "%s/.%s_FBI.idx" % (datadir, name)
+        si_filename = "%s/.%s_SI.idx" % (datadir, name)
         if os.path.exists(fbi_filename) and \
            os.path.exists(si_filename):
             with open(nrecords_filename, "rb") as handle:
