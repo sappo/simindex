@@ -80,17 +80,18 @@ def main(index_file, index_attributes,
 
     # Get a name for this analyze run
     datasetname = os.path.basename(train_file).split('_')[0]
+    engine_datadir = '.engine'  # Where to save/load engine state to/from
 
     if run_type == "fit":
         # Clean engine state
-        for index_state in glob.glob("./.%s*" % datasetname):
+        for index_state in glob.glob("%s/.%s*" % (engine_datadir, datasetname)):
             os.remove(index_state)
 
         print()
         print("##############################################################")
         print("  Fitting training dataset.")
         print("##############################################################")
-        engine = SimEngine(datasetname, verbose=True)
+        engine = SimEngine(datasetname, datadir=engine_datadir, verbose=True)
 
         if len(baseline) > 0:
             baseline_scheme = []
@@ -114,7 +115,13 @@ def main(index_file, index_attributes,
         engine.fit_csv(train_file, train_attributes)
 
         model = {}
-        model["blocking_scheme"] = engine.blocking_scheme_to_strings()
+        blocking_scheme = engine.blocking_scheme_to_strings()
+        # Try to replace field number with names
+        if len(train_attributes) > 0:
+            for blocking_key in blocking_scheme:
+                blocking_key[1] = train_attributes[blocking_key[1] + 1]
+
+        model["blocking_scheme"] = blocking_scheme
         model["similarities"] = engine.similarities
         if len(baseline) == 0:
             model["positive_labels"] = engine.nP
@@ -129,11 +136,14 @@ def main(index_file, index_attributes,
     elif run_type == "build":
         engine = None
         if indexer == "MDySimII":
-            engine = SimEngine(datasetname, indexer=MDySimII, verbose=False)
+            engine = SimEngine(datasetname, indexer=MDySimII,
+                               datadir=engine_datadir, verbose=False)
         elif indexer == "MDySimIII":
-            engine = SimEngine(datasetname, indexer=MDySimIII, verbose=False)
+            engine = SimEngine(datasetname, indexer=MDySimIII,
+                               datadir=engine_datadir, verbose=False)
         elif indexer == "MDyLSH":
-            engine = SimEngine(datasetname, indexer=MDyLSH, verbose=False)
+            engine = SimEngine(datasetname, indexer=MDyLSH,
+                               datadir=engine_datadir, verbose=False)
 
         print()
         print("##############################################################")
@@ -170,14 +180,17 @@ def main(index_file, index_attributes,
         engine = None
         if indexer == "MDySimII":
             engine = SimEngine(datasetname, indexer=MDySimII, verbose=True,
+                               datadir=engine_datadir,
                                insert_timer=insert_timer,
                                query_timer=query_timer)
         elif indexer == "MDySimIII":
             engine = SimEngine(datasetname, indexer=MDySimIII, verbose=True,
+                               datadir=engine_datadir,
                                insert_timer=insert_timer,
                                query_timer=query_timer)
         elif indexer == "MDyLSH":
             engine = SimEngine(datasetname, indexer=MDyLSH, verbose=True,
+                               datadir=engine_datadir,
                                insert_timer=insert_timer,
                                query_timer=query_timer)
 
@@ -249,7 +262,7 @@ def main(index_file, index_attributes,
         json.dump(measurements, fp, sort_keys=True, indent=4)
 
     # Cleanup index state - next run might use a different
-    for index_state in glob.glob("./.%s*.idx" % datasetname):
+    for index_state in glob.glob("%s/.%s*.idx" % (engine_datadir, datasetname)):
         os.remove(index_state)
 
     sys.exit(0)
