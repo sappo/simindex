@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from matplotlib import gridspec
 import numpy as np
 from sklearn.metrics import precision_recall_curve
 
@@ -7,7 +8,6 @@ lw = 2
 
 
 def show():
-    plt.tight_layout()
     plt.show()
 
 
@@ -18,7 +18,7 @@ def draw_frequency_distribution(data, dataset, type):
     plt.clf()
 
     # Sort data by value then label
-    for index, label in enumerate(data.keys()):
+    for index, label in enumerate(sorted(data.keys())):
         x_vals, y_vals = [], []
         for y, x in sorted(data[label].items(), key=lambda x: (x[1], -int(x[0]))):
             x_vals.append(x)
@@ -51,12 +51,23 @@ def new_figure(title):
 
 
 def draw_record_time_curve(times, dataset, action):
+    nplots = len(times)
     title = "%s time for a single record (%s)" % (action.capitalize(), dataset)
-    new_figure(title)
-    draw_time_curve(times, action)
+    fig = plt.figure(figsize=(8 * nplots, 5), dpi=None, facecolor="white")
+    fig.canvas.set_window_title(title)
+    st = fig.suptitle("Dataset %s" % dataset, fontsize='large')
+    gs = gridspec.GridSpec(1, nplots)
+    for index, run in enumerate(times.keys()):
+        ax = fig.add_subplot(gs[0, index])
+        draw_time_curve(times[run], action, run, ax)
+
+    fig.tight_layout()
+    # shift subplots down:
+    st.set_y(0.95)
+    fig.subplots_adjust(top=0.85)
 
 
-def draw_time_curve(times, action, ax=plt):
+def draw_time_curve(times, action, run='', ax=plt):
     # Plot Precision-Recall curve
     # These are the colors that will be used in the plot
     color_sequence = ['#1f77b4', '#aec7e8', '#ff7f0e', '#ffbb78', '#2ca02c',
@@ -71,7 +82,7 @@ def draw_time_curve(times, action, ax=plt):
                 color=color_sequence[2 * index + 1], label=indexer)
         # zorder assures that mean lines are always printed above
         ax.plot(x_pos, times_mean, color=color_sequence[2 * index],
-                zorder=index + 100, linestyle='--', label='%s mean' % indexer)
+                zorder=index + 100, linestyle='--')
 
     xlabel = "Record %s number" % action
     plt.xlabel(xlabel)
@@ -80,30 +91,46 @@ def draw_time_curve(times, action, ax=plt):
     plt.yscale('log')
     # plt.autoscale(enable=True, axis='y')
     plt.xlim([0, max(x_pos)])
-    ax.legend(loc="upper right")
+    plt.legend(loc="best")
+    plt.title("%s time for a single record (%s)" % (action.capitalize(), run))
 
 
 def draw_precision_recall_curve(y_true, y_scores, dataset):
     precision, recall, thresholds = precision_recall_curve(y_true, y_scores)
-    draw_prc(precision, recall, thresholds, dataset)
+    draw_prc({'?': {'?': (precision, recall, thresholds)}}, dataset)
 
 
-def draw_prc(precision, recall, thresholds, dataset):
-    fig = plt.figure(dpi=None, facecolor="white")
+def draw_prc(prc_curves, dataset):
+    nplots = len(prc_curves)
+    fig = plt.figure(figsize=(8 * nplots, 5), dpi=None, facecolor="white")
     fig.canvas.set_window_title("PRC (%s)" % dataset)
-    if (thresholds[0] == 0):
-        recall = recall[1:]
-        precision = precision[1:]
+    st = fig.suptitle("Dataset %s" % dataset, fontsize='large')
+    color_sequence = ['#1f77b4',  '#ff7f0e',  '#2ca02c', '#d62728',
+                      '#9467bd', '#8c564b',  '#e377c2',  '#7f7f7f',
+                      '#bcbd22',  '#17becf']
     # Plot Precision-Recall curve
-    plt.clf()
-    plt.plot(recall, precision, 'yo-', lw=lw, color='navy', picker=True)
-    plt.xlabel('Recall')
-    plt.ylabel('Precision')
-    plt.ylim([0.0, 1.05])
-    plt.xlim([0.0, 1.05])
-    title = "Precision-Recall curve (%s)" % dataset
-    plt.title(title)
-    plt.legend(loc="lower left")
+    gs = gridspec.GridSpec(1, nplots)
+    for index, run in enumerate(prc_curves.keys()):
+        ax = fig.add_subplot(gs[0, index])
+        for index, indexer in enumerate(sorted(prc_curves[run].keys())):
+            precisions, recalls, thresholds = prc_curves[run][indexer]
+            if (thresholds[0] == 0):
+                recalls = recalls[1:]
+                precisions = precisions[1:]
+            ax.plot(recalls, precisions, 'yo-', lw=lw, label=indexer,
+                    color=color_sequence[index], picker=True)
+
+        plt.xlabel('Recall')
+        plt.ylabel('Precision')
+        plt.ylim([0.0, 1.02])
+        plt.xlim([0.0, 1.02])
+        plt.title("Precision-Recall Curve (%s)" % run)
+        plt.legend(loc="lower left")
+
+    fig.tight_layout()
+    # shift subplots down:
+    st.set_y(0.95)
+    fig.subplots_adjust(top=0.85)
 
 
 def draw_plots(x_vals, y_vals):

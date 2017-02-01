@@ -58,13 +58,13 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         menu_elements = [
             self.result_menu(key[0], key[1], value, './reports',
                              reports, saved_reports)
-            for key, value in reports.items()
+            for key, value in sorted(reports.items(), reverse=True)
         ]
         menu_elements.extend([
             self.sub_menu(u'Saved reports ...', [
                 self.result_menu(key[0], key[1], value, './evaluation',
                                  reports, saved_reports)
-                for key, value in saved_reports.items()
+                for key, value in sorted(saved_reports.items(), reverse=True)
             ])
         ])
         menu_elements.append(self.menu_button(u'Quit', exit_program))
@@ -109,12 +109,12 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         title = "Choose an option for %s!" % btn_caption
         compare_elements = [
             self.compare_menu(key[0], key[1], value, './reports', 1)
-            for key, value in reports.items()
+            for key, value in sorted(reports.items(), reverse=True)
         ]
         compare_elements.extend([
             self.sub_menu(u'Saved reports ...', [
                 self.compare_menu(key[0], key[1], value, './evaluation', 2)
-                for key, value in saved_reports.items()
+                for key, value in sorted(saved_reports.items(), reverse=True)
             ])
         ])
         compare_contents = self.menu("Choose a report to compare!", compare_elements)
@@ -142,11 +142,16 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
     def compare_menu(self, run, dataset, indexer, prefix, level):
         btn_caption = "%s (%s) - %s" % (run, dataset, ', '.join(indexer))
+        contents = self.menu("Compare with - %s" % btn_caption, [
+                        self.menu_button(u'Model', self.model_info),
+                        self.menu_button(u'Metrics', self.metric_comparison),
+                        self.menu_button(u'Plots', self.show_plots_comparision),
+                   ])
         def open_menu(button):
             self.compareprefix = prefix
             self.comparerun = run
             self.comparedataset = dataset
-            return self.comparison()
+            return self.open_box(contents)
         return self.menu_button([btn_caption], open_menu)
 
     def save_menu(self):
@@ -236,7 +241,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             ])
          )
 
-    def comparison(self):
+    def metric_comparison(self, button):
         metrics = self.read_metrics()
         othermetrics = self.read_metrics(True)
 
@@ -362,33 +367,50 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                                                       self.dataset)
         ])
 
+    def show_plots_comparision(self, button):
+        self.draw_plots(True)
+
     def show_plots(self, button):
-        memory_usage = defaultdict(dict)
-        index_build_time = defaultdict(dict)
-        insert_times = defaultdict(dict)
-        query_times = defaultdict(dict)
-        for resultfile in glob.glob("%s/%s*%s" % (self.prefix, self.run, self.dataset)):
-            if resultfile.count("fit"):
-                continue
+        self.draw_plots()
 
-            fp = open(resultfile)
-            measurements = json.load(fp)
-            fp.close()
-            indexer_dataset = resultfile[resultfile.index('_') + 1:]
-            indexer = indexer_dataset[:indexer_dataset.index('_')]
-            dataset = indexer_dataset[indexer_dataset.index('_') + 1:]
+    def draw_plots(self, compare=False):
+        memory_usage = defaultdict(lambda: defaultdict(dict))
+        index_build_time = defaultdict(lambda: defaultdict(dict))
+        insert_times = defaultdict(lambda: defaultdict(dict))
+        query_times = defaultdict(lambda: defaultdict(dict))
+        prc_curves = defaultdict(lambda: defaultdict(dict))
 
-            insert_times[dataset][indexer] = measurements["insert_times"]
-            query_times[dataset][indexer] = measurements["query_times"]
+        fileparts = [(self.prefix, self.run, self.dataset)]
+        if compare:
+            fileparts.append((self.compareprefix, self.comparerun, self.comparedataset))
 
-            draw_prc(np.array(measurements["prc_precisions"]),
-                     np.array(measurements["prc_recalls"]),
-                     np.array(measurements["prc_thresholds"]),
-                     indexer_dataset)
+        for prefix, run, dataset in fileparts:
+            for resultfile in glob.glob("%s/%s*%s" % (prefix, run, dataset)):
+                if resultfile.count("fit"):
+                    continue
 
-            # Sort data by indexer and then by dataset
-            memory_usage[indexer][dataset] = measurements["build_memory_peak"]
-            index_build_time[indexer][dataset] = measurements["build_time"]
+                fp = open(resultfile)
+                measurements = json.load(fp)
+                fp.close()
+                indexer_dataset = resultfile[resultfile.index('_') + 1:]
+                indexer = indexer_dataset[:indexer_dataset.index('_')]
+                dataset = indexer_dataset[indexer_dataset.index('_') + 1:]
+
+                insert_times[dataset][run][indexer] = measurements["insert_times"]
+                query_times[dataset][run][indexer] = measurements["query_times"]
+
+                prc_curves[dataset][run][indexer] = (
+                        np.array(measurements["prc_precisions"]),
+                        np.array(measurements["prc_recalls"]),
+                        np.array(measurements["prc_thresholds"])
+                )
+
+                # Sort data by indexer and then by dataset
+                memory_usage[dataset][run][indexer] = measurements["build_memory_peak"]
+                index_build_time[dataset][run][indexer] = measurements["build_time"]
+
+        for dataset in prc_curves.keys():
+            draw_prc(prc_curves[dataset], dataset)
 
         for dataset in insert_times.keys():
             draw_record_time_curve(insert_times[dataset], dataset, "insertion")
@@ -396,8 +418,13 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         for dataset in query_times.keys():
             draw_record_time_curve(query_times[dataset], dataset, "query")
 
-        draw_bar_chart(memory_usage, "Memory usage", "MiB")
-        draw_bar_chart(index_build_time, "Index build time", "Seconds (s)")
+        for dataset in memory_usage.keys():
+            draw_bar_chart(memory_usage[dataset],
+                           "Memory usage (%s)" % dataset, "MiB")
+
+        for dataset in index_build_time.keys():
+            draw_bar_chart(index_build_time[dataset],
+                           "Index build time (%s)" % dataset, "Seconds (s)")
 
         # Show plots
         show()
