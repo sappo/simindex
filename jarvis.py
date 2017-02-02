@@ -9,10 +9,8 @@ import subprocess
 import itertools as it
 import numpy as np
 from collections import defaultdict
-from simindex.plot import draw_prc, \
-                     draw_record_time_curve, \
-                     draw_bar_chart, \
-                     show
+import simindex.plot as splt
+
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -29,6 +27,9 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         self.max_box_levels = 4
 
         self.refresh_menu()
+
+    def set_mainloop(self, mainloop):
+        self.mainloop = mainloop
 
     def refresh_menu(self):
         reports = defaultdict(list)
@@ -72,23 +73,32 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         self.top_menu = self.menu(u'Choose a report!', menu_elements)
         self.open_box(self.top_menu)
 
-    def open_box(self, box):
+    def open_box(self, box, small=False):
+        width = 90
+        height = 94
+        if small:
+            width = 30
+            height = 34
+
         self.original_widget = \
-                urwid.Overlay(urwid.LineBox(box),
-                              self.original_widget,
-                              align='center', width=('relative', 90),
-                              valign='middle', height=('relative', 94),
-                              min_width=24, min_height=8,
-                              left=self.box_level * 3,
-                              right=(self.max_box_levels - self.box_level - 1) * 3,
-                              top=self.box_level * 2,
-                              bottom=(self.max_box_levels - self.box_level - 1) * 2)
+            urwid.Overlay(urwid.LineBox(box),
+                          self.original_widget,
+                          align='center', width=('relative', width),
+                          valign='middle', height=('relative', height),
+                          min_width=24, min_height=8,
+                          left=self.box_level * 3,
+                          right=(self.max_box_levels - self.box_level - 1) * 3,
+                          top=self.box_level * 2,
+                          bottom=(self.max_box_levels - self.box_level - 1) * 2)
         self.box_level += 1
+
+    def close_box(self):
+        self.original_widget = self.original_widget[0]
+        self.box_level -= 1
 
     def keypress(self, size, key):
         if (key == 'esc' or key == 'q') and self.box_level > 1:
-            self.original_widget = self.original_widget[0]
-            self.box_level -= 1
+            self.close_box()
         elif (key == 'esc' or key == 'q') and self.box_level == 1:
             exit_program(None)
         elif key == 'j':
@@ -124,7 +134,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         contents = self.menu(title, [
                         self.menu_button(u'Model', self.model_info),
                         self.menu_button(u'Metrics', self.metrics_info),
-                        self.menu_button(u'Plots', self.show_plots),
+                        self.menu_button(u'Show Plots', self.show_plots),
+                        self.menu_button(u'Save Plots', self.save_plots),
                         self.sub_menu(u'Memory Usage', [
                             self.menu_button(idx, self.show_mprof) for idx in
                             sorted(it.chain(indexer, ['fit']))
@@ -145,7 +156,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         contents = self.menu("Compare with - %s" % btn_caption, [
                         self.menu_button(u'Model', self.model_info),
                         self.menu_button(u'Metrics', self.metric_comparison),
-                        self.menu_button(u'Plots', self.show_plots_comparision),
+                        self.menu_button(u'Show Plots', self.show_plots_comparision),
+                        self.menu_button(u'Save Plots', self.save_plots_comparision),
                    ])
         def open_menu(button):
             self.compareprefix = prefix
@@ -189,10 +201,13 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         if "negative_filtered_labels" in model:
             simlearner_N = model["negative_filtered_labels"]
 
-        simrow = [urwid.Text(u'Similarities - P (%s), N (%s)' % (
+        simrow = [urwid.Text(u'Similarities\nP (%s), N (%s)' % (
                         simlearner_P, simlearner_N))]
         for index, similarity in enumerate(model["similarities"]):
-            simrow.append(urwid.Text(u'Field %d: %s' % (index, similarity)))
+            if type(similarity) == str:
+                simrow.append(urwid.Text(u'Field %d:\n%s' % (index, similarity)))
+            else:
+                simrow.append(urwid.Text(u'%s\n%s' % (similarity[0], similarity[1])))
 
         # Format blocking scheme
         blocking = defaultdict(list)
@@ -367,13 +382,33 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                                                       self.dataset)
         ])
 
+    def save_plots_comparision(self, button):
+        self.open_box(self.menu('Saving plot...', []), small=True)
+        self.mainloop.draw_screen()
+        self.close_box()
+        self.draw_plots(compare=True, save=True)
+        self.open_box(self.menu('Plots have been saved!', []), small=True)
+
     def show_plots_comparision(self, button):
-        self.draw_plots(True)
+        self.open_box(self.menu('Rendering plot (close all to continue)', []), small=True)
+        self.mainloop.draw_screen()
+        self.draw_plots(compare=True)
+        self.close_box()
+
+    def save_plots(self, button):
+        self.open_box(self.menu('Saving plot...', []), small=True)
+        self.mainloop.draw_screen()
+        self.close_box()
+        self.draw_plots(save=True)
+        self.open_box(self.menu('Plots have been saved!', []), small=True)
 
     def show_plots(self, button):
+        self.open_box(self.menu('Rendering plot (close all to continue)', []), small=True)
+        self.mainloop.draw_screen()
         self.draw_plots()
+        self.close_box()
 
-    def draw_plots(self, compare=False):
+    def draw_plots(self, compare=False, save=False):
         memory_usage = defaultdict(lambda: defaultdict(dict))
         index_build_time = defaultdict(lambda: defaultdict(dict))
         insert_times = defaultdict(lambda: defaultdict(dict))
@@ -409,25 +444,34 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                 memory_usage[dataset][run][indexer] = measurements["build_memory_peak"]
                 index_build_time[dataset][run][indexer] = measurements["build_time"]
 
+        picture_names = []
         for dataset in prc_curves.keys():
-            draw_prc(prc_curves[dataset], dataset)
+            splt.draw_prc(prc_curves[dataset], dataset)
+            picture_names.append("%s_prc" % '_'.join(prc_curves[dataset].keys()))
 
         for dataset in insert_times.keys():
-            draw_record_time_curve(insert_times[dataset], dataset, "insertion")
+            splt.draw_record_time_curve(insert_times[dataset], dataset, "insertion")
+            picture_names.append("%s_tc_insert" % '_'.join(insert_times[dataset].keys()))
 
         for dataset in query_times.keys():
-            draw_record_time_curve(query_times[dataset], dataset, "query")
+            splt.draw_record_time_curve(query_times[dataset], dataset, "query")
+            picture_names.append("%s_tc_query" % '_'.join(query_times[dataset].keys()))
 
         for dataset in memory_usage.keys():
-            draw_bar_chart(memory_usage[dataset],
+            splt.draw_bar_chart(memory_usage[dataset],
                            "Memory usage (%s)" % dataset, "MiB")
+            picture_names.append("%s_memusg" % '_'.join(memory_usage[dataset].keys()))
 
         for dataset in index_build_time.keys():
-            draw_bar_chart(index_build_time[dataset],
+            splt.draw_bar_chart(index_build_time[dataset],
                            "Index build time (%s)" % dataset, "Seconds (s)")
+            picture_names.append("%s_index_bt" % '_'.join(index_build_time[dataset].keys()))
 
         # Show plots
-        show()
+        if not save:
+            splt.show()
+        else:
+            splt.save(picture_names)
 
 
 def parse_mprofile(filename):
@@ -520,7 +564,9 @@ def main():
 
     # Open menu with available reports
     top = JarvisMenu()
-    urwid.MainLoop(top, palette=[('reversed', 'standout', '')]).run()
+    mainloop = urwid.MainLoop(top, palette=[('reversed', 'standout', '')])
+    top.set_mainloop(mainloop)
+    mainloop.run()
 
 if __name__ == "__main__":  # pragma: no cover
         main(prog_name="jarvis")
