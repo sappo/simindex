@@ -183,7 +183,6 @@ def draw_bar_chart(data, title, unit):
                     str(round(height, 2)), ha='center', va='bottom')
 
     ax = plt.subplot(111)
-    barwidth = 28
     offset = 0.
     color_sequence = ['#1f77b4',  '#ff7f0e',  '#2ca02c', '#d62728',
                       '#9467bd', '#8c564b',  '#e377c2',  '#7f7f7f',
@@ -197,8 +196,8 @@ def draw_bar_chart(data, title, unit):
             objects.append(dataset)
 
         y_pos = [y + offset for y in np.arange(len(objects))]
-        offset += barwidth
-        bars = ax.bar(y_pos, y_vals, width=barwidth, align="center",
+        offset += 0.28
+        bars = ax.bar(y_pos, y_vals, width=0.28, align="center",
                       alpha=0.8, color=color_sequence[index], label=indexer)
         autolabel(bars, ax)
 
