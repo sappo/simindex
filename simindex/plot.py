@@ -11,6 +11,14 @@ def show():
     plt.show()
 
 
+def save(picture_names):
+    for index, figno in enumerate(plt.get_fignums()):
+        plt.figure(figno)
+        plt.savefig("%s.pdf" % picture_names[index], bbox_inches='tight')
+
+    plt.close('all')
+
+
 def draw_frequency_distribution(data, dataset, type):
     print("Data:", data)
     fig = plt.figure(dpi=None, facecolor="white")
@@ -151,7 +159,7 @@ def draw_bar_chart(data, title, unit):
     plt.title(title)
     plt.ylabel(unit)
 
-    def autolabel(rects):
+    def autolabel(rects, ax):
         # Get y-axis height to calculate label position from.
         (y_bottom, y_top) = plt.ylim()
         y_height = y_top - y_bottom
@@ -160,19 +168,22 @@ def draw_bar_chart(data, title, unit):
             height = rect.get_height()
 
             # Fraction of axis height taken up by this rectangle
-            p_height = (height / y_height)
+            # p_height = (height / y_height)
 
             # If we can fit the label above the column, do that;
             # otherwise, put it inside the column.
-            if p_height > 0.95:  # arbitrary; 95% looked good to me.
-                label_position = height - (y_height * 0.05)
-            else:
-                label_position = height + (y_height * 0.01)
+            # if p_height > 0.95:  # arbitrary; 95% looked good to me.
+            # @Problem: fitting label above the column confilct with 'best'
+            # legend placement.
+            label_position = height - (y_height * 0.05)
+            # else:
+            # label_position = height + (y_height * 0.01)
 
-            plt.text(rect.get_x() + rect.get_width() / 2., label_position,
-                     str(round(height, 2)), ha='center', va='bottom')
+            ax.text(rect.get_x() + rect.get_width() / 2., label_position,
+                    str(round(height, 2)), ha='center', va='bottom')
 
     ax = plt.subplot(111)
+    barwidth = 28
     offset = 0.
     color_sequence = ['#1f77b4',  '#ff7f0e',  '#2ca02c', '#d62728',
                       '#9467bd', '#8c564b',  '#e377c2',  '#7f7f7f',
@@ -186,10 +197,10 @@ def draw_bar_chart(data, title, unit):
             objects.append(dataset)
 
         y_pos = [y + offset for y in np.arange(len(objects))]
-        offset += 0.2
-        bars = ax.bar(y_pos, y_vals, width=0.2, align="center",
+        offset += barwidth
+        bars = ax.bar(y_pos, y_vals, width=barwidth, align="center",
                       alpha=0.8, color=color_sequence[index], label=indexer)
-        autolabel(bars)
+        autolabel(bars, ax)
 
     y_pos = [y + offset / 4 for y in np.arange(len(objects))]
     plt.xticks(y_pos, objects)
