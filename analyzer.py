@@ -116,10 +116,14 @@ def main(index_file, index_attributes,
 
         model = {}
         blocking_scheme = engine.blocking_scheme_to_strings()
+        similarities = engine.similarities
         # Try to replace field number with names
         if len(train_attributes) > 0:
             for blocking_key in blocking_scheme:
                 blocking_key[1] = train_attributes[blocking_key[1] + 1]
+
+            for index, similarity in enumerate(similarities):
+                similarities[index] = (train_attributes[index + 1], similarity)
 
         model["blocking_scheme"] = blocking_scheme
         model["similarities"] = engine.similarities
