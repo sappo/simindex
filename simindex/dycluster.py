@@ -546,7 +546,7 @@ class SimAwareAttributeIndex(object):
 class MDyLSH(object):
 
     def __init__(self, count, dnf_blocking_scheme, similarity_fns,
-                 lsh_threshold=0.2, lsh_num_perm=128, verbose=False):
+                 lsh_threshold=0.4, lsh_num_perm=128, verbose=False):
         self.verbose = verbose
         self.msaai = MultiSimAwareAttributeIndex(dnf_blocking_scheme,
                                                  similarity_fns,
