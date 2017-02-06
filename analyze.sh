@@ -99,7 +99,7 @@ else
         ${datasetprefix}${dataset}_train.csv
 fi
 
-for indexer in "MDySimII" "MDySimIII" "MDyLSH"
+for indexer in "MDySimIII"
 do
     result_output="${reportprefix}/${timestamp}_${indexer}_${dataset}"
 

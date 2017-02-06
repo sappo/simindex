@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 import os
+import subprocess
 import pandas as pd
 import numpy as np
 from pprint import pprint
+import pyprind
 
 from collections import defaultdict, Counter
 import sklearn.metrics as skm
@@ -25,6 +27,15 @@ except NameError as e:
         def inner(*args, **kwargs):
             return func(*args, **kwargs)
         return inner
+
+
+def file_len(fname):
+    p = subprocess.Popen(['wc', '-l', fname], stdout=subprocess.PIPE,
+                                              stderr=subprocess.PIPE)
+    result, err = p.communicate()
+    if p.returncode != 0:
+        raise IOError(err)
+    return int(result.strip().split()[0])
 
 
 class SimEngine(object):
@@ -61,6 +72,9 @@ class SimEngine(object):
 
     @profile
     def pre_process_data(self, store, csvfile, attributes):
+        if self.verbose:
+            progress_bar = pyprind.ProgBar(file_len(csvfile), update_interval=1)
+
         group_name = "/%s" % self.name
         if group_name not in store.keys():
             # Read CSV in chunks
@@ -88,10 +102,13 @@ class SimEngine(object):
                 store.append(self.name, dataframe, format='table', index=False,
                              data_columns=True, min_itemsize=255,
                              expectedrows=expectedrows,
-                             complib='blosc', complevel=9)
+                             complib='blosc', complevel=1)
                 self.attribute_count = len(dataframe.columns)
                 self.index_dtype = dataframe.index.dtype
                 del dataframe
+
+                if self.verbose:
+                    progress_bar.update(50000, item_id="Pre-processing %s" % csvfile)
 
         # Create index on index column for the whole dataset
         store.create_table_index(self.name, columns=['index'], optlevel=9, kind='full')
