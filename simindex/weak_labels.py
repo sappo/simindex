@@ -4,6 +4,7 @@ import heapq
 import numpy as np
 import itertools as it
 import sklearn
+import pyprind
 from collections import defaultdict, namedtuple
 from gensim import corpora, models
 from pprint import pprint
@@ -31,7 +32,8 @@ class WeakLabels(object):
                  max_positive_pairs=100,
                  max_negative_pairs=200,
                  upper_threshold=0.6,
-                 lower_threshold=0.1):
+                 lower_threshold=0.1,
+                 verbose=False):
         self.attribute_count = attribute_count
 
         self.P = None
@@ -41,6 +43,7 @@ class WeakLabels(object):
         self.max_negative_pairs = max_negative_pairs
         self.upper_threshold = upper_threshold
         self.lower_threshold = lower_threshold
+        self.verbose = verbose
 
     def string_to_bow(self, record):
         # Remove stop words from record
@@ -126,6 +129,9 @@ class WeakLabels(object):
                         candidates.add((token_block[index], candidate))
                     index += 1
 
+        if self.verbose:
+            progress_bar = pyprind.ProgBar(len(candidates), update_interval=1)
+
         if self.gold_pairs:
             for t1, t2 in self.gold_pairs:
                 P.append(SimTupel(t1, t2, 1))
@@ -140,6 +146,9 @@ class WeakLabels(object):
                     bin = bins - 1
 
                 N_bins[bin].append(SimTupel(t1, t2, sim))
+
+                if self.verbose:
+                    progress_bar.update()
 
             # Calculate probability distribution
             weights = [len(bin) for bin in N_bins]
@@ -262,6 +271,9 @@ class DisjunctiveBlockingScheme(object):
         self.flat_P = set(hp.flatten(self.frozen_P))
         self.features = []
         self.k = k
+
+        self.verbose = verbose
+        self.block_timer = block_timer
 
         for blocking_key in blocking_keys:
             feature = Feature([blocking_key], None, None)

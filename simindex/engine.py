@@ -144,7 +144,8 @@ class SimEngine(object):
             labels = WeakLabels(self.attribute_count,
                                 gold_pairs=self.gold_pairs,
                                 max_positive_pairs=self.max_p,
-                                max_negative_pairs=self.max_n)
+                                max_negative_pairs=self.max_n,
+                                verbose=self.verbose)
             labels.fit(dataset)
             P, N = labels.predict()
             self.save_labels(P, N)
