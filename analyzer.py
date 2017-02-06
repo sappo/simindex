@@ -87,6 +87,9 @@ def main(index_file, index_attributes,
         for index_state in glob.glob("%s/.%s*" % (engine_datadir, datasetname)):
             os.remove(index_state)
 
+        model = {}
+        timer = RecordTimer()
+
         print()
         print("##############################################################")
         print("  Fitting training dataset.")
@@ -112,9 +115,10 @@ def main(index_file, index_attributes,
                                  'similarities': similarities})
 
         engine.read_ground_truth(gold_standard, gold_attributes)
-        engine.fit_csv(train_file, train_attributes)
+        with timer:
+            engine.fit_csv(train_file, train_attributes)
+        model["fit_time"] = timer.times.pop()
 
-        model = {}
         blocking_scheme = engine.blocking_scheme_to_strings()
         similarities = engine.similarities
         # Try to replace field number with names
