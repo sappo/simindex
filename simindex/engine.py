@@ -278,9 +278,9 @@ class SimEngine(object):
         for gold_pair in pairs:
             self.gold_pairs.add((gold_pair[0], gold_pair[1]))
 
-            for a, b in self.gold_pairs:
-                self.gold_records[a].add(b)
-                self.gold_records[b].add(a)
+        for a, b in self.gold_pairs:
+            self.gold_records[a].add(b)
+            self.gold_records[b].add(a)
 
         # Initialize evaluation
         self.y_true_score = []
