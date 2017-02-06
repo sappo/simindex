@@ -89,7 +89,7 @@ class WeakLabels(object):
     def predict(self):
         blocker = {}
         candidates = set()
-        window_size = 5
+        window_size = 2
         bins = 20
         # Set max_candidates depending on available gold pairs and user definded
         # values
@@ -108,6 +108,8 @@ class WeakLabels(object):
 
         P = []
         N = []
+        if self.verbose:
+            print("Blocking by tokens and fields")
         for field in range(0, self.attribute_count):
             blocker[field] = defaultdict(list)
             for r_id, r_attributes in self.dataset.items():
@@ -117,6 +119,8 @@ class WeakLabels(object):
                     if r_id not in blocker[field][tokens]:
                         blocker[field][tokens].append(r_id)
 
+        if self.verbose:
+            print("Moving window to generate candidates")
         for field in range(0, self.attribute_count):
             field_blocks = blocker[field]
             for tokens in field_blocks.keys():
@@ -130,6 +134,7 @@ class WeakLabels(object):
                     index += 1
 
         if self.verbose:
+            print("Generated %d candidates" % len(candidates))
             progress_bar = pyprind.ProgBar(len(candidates), update_interval=1)
 
         if self.gold_pairs:
