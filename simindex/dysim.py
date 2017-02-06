@@ -310,11 +310,12 @@ class MDySimII(object):
             pickle.dump(self.SI, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load(self, name, datadir):
-        nrecords_filename = "%s/.%s_nrecords.idx" % (name, datadir)
+        nrecords_filename = "%s/.%s_nrecords.idx" % (datadir, name)
         ri_filename = "%s/.%s_RI.idx" % (datadir, name)
         fbi_filename = "%s/.%s_FBI.idx" % (datadir, name)
         si_filename = "%s/.%s_SI.idx" % (datadir, name)
-        if os.path.exists(ri_filename) and \
+        if os.path.exists(nrecords_filename) and \
+           os.path.exists(ri_filename) and \
            os.path.exists(fbi_filename) and \
            os.path.exists(si_filename):
             with open(nrecords_filename, "rb") as handle:
@@ -473,7 +474,8 @@ class MDySimIII(object):
         nrecords_filename = "%s/.%s_nrecords.idx" % (datadir, name)
         fbi_filename = "%s/.%s_FBI.idx" % (datadir, name)
         si_filename = "%s/.%s_SI.idx" % (datadir, name)
-        if os.path.exists(fbi_filename) and \
+        if os.path.exists(nrecords_filename) and \
+           os.path.exists(fbi_filename) and \
            os.path.exists(si_filename):
             with open(nrecords_filename, "rb") as handle:
                 self.nrecords = pickle.load(handle)
