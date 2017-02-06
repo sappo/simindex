@@ -27,48 +27,47 @@ from simindex import DisjunctiveBlockingScheme, WeakLabels, SimLearner
                  # WeakLabels.tfidf_similarity,
                  # DisjunctiveBlockingScheme.feature_vector,
                  # DisjunctiveBlockingScheme.transform])
-@profile(follow=[MDySimII.insert, MDySimII.query,
-                 MDySimIII.insert, MDySimIII.query])
-def test_engine(verbose):
-    engine = SimEngine("ferbl-90k", indexer=MDySimIII, verbose=verbose)
-    print("Fit")
-    engine.fit_csv("../../master_thesis/datasets/febrl/ferbl-90k-10k-1_train.csv",
-                   ["rec_id", "given_name", "surname", "state", "suburb"])
-    print("Build")
-    engine.build_csv("../../master_thesis/datasets/febrl/ferbl-90k-10k-1_index.csv",
-                     ["rec_id", "given_name", "surname", "state", "suburb"])
-    print(engine.indexer.frequency_distribution())
-    print("Query")
-    engine.query_csv("../../master_thesis/datasets/febrl/ferbl-90k-10k-1_train_query.csv",
-                     ["rec_id", "given_name", "surname", "state", "suburb"])
-    print("Results")
-    gold_csv = "../../master_thesis/datasets/febrl/ferbl-90k-10k-1_train_gold.csv"
-    engine.read_ground_truth(gold_standard=gold_csv, gold_attributes=["id_1", "id_2"])
-    print("Pair completeness:", engine.pair_completeness())
-    print("Reduction ratio:", engine.reduction_ratio())
-
-
 # @profile(follow=[MDySimII.insert, MDySimII.query,
                  # MDySimIII.insert, MDySimIII.query])
+# def test_engine(verbose):
+    # engine = SimEngine("ferbl-90k", indexer=MDySimIII, verbose=verbose)
+    # print("Fit")
+    # engine.fit_csv("../../master_thesis/datasets/febrl/ferbl-90k-10k-1_train.csv",
+                   # ["rec_id", "given_name", "surname", "state", "suburb"])
+    # print("Build")
+    # engine.build_csv("../../master_thesis/datasets/febrl/ferbl-90k-10k-1_index.csv",
+                     # ["rec_id", "given_name", "surname", "state", "suburb"])
+    # print(engine.indexer.frequency_distribution())
+    # print("Query")
+    # engine.query_csv("../../master_thesis/datasets/febrl/ferbl-90k-10k-1_train_query.csv",
+                     # ["rec_id", "given_name", "surname", "state", "suburb"])
+    # print("Results")
+    # gold_csv = "../../master_thesis/datasets/febrl/ferbl-90k-10k-1_train_gold.csv"
+    # engine.read_ground_truth(gold_standard=gold_csv, gold_attributes=["id_1", "id_2"])
+    # print("Pair completeness:", engine.pair_completeness())
+    # print("Reduction ratio:", engine.reduction_ratio())
+
+
+# @profile(follow=[DisjunctiveBlockingScheme.transform])
 def test_engine_restaurant(verbose):
     # Expected results
     # @Warning: Testing blocking scheme and similiarites doesn't work as the
     # result vary due to randomness
     blocking_scheme_expected = [[0, 0, 'term_id'],
-                                [0, 1, 'tokens'],
+                                [0, 2, 'tokens'],
                                 [1, 1, 'term_id'],
-                                [1, 1, 'tokens'],
-                                [2, 0, 'tokens'],
-                                [2, 1, 'tokens']]
+                                [1, 0, 'tokens']]
 
     sim_strings_expected = ['SimDamerau', 'SimLevenshtein', 'SimDamerau',
                             'SimDamerau', 'SimRatio']
-    for indexer in [MDyLSH, MDySimII, MDySimIII]:
+    # for indexer in [MDyLSH, MDySimII, MDySimIII]:
+    for indexer in [MDySimIII]:
         print()
         print("--------------------------------------------------------------")
         print("Testing fresh engine (%s) on restaurant dataset:" % indexer.__name__)
         # Test with fresh engine
         engine = SimEngine("restaurant", indexer=indexer, verbose=verbose,
+                           max_bk_conjunction=1,
                            max_positive_labels=111, max_negative_labels=333)
         gold_csv = "../../master_thesis/datasets/restaurant/restaurant_train_gold.csv"
         engine.read_ground_truth(gold_standard=gold_csv, gold_attributes=["id_1", "id_2"])

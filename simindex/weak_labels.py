@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 import math
 import heapq
-from joblib import Parallel, delayed
 import numpy as np
+import itertools as it
+import sklearn
 from collections import defaultdict, namedtuple
 from gensim import corpora, models
+from pprint import pprint
+import simindex.helper as hp
 
 try:
     profile
@@ -172,21 +175,21 @@ class WeakLabels(object):
 
     @staticmethod
     def filter(fPDisj, P, N):
-        filtered_P = []
-        for index, pair in enumerate(P):
-            for feature in fPDisj:
-                if feature.pv[index] == 1:
-                    filtered_P.append(pair)
-                    break
+        # filtered_P = []
+        # for index, pair in enumerate(P):
+            # for feature in fPDisj:
+                # if feature.pv[index] == 1:
+                    # filtered_P.append(pair)
+                    # break
 
-        filtered_N = []
-        for index, pair in enumerate(N):
-            for feature in fPDisj:
-                if feature.nv[index] == 1:
-                    filtered_N.append(pair)
-                    break
+        # filtered_N = []
+        # for index, pair in enumerate(N):
+            # for feature in fPDisj:
+                # if feature.nv[index] == 1:
+                    # filtered_N.append(pair)
+                    # break
 
-        return filtered_P, filtered_N
+        return P, N
 
 
 BlockingKey = namedtuple('BlockingKey', ['field', 'encoder'])
@@ -196,15 +199,12 @@ class Feature:
     def __init__(self, blocking_keys, fsc, msc):
         self.blocking_keys = blocking_keys
         self.fsc = fsc
-        self.msc = msc
-        self.pv = None
-        self.nv = None
+        self.y_true = None
+        self.y_pred = None
 
     def union(self, other):
         bk_conjunction = self.blocking_keys + other.blocking_keys
         feature = Feature(bk_conjunction, None, None)
-        feature.pv = self.pv & other.pv
-        feature.nv = self.nv & other.nv
         return feature
 
     def signature(self):
@@ -239,9 +239,7 @@ class Feature:
         return fields
 
     def __repr__(self):
-        return "Feature(%s, fsc=%s, msc=%s)" % (self.blocking_keys,
-                                                self.fsc,
-                                                self.msc)
+        return "Feature(%s, fsc=%s)" % (self.blocking_keys, self.fsc)
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -258,8 +256,10 @@ class Feature:
 class DisjunctiveBlockingScheme(object):
 
     def __init__(self, blocking_keys, P, N, k=1):
-        self.P = P
-        self.N = N
+        self.P = [frozenset((p.t1, p.t2)) for p in P]
+        self.N = [frozenset((p.t1, p.t2)) for p in N]
+        self.frozen_P = set(self.P)
+        self.flat_P = set(hp.flatten(self.frozen_P))
         self.features = []
         self.k = k
 
@@ -300,48 +300,20 @@ class DisjunctiveBlockingScheme(object):
         Nn = np.mean(Nfi)
         return Pp - Nn
 
-    @staticmethod
-    def f1_score(Pf, Nf, i):
-        Pfi = Pf[i]
-        Nfi = Nf[i]
-
-        TP = np.sum(Pfi)
-        FP = len(Pfi) - TP
-        FN = np.sum(Nfi)
-        TN = len(Nfi) - FN
-
-        if TP == 0:
-            return 0
-
-        recall = TP / (FN + TP)
-        precision = TP / (TP + FP)
-        harmonic_mean = 2 * ((precision * recall) / (precision + recall))
-        return harmonic_mean
-
-    @staticmethod
-    def overall_score(key_coverage, bavg, bvar, cavg, cvar):
-        return 1 - key_coverage + bavg + bvar + cavg + cvar
-
-    def terms(self, Pf, Nf):
+    def terms(self):
         count = 0
         forbidden = []
-        PfT = Pf.copy()
-        NfT = Nf.copy()
         original_features = self.features.copy()
 
         while count < self.k:
             Kf = []
             for index, feature in enumerate(self.features):
                 if feature not in forbidden:
-                    bmean, bvar, cmean, cvar = self.block_metrics(feature)
-                    feature.fsc = self.overall_score(
-                            self.f1_score(PfT, NfT, index),
-                            bmean, bvar, cmean, cvar)
-                    feature.msc = self.my_score(PfT, NfT, index)
+                    feature.fsc = self.block_metrics(feature)
                     Kf.append(feature)
 
-            fsc_avg = np.mean([feature.fsc for feature in self.features])
-            Kf = sorted(Kf, key=lambda feature: feature.msc, reverse=True)
+            # fsc_avg = np.mean([feature.fsc for feature in self.features])
+            Kf = sorted(Kf, key=lambda feature: feature.fsc, reverse=True)
             for feature in Kf:
                 for original_feature in original_features:
                     original_signature = original_feature.signature().pop()
@@ -349,22 +321,12 @@ class DisjunctiveBlockingScheme(object):
                         new_feature = feature.union(original_feature)
                         if new_feature not in self.features:
                             # Calculate new scores
-                            bmean, bvar, cmean, cvar = self.block_metrics(new_feature)
-                            new_feature.fsc = self.overall_score(
-                                    self.f1_score([new_feature.pv], [new_feature.nv], 0),
-                                    bmean, bvar, cmean, cvar)
-                            new_feature.msc = self.my_score([new_feature.pv], [new_feature.nv], 0)
-                            # Add new feature if above average score
-                            if new_feature.fsc < fsc_avg:
-                                self.features.append(new_feature)
-                                PfT.append(new_feature.pv)
-                                NfT.append(new_feature.nv)
+                            new_feature.fsc = self.block_metrics(new_feature)
+                            self.features.append(new_feature)
 
                 forbidden.append(feature)
 
             count += 1
-
-        return PfT, NfT
 
     def block_metrics(self, feature):
         FBI = defaultdict(dict)
@@ -373,109 +335,98 @@ class DisjunctiveBlockingScheme(object):
             for encoding in blocking_key_values:
                 for blocking_key in feature.blocking_keys:
                     field = blocking_key.field
-                    attribute = r_attributes[field]
 
                     BI = FBI[field]
                     if encoding not in BI.keys():
-                        BI[encoding] = defaultdict(set)
+                        BI[encoding] = set()
 
-                    BI[encoding][attribute].add(r_id)
+                    BI[encoding].add(r_id)
 
-        block_sizes = []
-        candidate_sizes = []
+        FBI_candidate_pairs = set()
+        TP, FP, FN = 0, 0, 0
         for BI in FBI.values():
             for block_key in BI.keys():
-                block_sizes.append(len(BI[block_key]))
-                for attribute in BI[block_key]:
-                    candidate_sizes.append(len(BI[block_key][attribute]))
+                candidates = BI[block_key]
+                # Generate candidate pairs
+                candidate_pairs = it.combinations(candidates, 2)
+                candidate_pairs = set([frozenset(p) for p in candidate_pairs])
 
-        # Calculate Block metrics
-        bmax = np.max(block_sizes)
-        bavg = np.mean(block_sizes)
-        bvar = np.var(block_sizes)
-        # Calculate Candidate metrics
-        cmax = np.max(candidate_sizes)
-        cavg = np.mean(candidate_sizes)
-        cvar = np.var(candidate_sizes)
-        return bavg, bvar, cavg, cvar
+                # Calculate TP, FP, FN
+                npairs = len(candidate_pairs)
+                block_TP_pairs = candidate_pairs.intersection(self.P)
+                block_FP_pairs = candidate_pairs.difference(block_TP_pairs)
+                FP_canidates = set(hp.flatten(block_FP_pairs))
+                assert npairs == len(block_TP_pairs) + len(block_FP_pairs)
+                TP += len(block_TP_pairs)
+                FP += len(block_FP_pairs)
+                FN += len(FP_canidates.intersection(self.flat_P))
 
-    def feature_vector(self, feature):
-            pv = np.empty(len(self.P), np.bool)
-            nv = np.empty(len(self.N), np.bool)
-            for index, pair in enumerate(self.P):
-                result = True
-                for blocking_key in feature.blocking_keys:
-                    field = blocking_key.field
-                    encode = blocking_key.encoder
-                    t1_field = self.dataset[pair.t1][field]
-                    t2_field = self.dataset[pair.t2][field]
-                    result &= bool(encode(t1_field).intersection(encode(t2_field)))
-                    if not result:
-                        break
+                FBI_candidate_pairs.update(candidate_pairs)
 
-                pv[index] = result
+        # Create feature vectors based on positive and negative labels
+        y_true = np.zeros(len(self.P) + len(self.N), np.bool)
+        y_pred = np.zeros(len(self.P) + len(self.N), np.bool)
+        for index, pair in enumerate(self.P):
+            if pair in FBI_candidate_pairs:
+                y_true[index] = True
+                y_pred[index] = True
+            else:
+                y_true[index] = True
+                y_pred[index] = False
 
-            for index, pair in enumerate(self.N):
-                result = True
-                for blocking_key in feature.blocking_keys:
-                    field = blocking_key.field
-                    encode = blocking_key.encoder
-                    t1_field = self.dataset[pair.t1][field]
-                    t2_field = self.dataset[pair.t2][field]
-                    result &= bool(encode(t1_field).intersection(encode(t2_field)))
-                    if not result:
-                        break
+        for index, pair in enumerate(self.N):
+            if pair in FBI_candidate_pairs:
+                y_true[index + len(self.P)] = False
+                y_pred[index + len(self.P)] = True
+            else:
+                y_true[index + len(self.P)] = False
+                y_pred[index + len(self.P)] = False
 
-                nv[index] = result
+        feature.y_true = y_true
+        feature.y_pred = y_pred
 
-            return pv, nv
+        # No need to calculate score if there are no true positives
+        if TP == 0:
+            return 0
+
+        recall = TP / (FN + TP)
+        precision = TP / (TP + FP)
+        f1_score = 2 * ((precision * recall) / (precision + recall))
+        return f1_score
 
     @profile
     def transform(self, dataset):
-        Pf = []
-        Nf = []
         self.dataset = dataset
-        # Create boolean feature vectors
-        for index, feature in enumerate(self.features):
-            pv, nv = self.feature_vector(feature)
-            feature.pv = pv
-            feature.nv = nv
-            Pf.append(pv)
-            Nf.append(nv)
-
         # Build and score features
-        Pf, Nf = self.terms(Pf, Nf)
+        self.terms()
 
         # Sort features
         Kf = []
-        Km = []
         for feature in self.features:
             Kf.append(feature)
-            Km.append(feature)
 
-        Kf = sorted(Kf, key=lambda feature: feature.fsc)
-        Km = sorted(Km, key=lambda feature: feature.msc, reverse=True)
+        Kf = sorted(Kf, key=lambda feature: feature.fsc, reverse=True)
+        top_10 = heapq.nlargest(50, Kf, key=lambda feature: feature.fsc)
 
-        fPDisj = []
-        fPDisj_p = None
-        # Example coverage variant
-        for feature in Kf:
-            if fPDisj_p is None:
-                # Init NULL-vector
-                fPDisj_p = np.array([0 for index in range(0, len(feature.pv))])
+        blocking_scheme_candidates = []
+        for index in range(4):
+            blocking_scheme_candidates.extend(it.combinations(top_10, index))
 
-            new_sig = fPDisj_p | np.array(feature.pv)
-            if not np.array_equal(new_sig, fPDisj_p):
-                fPDisj_p = new_sig
-                fPDisj.append(feature)
+        best_blocking_scheme = None
+        best_blocking_score = 0
+        for blocking_scheme in blocking_scheme_candidates:
+            y_true = np.zeros(len(self.P) + len(self.N), np.bool)
+            y_pred = np.zeros(len(self.P) + len(self.N), np.bool)
+            for blocking_key in blocking_scheme:
+                y_true |= blocking_key.y_true
+                y_pred |= blocking_key.y_pred
 
-        # Post filter bad scores: Those bad scores might be considerable smaller
-        # than those of other but may still be considerable larger then the top
-        # ranked.
-        score_mean = np.mean([feature.fsc for feature in fPDisj])
-        fPDisj[:] = filter(lambda f: f.fsc < 100, fPDisj)
+            score = sklearn.metrics.f1_score(y_true, y_pred)
+            if score > best_blocking_score:
+                best_blocking_scheme = blocking_scheme
+                best_blocking_score = score
 
-        return fPDisj
+        return best_blocking_scheme
 
 
 def tokens(term):

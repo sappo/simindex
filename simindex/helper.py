@@ -34,7 +34,7 @@ def hdf_record_attributes(store, group, columns=None):
 
     if columns:
         frames = store.select_column(group, where="columns == %r" % columns,
-                              iterator=True, chunksize=50000)
+                                     iterator=True, chunksize=50000)
     else:
         frames = store.select(group, iterator=True, chunksize=50000)
     for df in frames:
@@ -82,15 +82,14 @@ def calc_micro_scores(q_id, result, y_true, y_score, gold_records):
                 else:
                     # False Positive (FP)
                     y_true.append(0)
-                    # print("For", q_id, "falsly predicted:", a, "with score", result[a], ".")
 
         # Fill in False Negatives (FN) with score 0.0
         for fn in gold_records[q_id].difference(result.keys()):
             y_true.append(1)
             y_score.append(0.)
 
+
 def calc_micro_metrics(q_id, result, y_true, y_pred, gold_records):
-    test = False
     # Only consider querys with relevant records
     if q_id in gold_records.keys():
         # Disregards True negatives (TN)
@@ -99,7 +98,6 @@ def calc_micro_metrics(q_id, result, y_true, y_pred, gold_records):
                 if result_id in gold_records[q_id]:
                     # True Positive (TP)
                     y_true.append(1)
-                    test = True
                 else:
                     # False Positive (FP)
                     y_true.append(0)
@@ -108,6 +106,7 @@ def calc_micro_metrics(q_id, result, y_true, y_pred, gold_records):
         for fn in gold_records[q_id].difference(result.keys()):
             y_true.append(1)
             y_pred.append(0)
+
 
 def grouper(iterable, n, fillvalue=None):
     "Collect data into fixed-length chunks or blocks"
