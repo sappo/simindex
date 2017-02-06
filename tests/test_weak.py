@@ -147,7 +147,7 @@ def test_probability_distribution_choice_large():
 
     for ex_weight, ac_weight in zip (expected_weights, actual_weights):
         diff = abs(ex_weight - ac_weight)
-        assert diff < 0.075
+        assert diff < 0.1
 
 
 def test_fisher_score():

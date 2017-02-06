@@ -85,7 +85,6 @@ class WeakLabels(object):
 
         return similarity
 
-    @profile
     def predict(self):
         blocker = {}
         candidates = set()
@@ -121,11 +120,13 @@ class WeakLabels(object):
                     if r_id not in blocker[field][tokens]:
                         blocker[field][tokens].append(r_id)
 
-            if self.verbose:
-                progress_bar.update()
+                if self.verbose:
+                    progress_bar.update()
 
         if self.verbose:
+            print()
             print("Moving window to generate candidates")
+
         for field in range(0, self.attribute_count):
             field_blocks = blocker[field]
             for tokens in field_blocks.keys():
@@ -220,6 +221,7 @@ class Feature:
         self.fsc = fsc
         self.y_true = None
         self.y_pred = None
+        self.illegal_bkvs = set()
 
     def union(self, other):
         bk_conjunction = self.blocking_keys + other.blocking_keys
@@ -256,6 +258,9 @@ class Feature:
             fields.add(blocking_key.field)
 
         return fields
+
+    def add_illegal_bkv(self, key_value):
+        self.illegal_bkvs.add(key_value)
 
     def __repr__(self):
         return "Feature(%s, fsc=%s)" % (self.blocking_keys, self.fsc)
@@ -323,7 +328,6 @@ class DisjunctiveBlockingScheme(object):
         Nn = np.mean(Nfi)
         return Pp - Nn
 
-    @profile
     def terms(self):
         count = 0
         forbidden = []
@@ -426,7 +430,6 @@ class DisjunctiveBlockingScheme(object):
 
         return f1_score
 
-    @profile
     def transform(self, dataset):
         self.dataset = dataset
         # Build and score features
