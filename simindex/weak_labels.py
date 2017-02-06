@@ -300,6 +300,7 @@ class DisjunctiveBlockingScheme(object):
         Nn = np.mean(Nfi)
         return Pp - Nn
 
+    @profile
     def terms(self):
         count = 0
         forbidden = []
@@ -312,7 +313,7 @@ class DisjunctiveBlockingScheme(object):
                     feature.fsc = self.block_metrics(feature)
                     Kf.append(feature)
 
-            # fsc_avg = np.mean([feature.fsc for feature in self.features])
+            fsc_avg = np.mean([feature.fsc for feature in self.features])
             Kf = sorted(Kf, key=lambda feature: feature.fsc, reverse=True)
             for feature in Kf:
                 for original_feature in original_features:
@@ -322,7 +323,8 @@ class DisjunctiveBlockingScheme(object):
                         if new_feature not in self.features:
                             # Calculate new scores
                             new_feature.fsc = self.block_metrics(new_feature)
-                            self.features.append(new_feature)
+                            if new_feature.fsc > fsc_avg:
+                                self.features.append(new_feature)
 
                 forbidden.append(feature)
 
@@ -346,17 +348,19 @@ class DisjunctiveBlockingScheme(object):
         TP, FP, FN = 0, 0, 0
         for BI in FBI.values():
             for block_key in BI.keys():
+                if len(BI[block_key]) > 100:
+                    return 0
+
                 candidates = BI[block_key]
                 # Generate candidate pairs
                 candidate_pairs = it.combinations(candidates, 2)
                 candidate_pairs = set([frozenset(p) for p in candidate_pairs])
 
                 # Calculate TP, FP, FN
-                npairs = len(candidate_pairs)
                 block_TP_pairs = candidate_pairs.intersection(self.P)
                 block_FP_pairs = candidate_pairs.difference(block_TP_pairs)
                 FP_canidates = set(hp.flatten(block_FP_pairs))
-                assert npairs == len(block_TP_pairs) + len(block_FP_pairs)
+
                 TP += len(block_TP_pairs)
                 FP += len(block_FP_pairs)
                 FN += len(FP_canidates.intersection(self.flat_P))
@@ -392,6 +396,11 @@ class DisjunctiveBlockingScheme(object):
         recall = TP / (FN + TP)
         precision = TP / (TP + FP)
         f1_score = 2 * ((precision * recall) / (precision + recall))
+
+        # Force cleanup
+        del FBI
+        del FBI_candidate_pairs
+
         return f1_score
 
     @profile
@@ -405,6 +414,7 @@ class DisjunctiveBlockingScheme(object):
         for feature in self.features:
             Kf.append(feature)
 
+        Kf = filter(lambda feature: feature.fsc > 0, Kf)
         Kf = sorted(Kf, key=lambda feature: feature.fsc, reverse=True)
         top_10 = heapq.nlargest(50, Kf, key=lambda feature: feature.fsc)
 
