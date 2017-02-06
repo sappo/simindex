@@ -58,8 +58,11 @@ class WeakLabels(object):
             for attribute in r_attributes:
                 texts.append(attribute.split())
 
+        print("Create dictionary")
         self.dictionary = corpora.Dictionary(texts)
+        print("Create corpus")
         corpus = [self.dictionary.doc2bow(text) for text in texts]
+        print("Create tfidf_model")
         self.tfidf_model = models.TfidfModel(corpus, normalize=True,
                                              wlocal=math.log1p,
                                              wglobal=wglobal)
