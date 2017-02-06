@@ -274,7 +274,8 @@ class Feature:
 
 class DisjunctiveBlockingScheme(object):
 
-    def __init__(self, blocking_keys, P, N, k=1):
+    def __init__(self, blocking_keys, P, N, k=1,
+                 block_timer=None, verbose=False):
         self.P = [frozenset((p.t1, p.t2)) for p in P]
         self.N = [frozenset((p.t1, p.t2)) for p in N]
         self.frozen_P = set(self.P)
@@ -379,7 +380,7 @@ class DisjunctiveBlockingScheme(object):
                 candidate_pairs = set([frozenset(p) for p in candidate_pairs])
 
                 # Calculate TP, FP, FN
-                block_TP_pairs = candidate_pairs.intersection(self.P)
+                block_TP_pairs = candidate_pairs.intersection(self.frozen_P)
                 block_FP_pairs = candidate_pairs.difference(block_TP_pairs)
                 FP_canidates = set(hp.flatten(block_FP_pairs))
 
