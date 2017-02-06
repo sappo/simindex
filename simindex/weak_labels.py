@@ -109,7 +109,9 @@ class WeakLabels(object):
         P = []
         N = []
         if self.verbose:
+            progress_bar = pyprind.ProgBar(self.attribute_count * len(self.dataset), update_interval=1)
             print("Blocking by tokens and fields")
+
         for field in range(0, self.attribute_count):
             blocker[field] = defaultdict(list)
             for r_id, r_attributes in self.dataset.items():
@@ -118,6 +120,9 @@ class WeakLabels(object):
                 for tokens in tokens:
                     if r_id not in blocker[field][tokens]:
                         blocker[field][tokens].append(r_id)
+
+            if self.verbose:
+                progress_bar.update()
 
         if self.verbose:
             print("Moving window to generate candidates")
