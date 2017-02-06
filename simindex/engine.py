@@ -268,6 +268,9 @@ class SimEngine(object):
 
 
     def read_ground_truth(self, gold_standard, gold_attributes):
+        if self.verbose:
+            print("Reading ground truth")
+
         self.gold_pairs = set()
         self.gold_records = defaultdict(set)
 
