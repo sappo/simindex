@@ -115,13 +115,12 @@ class WeakLabels(object):
             print("Blocking by tokens and fields")
 
         for field in range(0, self.attribute_count):
-            blocker[field] = defaultdict(list)
+            blocker[field] = defaultdict(set)
             for r_id, r_attributes in self.dataset.items():
                 attribute = r_attributes[field]
                 tokens = attribute.split()
-                for tokens in tokens:
-                    if r_id not in blocker[field][tokens]:
-                        blocker[field][tokens].append(r_id)
+                for token in tokens:
+                    blocker[field][token].add(r_id)
 
                 if self.verbose:
                     progress_bar.update()
@@ -132,9 +131,9 @@ class WeakLabels(object):
 
         for field in range(0, self.attribute_count):
             field_blocks = blocker[field]
-            for tokens in field_blocks.keys():
+            block_filter = filter(lambda t: len(field_blocks[t]) > 0, field_blocks.keys())
+            for tokens in block_filter:
                 token_block = sorted(field_blocks[tokens])
-                sorted
                 index = 0
                 # Move window over token block for field
                 while len(token_block[index + 1:index + window_size]) > 0:
