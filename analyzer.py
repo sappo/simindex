@@ -5,6 +5,8 @@ import json
 import click
 import numpy as np
 from simindex import SimEngine, MDySimII, MDySimIII, MDyLSH, RecordTimer, BlockingKey
+import json
+import logging.config
 
 try:
     profile
@@ -13,6 +15,22 @@ except NameError as e:
         def inner(*args, **kwargs):
             return func(*args, **kwargs)
         return inner
+
+
+def setup_logging(default_path='logging.json',
+                  default_level=logging.INFO,
+                  env_key='LOG_CFG'):
+    """Setup logging configuration """
+    path = default_path
+    value = os.getenv(env_key, None)
+    if value:
+        path = value
+    if os.path.exists(path):
+        with open(path, 'rt') as f:
+            config = json.load(f)
+        logging.config.dictConfig(config)
+    else:
+        logging.basicConfig(level=default_level)
 
 
 @click.command(context_settings=dict(help_option_names=[u'-h', u'--help']))
@@ -73,6 +91,7 @@ def main(index_file, index_attributes,
     """
     Analyze simindex engine!
     """
+    setup_logging()
     # Sanity check
     if (len(index_attributes) != len(query_attributes)):
         print("Query attribute count must equal index attribute count!")
@@ -171,6 +190,8 @@ def main(index_file, index_attributes,
         print()
         print("------------------------------ 3 -----------------------------")
         print("Run Queries.")
+        logger = logging.getLogger(__name__)
+        logger.debug("TEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE")
         engine.query_csv(query_file, query_attributes)
 
     elif run_type == "evaluation":

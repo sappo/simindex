@@ -18,6 +18,9 @@ from .weak_labels import WeakLabels, \
                          term_id
 from .similarity import SimLearner
 import simindex.helper as hp
+import logging
+
+logger = logging.getLogger(__name__)
 
 try:
     profile
@@ -123,7 +126,7 @@ class SimEngine(object):
             dataset[r_id] = r_attributes
 
         if self.verbose:
-            print("Dataset has %d records" % len(dataset))
+            logger.info("Dataset has %d records" % len(dataset))
 
         #  Predict labels
         P, N = self.load_labels()
@@ -145,7 +148,7 @@ class SimEngine(object):
             del labels
 
         if self.verbose:
-            print("Generated %d P and %d N labels" % (len(P), len(N)))
+            logger.info("Generated %d P and %d N labels" % (len(P), len(N)))
             self.nP = len(P)
             self.nN = len(N)
 
@@ -164,7 +167,7 @@ class SimEngine(object):
             del dbs
 
         if self.verbose:
-            print("Learned the following blocking scheme:")
+            logger.info("Learned the following blocking scheme:")
             pprint(self.blocking_scheme)
 
         # Learn similarity functions per attribute
@@ -172,7 +175,7 @@ class SimEngine(object):
         if self.similarities is None:
             P, N = WeakLabels.filter(self.blocking_scheme, P, N)
             if self.verbose:
-                print("Have %d P and %d N filtered labels" % (len(P), len(N)))
+                logger.info("Have %d P and %d N filtered labels" % (len(P), len(N)))
                 self.nfP = len(P)
                 self.nfN = len(N)
 
@@ -182,7 +185,7 @@ class SimEngine(object):
             del sl
 
         if self.verbose:
-            print("Predicted the following similarities:")
+            logger.info("Predicted the following similarities:")
             pprint(self.similarities)
 
         # Cleanup
@@ -263,7 +266,7 @@ class SimEngine(object):
 
     def read_ground_truth(self, gold_standard, gold_attributes):
         if self.verbose:
-            print("Reading ground truth")
+            logger.info("Reading ground truth")
 
         self.gold_pairs = set()
         self.gold_records = defaultdict(set)

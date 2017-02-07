@@ -8,6 +8,9 @@ from collections import defaultdict, namedtuple
 from gensim import corpora, models
 from pprint import pprint
 import simindex.helper as hp
+import logging
+
+logger = logging.getLogger(__name__)
 
 try:
     profile
@@ -57,11 +60,11 @@ class WeakLabels(object):
             for attribute in r_attributes:
                 texts.append(attribute.split())
 
-        print("Create dictionary")
+        logger.info("Create dictionary")
         self.dictionary = corpora.Dictionary(texts)
-        print("Create corpus")
+        logger.info("Create corpus")
         corpus = [self.dictionary.doc2bow(text) for text in texts]
-        print("Create tfidf_model")
+        logger.info("Create tfidf_model")
         self.tfidf_model = models.TfidfModel(corpus, normalize=True,
                                              wlocal=math.log1p,
                                              wglobal=wglobal)
@@ -110,7 +113,7 @@ class WeakLabels(object):
         P = []
         N = []
         if self.verbose:
-            print("Blocking by tokens and fields")
+            logger.info("Blocking by tokens and fields")
 
         for field in range(0, self.attribute_count):
             blocker[field] = defaultdict(set)
@@ -121,10 +124,10 @@ class WeakLabels(object):
                     blocker[field][token].add(r_id)
 
             if self.verbose:
-                print("Blocked field %d" % field)
+                logger.info("Blocked field %d" % field)
 
         if self.verbose:
-            print("Moving window to generate candidates")
+            logger.info("Moving window to generate candidates")
 
         for field in range(0, self.attribute_count):
             field_blocks = blocker[field]
@@ -139,7 +142,7 @@ class WeakLabels(object):
                     index += 1
 
         if self.verbose:
-            print("Generated %d candidates" % len(candidates))
+            logger.info("Generated %d candidates" % len(candidates))
 
         if self.gold_pairs:
             for t1, t2 in self.gold_pairs:
@@ -148,13 +151,16 @@ class WeakLabels(object):
             trim_threshold = max_negative_pairs * 3
             candidate = candidates.difference(self.gold_pairs)
             N_bins = [[] for x in range(bins)]
-            for t1, t2 in candidates:
+            for index, (t1, t2) in enumerate(candidates):
                 sim = self.tfidf_similarity(t1, t2)
                 bin = int(sim * bins)
                 if bin >= bins:
                     bin = bins - 1
 
                 N_bins[bin].append(SimTupel(t1, t2, sim))
+
+                if index % 50000 == 0:
+                    logger.info("Processed 50000 candidates")
 
             # Calculate probability distribution
             weights = [len(bin) for bin in N_bins]
