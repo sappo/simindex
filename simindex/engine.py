@@ -4,7 +4,6 @@ import subprocess
 import pandas as pd
 import numpy as np
 from pprint import pprint
-import pyprind
 
 from collections import defaultdict, Counter
 import sklearn.metrics as skm
@@ -72,9 +71,6 @@ class SimEngine(object):
 
     @profile
     def pre_process_data(self, store, csvfile, attributes):
-        if self.verbose:
-            progress_bar = pyprind.ProgBar(file_len(csvfile), update_interval=1)
-
         group_name = "/%s" % self.name
         if group_name not in store.keys():
             # Read CSV in chunks
@@ -106,9 +102,6 @@ class SimEngine(object):
                 self.attribute_count = len(dataframe.columns)
                 self.index_dtype = dataframe.index.dtype
                 del dataframe
-
-                if self.verbose:
-                    progress_bar.update(50000, item_id="Pre-processing %s" % csvfile)
 
         # Create index on index column for the whole dataset
         store.create_table_index(self.name, columns=['index'], optlevel=9, kind='full')

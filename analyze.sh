@@ -7,9 +7,11 @@ if [ "$1" == '-f' ]; then
 # Run ferbl datasets
 for dataset in "ferbl-4k-1k-1" "ferbl-9k-1k-1" "ferbl-90k-10k-1"
 do
+    ###########################################################################
     datasetprefix="../../master_thesis/datasets/febrl/"
+    ###########################################################################
 
-    if [ "$1" == '-b' ]; then
+    if [ "$2" == '-b' ]; then
         # Fit baseline model once!
         mprof run analyzer.py \
             --run-type fit -r "${timestamp}" \
@@ -66,12 +68,13 @@ do
 
     done
 done
-
-else
+elif [ "$1" == '-n' ]; then
+###############################################################################
 dataset="ncvoter"
 datasetprefix="../../master_thesis/datasets/ncvoter/"
+###############################################################################
 
-if [ "$1" == '-b' ]; then
+if [ "$2" == '-b' ]; then
     # Fit baseline model once!
     mprof run analyzer.py \
         --run-type fit -r "${timestamp}" \

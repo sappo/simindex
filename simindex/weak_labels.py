@@ -4,7 +4,6 @@ import heapq
 import numpy as np
 import itertools as it
 import sklearn
-import pyprind
 from collections import defaultdict, namedtuple
 from gensim import corpora, models
 from pprint import pprint
@@ -111,7 +110,6 @@ class WeakLabels(object):
         P = []
         N = []
         if self.verbose:
-            progress_bar = pyprind.ProgBar(self.attribute_count * len(self.dataset), update_interval=1)
             print("Blocking by tokens and fields")
 
         for field in range(0, self.attribute_count):
@@ -122,11 +120,10 @@ class WeakLabels(object):
                 for token in tokens:
                     blocker[field][token].add(r_id)
 
-                if self.verbose:
-                    progress_bar.update()
+            if self.verbose:
+                print("Blocked field %d" % field)
 
         if self.verbose:
-            print()
             print("Moving window to generate candidates")
 
         for field in range(0, self.attribute_count):
@@ -143,7 +140,6 @@ class WeakLabels(object):
 
         if self.verbose:
             print("Generated %d candidates" % len(candidates))
-            progress_bar = pyprind.ProgBar(len(candidates), update_interval=1)
 
         if self.gold_pairs:
             for t1, t2 in self.gold_pairs:
@@ -159,9 +155,6 @@ class WeakLabels(object):
                     bin = bins - 1
 
                 N_bins[bin].append(SimTupel(t1, t2, sim))
-
-                if self.verbose:
-                    progress_bar.update()
 
             # Calculate probability distribution
             weights = [len(bin) for bin in N_bins]

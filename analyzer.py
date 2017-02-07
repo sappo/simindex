@@ -108,7 +108,7 @@ def main(index_file, index_attributes,
                 baseline_scheme.append([int(lineattrs[0]), int(field), lineattrs[2]])
 
             similarities = []
-            for train_attribute in train_attributes:
+            for train_attribute in train_attributes[1:]:
                 similarities.append('SimDamerau')
 
             engine.set_baseline({'scheme': baseline_scheme,
