@@ -131,7 +131,7 @@ class WeakLabels(object):
 
         for field in range(0, self.attribute_count):
             field_blocks = blocker[field]
-            block_filter = filter(lambda t: len(field_blocks[t]) > 0, field_blocks.keys())
+            block_filter = filter(lambda t: len(field_blocks[t]) < 100, field_blocks.keys())
             for tokens in block_filter:
                 token_block = sorted(field_blocks[tokens])
                 index = 0
