@@ -100,7 +100,8 @@ def test_filter_labels():
 def test_probability_distribution_choice_small():
     labels = WeakLabels(2, max_positive_pairs=4, max_negative_pairs=4,
                         gold_pairs=restaurant_gold_pairs,
-                        upper_threshold=0.5, lower_threshold=0.3)
+                        upper_threshold=0.5, lower_threshold=0.3,
+                        window_size=5)
     labels.fit(restaurant_dataset)
     P, N = labels.predict()
 
@@ -123,7 +124,7 @@ def test_probability_distribution_choice_large():
     for record in records:
         dataset[record[0]] = record[1:]
 
-    labels = WeakLabels(5, gold_pairs=gold_paris)
+    labels = WeakLabels(5, gold_pairs=gold_paris, window_size=5)
     labels.fit(dataset)
     P, N = labels.predict()
 

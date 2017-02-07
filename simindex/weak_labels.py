@@ -35,6 +35,7 @@ class WeakLabels(object):
                  max_negative_pairs=200,
                  upper_threshold=0.6,
                  lower_threshold=0.1,
+                 window_size=2,
                  verbose=False):
         self.attribute_count = attribute_count
 
@@ -45,6 +46,7 @@ class WeakLabels(object):
         self.max_negative_pairs = max_negative_pairs
         self.upper_threshold = upper_threshold
         self.lower_threshold = lower_threshold
+        self.window_size = window_size
         self.verbose = verbose
 
     def string_to_bow(self, record):
@@ -93,7 +95,7 @@ class WeakLabels(object):
     def predict(self):
         blocker = {}
         candidates = set()
-        window_size = 2
+        window_size = self.window_size
         bins = 20
         # Set max_candidates depending on available gold pairs and user definded
         # values
@@ -144,6 +146,7 @@ class WeakLabels(object):
         if self.verbose:
             logger.info("Generated %d candidates" % len(candidates))
 
+        simcount = 0
         if self.gold_pairs:
             for t1, t2 in self.gold_pairs:
                 P.append(SimTupel(t1, t2, 1))
@@ -160,7 +163,8 @@ class WeakLabels(object):
                 N_bins[bin].append(SimTupel(t1, t2, sim))
 
                 if index % 50000 == 0:
-                    logger.info("Processed 50000 candidates")
+                    logger.info("Processed %d candidates" % simcount)
+                    simcount += 50000
 
             # Calculate probability distribution
             weights = [len(bin) for bin in N_bins]
