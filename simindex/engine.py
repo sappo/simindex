@@ -144,6 +144,9 @@ class SimEngine(object):
                                 verbose=self.verbose)
             labels.fit(dataset)
             P, N = labels.predict()
+            if self.verbose:
+                logger.info("Saving labels now")
+
             self.save_labels(P, N)
             del labels
 
