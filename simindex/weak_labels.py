@@ -174,7 +174,7 @@ class WeakLabels(object):
             # Select pairs by probability distribution
             paircount = 0
             choices = np.arange(bins)
-            for dummy in range(max_negative_pairs):
+            for index, dummy in enumerate(range(max_negative_pairs)):
                 bin = np.random.choice(choices, p=weights)
                 N_choice = N_bins[bin]
                 if len(N_choice):
