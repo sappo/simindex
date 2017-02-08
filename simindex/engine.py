@@ -131,11 +131,12 @@ class SimEngine(object):
         #  Predict labels
         P, N = self.load_labels()
         if P is None and N is None:
-            if self.max_p is None:
-                self.max_p = int(len(dataset) * 0.1)
+            if not self.gold_pairs:
+                if self.max_p is None:
+                    self.max_p = int(len(dataset) * 0.1)
 
-            if self.max_n is None:
-                self.max_n = int(len(dataset) * 0.25)
+                if self.max_n is None:
+                    self.max_n = int(len(dataset) * 0.25)
 
             labels = WeakLabels(self.attribute_count,
                                 gold_pairs=self.gold_pairs,
@@ -164,8 +165,12 @@ class SimEngine(object):
                 blocking_keys.append(BlockingKey(field, term_id))
 
             dbs = DisjunctiveBlockingScheme(blocking_keys, P, N,
-                                            self.max_bk_conjunction)
+                                            self.max_bk_conjunction,
+                                            verbose=self.verbose)
             self.blocking_scheme = dbs.transform(dataset)
+            if self.verbose:
+                logger.info("Saving blocking scheme now")
+
             self.save_blocking_scheme()
             del dbs
 

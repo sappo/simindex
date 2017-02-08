@@ -437,12 +437,18 @@ class DisjunctiveBlockingScheme(object):
         del FBI
         del FBI_candidate_pairs
 
+        if self.verbose:
+            logger.info("Calculated block metrics for %r" % feature)
+
         return f1_score
 
     def transform(self, dataset):
         self.dataset = dataset
         # Build and score features
         self.terms()
+
+        if self.verbose:
+            logger.info("Finding best blocking scheme")
 
         # Sort features
         Kf = []
