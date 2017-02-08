@@ -60,9 +60,9 @@ def test_weak_labels():
     dnfblock = DisjunctiveBlockingScheme(blocking_keys, P_actual, N_actual)
     dnf = dnfblock.transform(restaurant_dataset)
     dnf_expected = [Feature([BlockingKey(0, tokens),
-                             BlockingKey(1, tokens)], 0., 0.),
-                    Feature([BlockingKey(0, tokens)], 0., 0.),
-                    Feature([BlockingKey(1, tokens)], 0., 0.)]
+                             BlockingKey(1, tokens)], 0.),
+                    Feature([BlockingKey(0, tokens)], 0.),
+                    Feature([BlockingKey(1, tokens)], 0.)]
     # assert(dnf == dnf_expected)
 
 

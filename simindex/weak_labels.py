@@ -4,6 +4,7 @@ import heapq
 import numpy as np
 import itertools as it
 import sklearn
+import json
 from collections import defaultdict, namedtuple
 from gensim import corpora, models
 from pprint import pprint
@@ -225,7 +226,7 @@ BlockingKey = namedtuple('BlockingKey', ['field', 'encoder'])
 
 
 class Feature:
-    def __init__(self, blocking_keys, fsc, msc):
+    def __init__(self, blocking_keys, fsc):
         self.blocking_keys = blocking_keys
         self.fsc = fsc
         self.y_true = None
@@ -234,7 +235,7 @@ class Feature:
 
     def union(self, other):
         bk_conjunction = self.blocking_keys + other.blocking_keys
-        feature = Feature(bk_conjunction, None, None)
+        feature = Feature(bk_conjunction, None)
         return feature
 
     def signature(self):
@@ -259,7 +260,7 @@ class Feature:
 
                 BKVs = concat_BKVs
 
-        return BKVs
+        return BKVs.difference(self.illegal_bkvs)
 
     def covered_fields(self):
         fields = set()
@@ -270,6 +271,28 @@ class Feature:
 
     def add_illegal_bkv(self, key_value):
         self.illegal_bkvs.add(key_value)
+
+    def to_json(self):
+        my = dict()
+        my['fsc'] = self.fsc
+        my['illegal_bkvs'] = list(self.illegal_bkvs)
+        my['blocking_keys'] = \
+            [(b.field, b.encoder.__name__) for b in self.blocking_keys]
+        return json.dumps(my)
+
+    @staticmethod
+    def from_json(data):
+        data = json.loads(data)
+        possibles = globals().copy()
+        possibles.update(locals())
+
+        self = Feature(None, None)
+        self.fsc = data['fsc']
+        self.illegal_bkvs = set(data['illegal_bkvs'])
+        print(data['blocking_keys'])
+        self.blocking_keys = \
+            [BlockingKey(b[0], possibles.get(b[1])) for b in data['blocking_keys']]
+        return self
 
     def __repr__(self):
         return "Feature(%s, fsc=%s)" % (self.blocking_keys, self.fsc)
@@ -301,7 +324,7 @@ class DisjunctiveBlockingScheme(object):
         self.block_timer = block_timer
 
         for blocking_key in blocking_keys:
-            feature = Feature([blocking_key], None, None)
+            feature = Feature([blocking_key], None)
             self.features.append(feature)
 
     @staticmethod
@@ -385,7 +408,8 @@ class DisjunctiveBlockingScheme(object):
         for BI in FBI.values():
             for block_key in BI.keys():
                 if len(BI[block_key]) > 100:
-                    return 0
+                    feature.add_illegal_bkv(block_key)
+                    continue
 
                 candidates = BI[block_key]
                 # Generate candidate pairs

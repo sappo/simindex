@@ -3,6 +3,7 @@ import os
 import subprocess
 import pandas as pd
 import numpy as np
+import json
 from pprint import pprint
 
 from collections import defaultdict, Counter
@@ -360,12 +361,12 @@ class SimEngine(object):
         return data
 
     def save_blocking_scheme(self):
-        with pd.HDFStore(self.configstore_name,
-                         complevel=9, complib='blosc') as store:
-            data = self.blocking_scheme_to_strings()
-            df = pd.DataFrame(data, columns=["feature", "field",
-                                             "encoder", "score"])
-            store.put("blocking_scheme", df, format="t")
+        with open("%s/.%s_dnfbs.inc" % (self.datadir, self.name), "w") as handle:
+            data = {}
+            for index, feature in enumerate(self.blocking_scheme):
+                data[index] = feature.to_json()
+
+            json.dump(data, handle, sort_keys=True, indent=4)
 
     @staticmethod
     def read_blocking_scheme(blocking_keys):
@@ -386,12 +387,12 @@ class SimEngine(object):
         return blocking_scheme
 
     def load_blocking_scheme(self):
-        with pd.HDFStore(self.configstore_name) as store:
-            if "/blocking_scheme" in store.keys():
-                return self.read_blocking_scheme(
-                        hp.hdf_record_attributes(store, "blocking_scheme"))
-            else:
-                return None
+        if os.path.exists("%s/.%s_dnfbs.inc" % (self.datadir, self.name)):
+            with open("%s/.%s_dnfbs.inc" % (self.datadir, self.name), "r") as handle:
+                data = json.load(handle)
+                return [Feature.from_json(b) for b in data.values()]
+        else:
+            return None
 
     def save_similarities(self):
         with pd.HDFStore(self.configstore_name,

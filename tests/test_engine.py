@@ -155,6 +155,8 @@ def restaurant_cleanup(engine):
         os.remove(engine.indexdatastore_name)
     if os.path.exists(engine.querydatastore_name):
         os.remove(engine.querydatastore_name)
+    if os.path.exists(".%s_dnfbs.inc" % engine.name):
+        os.remove(".%s_dnfbs.inc" % engine.name)
     if os.path.exists(".%s_lsh.idx" % engine.name):
         os.remove(".%s_lsh.idx" % engine.name)
     if os.path.exists(".%s_nrecords.idx" % engine.name):

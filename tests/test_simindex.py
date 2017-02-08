@@ -86,9 +86,9 @@ def test_simawareindex_insert():
 
 def test_mdysimII():
     dns = [Feature([BlockingKey(0, tokens),
-                    BlockingKey(1, tokens)], 0., 0.),
-           Feature([BlockingKey(0, tokens)], 0., 0.),
-           Feature([BlockingKey(1, tokens)], 0., 0.)]
+                    BlockingKey(1, tokens)], 0.),
+           Feature([BlockingKey(0, tokens)], 0.),
+           Feature([BlockingKey(1, tokens)], 0.)]
     s = MDySimII(2, dns, [_compare, _compare])
     s.insert(restaurant_records[0][0], restaurant_records[0][1:])
     s.insert(restaurant_records[1][0], restaurant_records[1][1:])
@@ -113,9 +113,9 @@ def test_mdysimII():
 
 def test_mdysimIII():
     dns = [Feature([BlockingKey(0, tokens),
-                    BlockingKey(1, tokens)], 0., 0.),
-           Feature([BlockingKey(0, tokens)], 0., 0.),
-           Feature([BlockingKey(1, tokens)], 0., 0.)]
+                    BlockingKey(1, tokens)], 0.),
+           Feature([BlockingKey(0, tokens)], 0.),
+           Feature([BlockingKey(1, tokens)], 0.)]
     s = MDySimIII(2, dns, [_compare, _compare])
     s.insert(restaurant_records[0][0], restaurant_records[0][1:])
     s.insert(restaurant_records[1][0], restaurant_records[1][1:])

@@ -116,9 +116,9 @@ def test_lsh():
 
 def test_MultiSimAwareAttributeIndex():
     dnf = [Feature([BlockingKey(0, tokens),
-                    BlockingKey(1, tokens)], 0., 0.),
-           Feature([BlockingKey(0, tokens)], 0., 0.),
-           Feature([BlockingKey(1, tokens)], 0., 0.)]
+                    BlockingKey(1, tokens)], 0.),
+           Feature([BlockingKey(0, tokens)], 0.),
+           Feature([BlockingKey(1, tokens)], 0.)]
 
     msaai = MultiSimAwareAttributeIndex(dnf, [__compare, __compare])
 
