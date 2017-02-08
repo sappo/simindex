@@ -153,14 +153,14 @@ class WeakLabels(object):
 
             trim_threshold = max_negative_pairs * 3
             candidate = candidates.difference(self.gold_pairs)
-            N_bins = [[] for x in range(bins)]
+            N_bins = [set() for x in range(bins)]
             for index, (t1, t2) in enumerate(candidates):
                 sim = self.tfidf_similarity(t1, t2)
                 bin = int(sim * bins)
                 if bin >= bins:
                     bin = bins - 1
 
-                N_bins[bin].append(SimTupel(t1, t2, sim))
+                N_bins[bin].add(SimTupel(t1, t2, sim))
 
                 if index % 50000 == 0:
                     logger.info("Processed %d candidates" % simcount)
@@ -172,13 +172,17 @@ class WeakLabels(object):
             weights[:] = [float(weight)/wsum for weight in weights]
 
             # Select pairs by probability distribution
+            paircount = 0
+            choices = np.arange(bins)
             for dummy in range(max_negative_pairs):
-                bin = np.random.choice(range(bins), p=weights)
+                bin = np.random.choice(choices, p=weights)
                 N_choice = N_bins[bin]
-                if len(N_choice) > 0:
-                    r_choice = np.random.choice(range(len(N_choice)))
-                    N.append(N_choice[r_choice])
-                    del N_choice[r_choice]
+                if len(N_choice):
+                    N.append(N_choice.pop())
+
+                if index % 10000 == 0:
+                    logger.info("Selected %d negative pairs" % paircount)
+                    paircount += 10000
 
         else:
             trim_threshold = max_negative_pairs * 3
