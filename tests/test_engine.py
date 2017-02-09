@@ -53,10 +53,10 @@ def test_engine_restaurant(verbose):
     # Expected results
     # @Warning: Testing blocking scheme and similiarites doesn't work as the
     # result vary due to randomness
-    blocking_scheme_expected = [[0, 0, 'term_id'],
-                                [0, 2, 'tokens'],
-                                [1, 1, 'term_id'],
-                                [1, 0, 'tokens']]
+    blocking_scheme_expected = {(0, 'term_id'),
+                                (2, 'tokens'),
+                                (1, 'term_id'),
+                                (0, 'tokens')}
 
     sim_strings_expected = ['SimDamerau', 'SimLevenshtein', 'SimDamerau',
                             'SimDamerau', 'SimRatio']
@@ -77,9 +77,10 @@ def test_engine_restaurant(verbose):
         engine.fit_csv("../../master_thesis/datasets/restaurant/restaurant_train.csv",
                        ["id","name","addr","city","phone","type"])
 
-        sim_strings_actual = engine.similarities
+        # sim_strings_actual = engine.similarities
         # assert sim_strings_actual == sim_strings_expected
-        # assert engine.blocking_scheme_to_strings() == blocking_scheme_expected
+        blocking_scheme_actual = {(x[1], x[2]) for x in engine.blocking_scheme_to_strings()}
+        assert blocking_scheme_actual == blocking_scheme_expected
 
         # Build the index
         engine.build_csv("../../master_thesis/datasets/restaurant/restaurant_index.csv",
@@ -114,9 +115,10 @@ def test_engine_restaurant(verbose):
         engine.fit_csv("../../master_thesis/datasets/restaurant/restaurant_train.csv",
                        ["id","name","addr","city","phone","type"])
 
-        sim_strings_actual = engine.similarities
+        # sim_strings_actual = engine.similarities
         # assert sim_strings_actual == sim_strings_expected
-        # assert engine.blocking_scheme_to_strings() == blocking_scheme_expected
+        blocking_scheme_actual = {(x[1], x[2]) for x in engine.blocking_scheme_to_strings()}
+        assert blocking_scheme_actual == blocking_scheme_expected
 
         # Build the index
         engine.build_csv("../../master_thesis/datasets/restaurant/restaurant_index.csv",
