@@ -484,7 +484,7 @@ class DisjunctiveBlockingScheme(object):
         top_10 = heapq.nlargest(50, Kf, key=lambda feature: feature.fsc)
 
         blocking_scheme_candidates = []
-        for index in range(4):
+        for index in range(3):
             blocking_scheme_candidates.extend(it.combinations(top_10, index))
 
         best_blocking_scheme = None
