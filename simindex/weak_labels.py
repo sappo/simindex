@@ -5,7 +5,7 @@ import numpy as np
 import itertools as it
 import sklearn
 import json
-from collections import defaultdict, namedtuple
+from collections import defaultdict, namedtuple, Counter
 from gensim import corpora, models
 from pprint import pprint
 import simindex.helper as hp
@@ -403,6 +403,22 @@ class DisjunctiveBlockingScheme(object):
 
                     BI[encoding].add(r_id)
 
+        # Check frequency distribution of blocks
+        block_sizes = []
+        for BI in FBI.values():
+            for block_key in BI.keys():
+                block_sizes.append(len(BI[block_key]))
+
+        freq_dis = Counter(block_sizes)
+        ngood = sum([freq_dis[b] for b in freq_dis.keys() if b < 51])
+        nbad = sum([freq_dis[b] for b in freq_dis.keys() if b > 50])
+        # If there are too much big blocks disregard
+        good_ratio = ngood / (ngood + nbad)
+        if good_ratio < 0.90:
+            if self.verbose:
+                logger.info("Skip block metrics for %r" % feature)
+            return 0
+
         FBI_candidate_pairs = set()
         TP, FP, FN = 0, 0, 0
         for BI in FBI.values():
@@ -449,6 +465,9 @@ class DisjunctiveBlockingScheme(object):
         feature.y_true = y_true
         feature.y_pred = y_pred
 
+        if self.verbose:
+            logger.info("Calculated block metrics for %r" % feature)
+
         # No need to calculate score if there are no true positives
         if TP == 0:
             return 0
@@ -460,9 +479,6 @@ class DisjunctiveBlockingScheme(object):
         # Force cleanup
         del FBI
         del FBI_candidate_pairs
-
-        if self.verbose:
-            logger.info("Calculated block metrics for %r" % feature)
 
         return f1_score
 
