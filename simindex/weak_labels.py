@@ -414,7 +414,7 @@ class DisjunctiveBlockingScheme(object):
         nbad = sum([freq_dis[b] for b in freq_dis.keys() if b > 50])
         # If there are too much big blocks disregard
         good_ratio = ngood / (ngood + nbad)
-        if good_ratio < 0.90:
+        if good_ratio < 0.99:
             if self.verbose:
                 logger.info("Skip block metrics for %r" % feature)
             return 0
