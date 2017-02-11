@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
+import os
 import subprocess
 import pandas as pd
 import itertools as it
+import psutil
 
 
 def read_csv(filename, attributes=None, percentage=1.0,
@@ -135,3 +137,34 @@ def merge_sum(collector, *dicts):
         for k, v in d.items():
             print(k)
             collector[k] += v
+
+
+def convert_bytes(n):
+    symbols = ('K', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y')
+    prefix = {}
+    for i, s in enumerate(symbols):
+        prefix[s] = 1 << (i + 1) * 10
+    for s in reversed(symbols):
+        if n >= prefix[s]:
+            value = float(n) / prefix[s]
+            return '%.1f%s' % (value, s)
+    return "%sB" % n
+
+
+def memory_usage():
+    p = psutil.Process(os.getpid())
+    mem = p.memory_full_info()
+    rss = mem.rss
+    vms = mem.vms
+    uss = mem.uss
+    pss = getattr(mem, "pss", "")
+    swap = getattr(mem, "swap", "")
+
+    line = "RSS: %s\tVMS: %s\tUSS: %s\tPSS: %s\tSWAP: %s" % (
+        convert_bytes(rss),
+        convert_bytes(vms),
+        convert_bytes(uss),
+        convert_bytes(pss) if pss != "" else "",
+        convert_bytes(swap) if swap != "" else ""
+    )
+    return line

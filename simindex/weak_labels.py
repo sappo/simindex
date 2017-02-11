@@ -390,6 +390,10 @@ class DisjunctiveBlockingScheme(object):
             count += 1
 
     def block_metrics(self, feature):
+        if self.verbose:
+            logger.info("%r" % feature.signature())
+            logger.info("1) Build blocks\t\t\t%s" % hp.memory_usage())
+
         FBI = defaultdict(dict)
         for r_id, r_attributes in self.dataset.items():
             blocking_key_values = feature.blocking_key_values(r_attributes)
@@ -416,8 +420,12 @@ class DisjunctiveBlockingScheme(object):
         good_ratio = ngood / (ngood + nbad)
         if good_ratio < 0.99:
             if self.verbose:
-                logger.info("Skip block metrics for %r" % feature)
+                logger.info("2) Skip block metrics\t\t%s" % hp.memory_usage())
+                logger.info("----------------------------------------------------")
             return 0
+
+        if self.verbose:
+            logger.info("2) Generating candidates\t%s" % hp.memory_usage())
 
         FBI_candidate_pairs = set()
         TP, FP, FN = 0, 0, 0
@@ -443,6 +451,9 @@ class DisjunctiveBlockingScheme(object):
 
                 FBI_candidate_pairs.update(candidate_pairs)
 
+        if self.verbose:
+            logger.info("3) Building ytrue/ypred\t\t%s" % hp.memory_usage())
+
         # Create feature vectors based on positive and negative labels
         y_true = np.zeros(len(self.P) + len(self.N), np.bool)
         y_pred = np.zeros(len(self.P) + len(self.N), np.bool)
@@ -466,10 +477,14 @@ class DisjunctiveBlockingScheme(object):
         feature.y_pred = y_pred
 
         if self.verbose:
-            logger.info("Calculated block metrics for %r" % feature)
+            logger.info("4) Calculate F1-Score\t\t%s" % hp.memory_usage())
 
         # No need to calculate score if there are no true positives
         if TP == 0:
+            if self.verbose:
+                logger.info("5) Skip because TP is 0\t%s" % hp.memory_usage())
+                logger.info("----------------------------------------------------")
+
             return 0
 
         recall = TP / (FN + TP)
@@ -479,6 +494,10 @@ class DisjunctiveBlockingScheme(object):
         # Force cleanup
         del FBI
         del FBI_candidate_pairs
+
+        if self.verbose:
+            logger.info("5) Calculated block metrics\t%s" % hp.memory_usage())
+            logger.info("----------------------------------------------------")
 
         return f1_score
 
