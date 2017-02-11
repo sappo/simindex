@@ -392,7 +392,7 @@ class DisjunctiveBlockingScheme(object):
     def block_metrics(self, feature):
         if self.verbose:
             logger.info("%r" % feature.signature())
-            logger.info("1) Build blocks\t\t\t%s" % hp.memory_usage())
+            logger.info("0) Build blocks\t\t\t%s" % hp.memory_usage())
 
         FBI = defaultdict(dict)
         for r_id, r_attributes in self.dataset.items():
@@ -409,23 +409,25 @@ class DisjunctiveBlockingScheme(object):
 
         # Check frequency distribution of blocks
         block_sizes = []
+        nblocks = 0
         for BI in FBI.values():
+            nblocks += len(BI)
             for block_key in BI.keys():
                 block_sizes.append(len(BI[block_key]))
 
         freq_dis = Counter(block_sizes)
-        ngood = sum([freq_dis[b] for b in freq_dis.keys() if b < 51])
-        nbad = sum([freq_dis[b] for b in freq_dis.keys() if b > 50])
+        ngood = sum([freq_dis[b] * b for b in freq_dis.keys() if b > 1 and b < 101])
+        nbad = sum([freq_dis[b] * b for b in freq_dis.keys() if b > 100])
         # If there are too much big blocks disregard
         good_ratio = ngood / (ngood + nbad)
-        if good_ratio < 0.99:
-            if self.verbose:
-                logger.info("2) Skip block metrics\t\t%s" % hp.memory_usage())
-                logger.info("----------------------------------------------------")
-            return 0
-
         if self.verbose:
-            logger.info("2) Generating candidates\t%s" % hp.memory_usage())
+            logger.info("1) Number of Blocks %d" % nblocks)
+            logger.info("1) Frequency Ratio is %f\t%s" % (good_ratio, hp.memory_usage()))
+
+        if good_ratio < 0.90:
+            logger.info("2) Skip because of bad ratio")
+            logger.info("----------------------------------------------------")
+            return 0
 
         FBI_candidate_pairs = set()
         TP, FP, FN = 0, 0, 0
@@ -452,6 +454,7 @@ class DisjunctiveBlockingScheme(object):
                 FBI_candidate_pairs.update(candidate_pairs)
 
         if self.verbose:
+            logger.info("2) Generated candidates %s" % len(FBI_candidate_pairs))
             logger.info("3) Building ytrue/ypred\t\t%s" % hp.memory_usage())
 
         # Create feature vectors based on positive and negative labels
