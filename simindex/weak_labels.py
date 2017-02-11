@@ -311,7 +311,7 @@ class Feature:
 
 class DisjunctiveBlockingScheme(object):
 
-    def __init__(self, blocking_keys, P, N, k=1,
+    def __init__(self, blocking_keys, P, N, k=2,
                  block_timer=None, verbose=False):
         self.P = [frozenset((p.t1, p.t2)) for p in P]
         self.N = [frozenset((p.t1, p.t2)) for p in N]
@@ -323,9 +323,8 @@ class DisjunctiveBlockingScheme(object):
         self.verbose = verbose
         self.block_timer = block_timer
 
-        for blocking_key in blocking_keys:
-            feature = Feature([blocking_key], None)
-            self.features.append(feature)
+        self.blocking_keys = blocking_keys
+        self.features = []
 
     @staticmethod
     def fisher_score(Pf, Nf, i):
@@ -361,33 +360,13 @@ class DisjunctiveBlockingScheme(object):
         return Pp - Nn
 
     def terms(self):
-        count = 0
-        forbidden = []
-        original_features = self.features.copy()
-
-        while count < self.k:
-            Kf = []
-            for index, feature in enumerate(self.features):
-                if feature not in forbidden:
-                    feature.fsc = self.block_metrics(feature)
-                    Kf.append(feature)
-
-            fsc_avg = np.mean([feature.fsc for feature in self.features])
-            Kf = sorted(Kf, key=lambda feature: feature.fsc, reverse=True)
-            for feature in Kf:
-                for original_feature in original_features:
-                    original_signature = original_feature.signature().pop()
-                    if original_signature not in feature.signature():
-                        new_feature = feature.union(original_feature)
-                        if new_feature not in self.features:
-                            # Calculate new scores
-                            new_feature.fsc = self.block_metrics(new_feature)
-                            if new_feature.fsc > fsc_avg:
-                                self.features.append(new_feature)
-
-                forbidden.append(feature)
-
-            count += 1
+        for depth in range(1, self.k + 1):
+            keycombinations = it.combinations(self.blocking_keys, depth)
+            for keycombi in keycombinations:
+                feature = Feature(keycombi, None)
+                # Calculate score
+                feature.fsc = self.block_metrics(feature)
+                self.features.append(feature)
 
     def block_metrics(self, feature):
         if self.verbose:
@@ -418,6 +397,10 @@ class DisjunctiveBlockingScheme(object):
         freq_dis = Counter(block_sizes)
         ngood = sum([freq_dis[b] * b for b in freq_dis.keys() if b > 1 and b < 101])
         nbad = sum([freq_dis[b] * b for b in freq_dis.keys() if b > 100])
+        # In case the blocking key assigns unique keys
+        if ngood == 0:
+            return 0
+
         # If there are too much big blocks disregard
         good_ratio = ngood / (ngood + nbad)
         if self.verbose:
@@ -519,7 +502,8 @@ class DisjunctiveBlockingScheme(object):
 
         Kf = filter(lambda feature: feature.fsc > 0, Kf)
         Kf = sorted(Kf, key=lambda feature: feature.fsc, reverse=True)
-        top_10 = heapq.nlargest(50, Kf, key=lambda feature: feature.fsc)
+        # top_10 = heapq.nlargest(50, Kf, key=lambda feature: feature.fsc)
+        top_10 = Kf
 
         blocking_scheme_candidates = []
         for index in range(3):

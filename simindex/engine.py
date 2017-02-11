@@ -43,7 +43,7 @@ def file_len(fname):
 
 class SimEngine(object):
 
-    def __init__(self, name, indexer=MDySimIII, max_bk_conjunction=1,
+    def __init__(self, name, indexer=MDySimIII, max_bk_conjunction=2,
                  max_positive_labels=None, max_negative_labels=None,
                  threshold=0.0, top_n=0, datadir='.',
                  insert_timer=None, query_timer=None, verbose=False):

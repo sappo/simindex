@@ -67,7 +67,7 @@ def test_engine_restaurant(verbose):
         print("Testing fresh engine (%s) on restaurant dataset:" % indexer.__name__)
         # Test with fresh engine
         engine = SimEngine("restaurant", indexer=indexer, verbose=verbose,
-                           max_bk_conjunction=1,
+                           max_bk_conjunction=2,
                            max_positive_labels=111, max_negative_labels=333)
         gold_csv = "../../master_thesis/datasets/restaurant/restaurant_train_gold.csv"
         engine.read_ground_truth(gold_standard=gold_csv, gold_attributes=["id_1", "id_2"])
