@@ -292,7 +292,9 @@ class MDySimII(object):
                     for id in self.RI[attribute]:
                         accumulator[id] += sim
 
-        del accumulator[q_id]
+        if q_id in accumulator:
+            del accumulator[q_id]
+
         return accumulator
 
     def save(self, name, datadir):
@@ -453,7 +455,9 @@ class MDySimIII(object):
                             for id in BI[encoding][attribute]:
                                 accumulator[id][field] = sim
 
-        del accumulator[q_id]
+        if q_id in accumulator:
+            del accumulator[q_id]
+
         for id, sim_values in accumulator.items():
             accumulator[id] = np.sum(sim_values)
 
