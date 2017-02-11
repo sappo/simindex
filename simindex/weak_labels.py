@@ -502,8 +502,7 @@ class DisjunctiveBlockingScheme(object):
 
         Kf = filter(lambda feature: feature.fsc > 0, Kf)
         Kf = sorted(Kf, key=lambda feature: feature.fsc, reverse=True)
-        # top_10 = heapq.nlargest(50, Kf, key=lambda feature: feature.fsc)
-        top_10 = Kf
+        top_10 = heapq.nlargest(50, Kf, key=lambda feature: feature.fsc)
 
         blocking_scheme_candidates = []
         for index in range(3):
