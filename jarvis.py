@@ -25,6 +25,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         super(JarvisMenu, self).__init__(urwid.SolidFill(u'#'))
         self.box_level = 0
         self.max_box_levels = 4
+        self.edit_mode = False
 
         self.refresh_menu()
 
@@ -81,7 +82,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             height = 34
 
         self.original_widget = \
-            urwid.Overlay(urwid.LineBox(box),
+            urwid.Overlay(urwid.AttrMap(urwid.LineBox(box), 'line'),
                           self.original_widget,
                           align='center', width=('relative', width),
                           valign='middle', height=('relative', height),
@@ -97,16 +98,28 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         self.box_level -= 1
 
     def keypress(self, size, key):
-        if (key == 'esc' or key == 'q') and self.box_level > 1:
-            self.close_box()
-        elif (key == 'esc' or key == 'q') and self.box_level == 1:
-            exit_program(None)
-        elif key == 'j':
-            return super(JarvisMenu, self).keypress(size, "down")
-        elif key == 'k':
-            return super(JarvisMenu, self).keypress(size, "up")
+        if self.edit_mode:
+            if key == 'esc':
+                self.edit_mode = False
+                self.mainloop.screen.register_palette_entry('line', '', '')
+                self.mainloop.screen.clear()
+            else:
+                return super(JarvisMenu, self).keypress(size, key)
         else:
-            return super(JarvisMenu, self).keypress(size, key)
+            if (key == 'esc' or key == 'q') and self.box_level > 1:
+                self.close_box()
+            elif (key == 'esc' or key == 'q') and self.box_level == 1:
+                exit_program(None)
+            elif key == 'i':
+                self.edit_mode = True
+                self.mainloop.screen.register_palette_entry('line', 'dark red', '')
+                self.mainloop.screen.clear()
+            elif key == 'j':
+                return super(JarvisMenu, self).keypress(size, "down")
+            elif key == 'k':
+                return super(JarvisMenu, self).keypress(size, "up")
+            else:
+                return super(JarvisMenu, self).keypress(size, key)
 
     def menu(self, title, choices):
         body = [urwid.Text(title), urwid.Divider()]
@@ -383,27 +396,27 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         ])
 
     def save_plots_comparision(self, button):
-        self.open_box(self.menu('Saving plot...', []), small=True)
+        self.open_box(self.menu('Saving plots...', []), small=True)
         self.mainloop.draw_screen()
         self.close_box()
         self.draw_plots(compare=True, save=True)
         self.open_box(self.menu('Plots have been saved!', []), small=True)
 
     def show_plots_comparision(self, button):
-        self.open_box(self.menu('Rendering plot (close all to continue)', []), small=True)
+        self.open_box(self.menu('Rendering plots (close all to continue)', []), small=True)
         self.mainloop.draw_screen()
         self.draw_plots(compare=True)
         self.close_box()
 
     def save_plots(self, button):
-        self.open_box(self.menu('Saving plot...', []), small=True)
+        self.open_box(self.menu('Saving plots...', []), small=True)
         self.mainloop.draw_screen()
         self.close_box()
         self.draw_plots(save=True)
         self.open_box(self.menu('Plots have been saved!', []), small=True)
 
     def show_plots(self, button):
-        self.open_box(self.menu('Rendering plot (close all to continue)', []), small=True)
+        self.open_box(self.menu('Rendering plots (close all to continue)', []), small=True)
         self.mainloop.draw_screen()
         self.draw_plots()
         self.close_box()
