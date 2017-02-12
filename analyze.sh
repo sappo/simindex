@@ -81,12 +81,12 @@ if [ "$2" == '-b' ]; then
         -o "${reportprefix}/${timestamp}_fit_${dataset}" \
         -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
         -t id -t first_name -t middle_name -t last_name -t city -t state -t zip_code -t street_address -t full_phone_num \
-        -b "0 surname term_id" \
-        -b "0 address_1 tokens" \
-        -b "0 postcode term_id" \
-        -b "1 given_name term_id" \
-        -b "1 date_of_birth term_id" \
-        -b "2 phone_number term_id" \
+        -b "0 last_name term_id" \
+        -b "0 street_address tokens" \
+        -b "0 zip_code term_id" \
+        -b "1 first_name term_id" \
+        -b "1 middle_name term_id" \
+        -b "2 full_phone_num term_id" \
         ${datasetprefix}${dataset}_index.csv \
         ${datasetprefix}${dataset}_train_query.csv \
         ${datasetprefix}${dataset}_train.csv
