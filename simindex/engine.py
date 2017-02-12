@@ -376,7 +376,7 @@ class SimEngine(object):
         possibles.update(locals())
         for predicate in blocking_keys:
             if id != predicate[0]:
-                blocking_scheme.append(Feature([], 0, 0))
+                blocking_scheme.append(Feature([], 0))
 
             feature = blocking_scheme[predicate[0]]
             id = predicate[0]
