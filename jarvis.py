@@ -103,6 +103,9 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                 self.edit_mode = False
                 self.mainloop.screen.register_palette_entry('line', '', '')
                 self.mainloop.screen.clear()
+            elif key == '_':
+                # Forbidden in filenames
+                return
             else:
                 return super(JarvisMenu, self).keypress(size, key)
         else:
