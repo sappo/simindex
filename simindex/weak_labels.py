@@ -422,8 +422,9 @@ class DisjunctiveBlockingScheme(object):
 
                 candidates = BI[block_key]
                 # Generate candidate pairs
-                candidate_pairs = it.combinations(candidates, 2)
-                candidate_pairs = set([frozenset(p) for p in candidate_pairs])
+                cp_list = it.combinations(candidates, 2)
+                candidate_pairs = set([frozenset(p) for p in cp_list])
+                del cp_list
 
                 # Calculate TP, FP, FN
                 block_TP_pairs = candidate_pairs.intersection(self.frozen_P)

@@ -73,7 +73,6 @@ def main(index_file, index_attributes,
     """
     Analyze simindex engine!
     """
-    setup_logging()
     # Sanity check
     if (len(index_attributes) != len(query_attributes)):
         print("Query attribute count must equal index attribute count!")
