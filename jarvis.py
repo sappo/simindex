@@ -80,9 +80,9 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         if small:
             width = 30
             height = 34
-
+        frame = urwid.Frame(box)
         self.original_widget = \
-            urwid.Overlay(urwid.AttrMap(urwid.LineBox(box), '', 'line'),
+            urwid.Overlay(urwid.AttrMap(urwid.LineBox(frame), '', 'line'),
                           self.original_widget,
                           align='center', width=('relative', width),
                           valign='middle', height=('relative', height),
