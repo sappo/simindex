@@ -87,6 +87,17 @@ class WeakLabels(object):
 
         tfidf_1 = dict(self.tfidf_model[bow_t1])
         tfidf_2 = dict(self.tfidf_model[bow_t2])
+
+        # Normalize weights
+        tfidf_1_norm = math.sqrt(sum([math.pow(w, 2) for w in tfidf_1.values()]))
+        for q in tfidf_1.keys():
+            tfidf_1[q] = tfidf_1[q] / tfidf_1_norm
+
+        tfidf_2_norm = math.sqrt(sum([math.pow(w, 2) for w in tfidf_2.values()]))
+        for q in tfidf_2.keys():
+            tfidf_2[q] = tfidf_2[q] / tfidf_2_norm
+
+        # Calculate similarity
         for w1_id in tfidf_1.keys():
             if w1_id in tfidf_2:
                 similarity += tfidf_1[w1_id] * tfidf_2[w1_id]
