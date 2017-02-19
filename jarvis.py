@@ -302,26 +302,27 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
         for indexer, measurements in metrics.items():
             text =  "Index\n"
-            text += "Pair completeness: %f\n" % measurements["pair_completeness"]
-            text += "Reduction ratio:   %f\n" % measurements["reduction_ratio"]
+            text += "Pairs completeness: %f\n" % measurements["pair_completeness"]
+            text += "Pairs  quality:     %f\n" % measurements.get("pairs_quality", float('nan'))
+            text += "Reduction ratio:    %f\n" % measurements["reduction_ratio"]
             columns_data[indexer].append(urwid.Text([text]))
             text =  "Query\n"
-            text += "Recall:            %f\n" % measurements["recall"]
-            text += "Precision:         %f\n" % measurements["precision"]
-            text += "F1-Score:          %f\n" % measurements["f1_score"]
+            text += "Recall:             %f\n" % measurements["recall"]
+            text += "Precision:          %f\n" % measurements["precision"]
+            text += "F1-Score:           %f\n" % measurements["f1_score"]
             columns_data[indexer].append(urwid.Text([text]))
             text =  "Times\n"
-            text += "Build time:        %f\n" % measurements["build_time"]
-            text += "Build time sum:    %f\n" % measurements["build_time_sum"]
-            text += "Query time:        %f\n" % measurements["query_time"]
-            text += "Query time sum:    %f\n" % measurements["query_time_sum"]
-            text += "Inserts mean:      %f\n" % measurements["inserts_mean"]
-            text += "Queries mean:      %f\n" % measurements["queries_mean"]
-            text += "Inserts (s):       %f\n" % measurements["inserts_sec"]
-            text += "Queries (s):       %f\n" % measurements["queries_sec"]
+            text += "Build time:         %f\n" % measurements["build_time"]
+            text += "Build time sum:     %f\n" % measurements["build_time_sum"]
+            text += "Query time:         %f\n" % measurements["query_time"]
+            text += "Query time sum:     %f\n" % measurements["query_time_sum"]
+            text += "Inserts mean:       %f\n" % measurements["inserts_mean"]
+            text += "Queries mean:       %f\n" % measurements["queries_mean"]
+            text += "Inserts (s):        %.0f\n" % measurements["inserts_sec"]
+            text += "Queries (s):        %.0f\n" % measurements["queries_sec"]
             columns_data[indexer].append(urwid.Text([text]))
             text =  "Other\n"
-            text += "Memory peak        %f\n" % measurements["build_memory_peak"]
+            text += "Memory peak (MB)    %.2f\n" % measurements["build_memory_peak"]
             columns_data[indexer].append(urwid.Text([text]))
 
         return columns_data

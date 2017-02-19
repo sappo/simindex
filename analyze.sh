@@ -13,6 +13,7 @@ do
 
     if [ "$2" == '-b' ]; then
         # Fit baseline model once!
+        (
         mprof run analyzer.py \
             --run-type fit -r "${timestamp}" \
             -o "${reportprefix}/${timestamp}_fit_${dataset}" \
@@ -27,8 +28,10 @@ do
             ${datasetprefix}${dataset}_index.csv \
             ${datasetprefix}${dataset}_train_query.csv \
             ${datasetprefix}${dataset}_train.csv
+        ) || exit 1
     else
         # Fit model once!
+        (
         mprof run analyzer.py \
             --run-type fit -r "${timestamp}" \
             -o "${reportprefix}/${timestamp}_fit_${dataset}" \
@@ -37,6 +40,7 @@ do
             ${datasetprefix}${dataset}_index.csv \
             ${datasetprefix}${dataset}_train_query.csv \
             ${datasetprefix}${dataset}_train.csv
+        ) || exit 1
     fi
 
     for indexer in "MDySimII" "MDySimIII" "MDyLSH"
@@ -44,6 +48,7 @@ do
         result_output="${reportprefix}/${timestamp}_${indexer}_${dataset}"
 
         # Build and Query without metrics to get precice memory usage
+        (
         mprof run analyzer.py \
             -i rec_id -i given_name -i surname -i suburb -i state -i postcode -i address_1 -i date_of_birth -i phone_number \
             -q rec_id -q given_name -q surname -q suburb -q state -q postcode -q address_1 -q date_of_birth -q phone_number \
@@ -53,8 +58,10 @@ do
             ${datasetprefix}${dataset}_index.csv \
             ${datasetprefix}${dataset}_train_query.csv \
             ${datasetprefix}${dataset}_train.csv
+        ) || exit 1
 
         # Calculate metrics on dataset
+        (
         python -W ignore analyzer.py \
             -i rec_id -i given_name -i surname -i suburb -i state -i postcode -i address_1 -i date_of_birth -i phone_number \
             -q rec_id -q given_name -q surname -q suburb -q state -q postcode -q address_1 -q date_of_birth -q phone_number \
@@ -65,6 +72,7 @@ do
             ${datasetprefix}${dataset}_index.csv \
             ${datasetprefix}${dataset}_train_query.csv \
             ${datasetprefix}${dataset}_train.csv
+        ) || exit 1
 
     done
 done

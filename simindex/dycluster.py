@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 import os
 import pickle
+import numpy as np
 from time import time
+from functools import partial
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import HashingVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
@@ -548,7 +550,7 @@ class MDyLSH(object):
     def __init__(self, count, dnf_blocking_scheme, similarity_fns,
                  lsh_threshold=0.4, lsh_num_perm=128, verbose=False):
         self.verbose = verbose
-        self.msaai = MultiSimAwareAttributeIndex(dnf_blocking_scheme,
+        self.msaai = MultiSimAwareAttributeIndex(count, dnf_blocking_scheme,
                                                  similarity_fns,
                                                  verbose=verbose)
         # LSH Attributes
@@ -650,7 +652,7 @@ class MDyLSH(object):
 
 class MultiSimAwareAttributeIndex(object):
 
-    def __init__(self, dns_blocking_scheme, similarity_fns, verbose=False):
+    def __init__(self, count, dns_blocking_scheme, similarity_fns, verbose=False):
         self.verbose = verbose
 
         self.FBI = defaultdict(dict)    # Field Block Indicies (FBI)
@@ -660,6 +662,7 @@ class MultiSimAwareAttributeIndex(object):
 
         self.similarity_fns = similarity_fns
         self.dns_blocking_scheme = dns_blocking_scheme
+        self.attribute_count = count
 
     def insert(self, r_id, r_attributes):
         if r_id in self.dataset:
@@ -698,7 +701,7 @@ class MultiSimAwareAttributeIndex(object):
             Compares a query record against a set of candidate records. Returns
             the accumulated attribute score for each candidate.
         """
-        accumulator = {}
+        accumulator = defaultdict(partial(np.zeros, self.attribute_count, np.float))
         q_id = q_record[0]
         q_attributes = q_record[1:]
 
@@ -710,18 +713,15 @@ class MultiSimAwareAttributeIndex(object):
                 continue
 
             c_attributes = self.dataset[c_id]
-            s = 0.
-            for q_attribute, c_attribute in zip(q_attributes, c_attributes):
+            for field, (q_attribute, c_attribute) in enumerate(zip(q_attributes, c_attributes)):
                 if q_attribute == c_attribute:
-                    s += 1.
+                    accumulator[c_id][field] = 1.
                 elif q_attribute in self.SI.keys() and c_attribute in self.SI[q_attribute].keys():
-                    s += self.SI[q_attribute][c_attribute]
+                    accumulator[c_id][field] = round(self.SI[q_attribute][c_attribute], 2)
                 else:
                     # Do not calculate similarity of unkown values. It takes
                     # too much time!
                     pass
-
-            accumulator[c_id] = s
 
         return accumulator
 

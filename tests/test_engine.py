@@ -94,9 +94,11 @@ def test_engine_restaurant(verbose):
         assert engine.indexer.nrecords == 576
 
         # Metrics
-        fresh_pc = engine.pair_completeness()
+        fresh_pc = engine.pairs_completeness()
+        fresh_pq = engine.pairs_quality()
         fresh_rr = engine.reduction_ratio()
         print("Pair completeness:", fresh_pc)
+        print("Pair quality:", fresh_pq)
         print("Reduction ratio:", fresh_rr)
         print("Recall:", engine.recall())
         print("Precision:", engine.precision())
@@ -133,11 +135,14 @@ def test_engine_restaurant(verbose):
                          ["id","name","addr","city","phone","type"])
 
         # Metrics
-        saved_pc = engine.pair_completeness()
+        saved_pc = engine.pairs_completeness()
+        saved_pq = engine.pairs_quality()
         saved_rr = engine.reduction_ratio()
         assert fresh_pc == saved_pc
+        assert fresh_pq == saved_pq
         assert fresh_rr == saved_rr
         print("Pair completeness:", saved_pc)
+        print("Pair quality:", saved_pq)
         print("Reduction ratio:", saved_rr)
         print("Recall:", engine.recall())
         print("Precision:", engine.precision())

@@ -113,7 +113,8 @@ def main(index_file, index_attributes,
         print("##############################################################")
         print("  Fitting training dataset.")
         print("##############################################################")
-        engine = SimEngine(datasetname, datadir=engine_datadir, verbose=True)
+        engine = SimEngine(datasetname, datadir=engine_datadir, verbose=True,
+                           max_bk_conjunction=2)
 
         if len(baseline) > 0:
             baseline_scheme = []
@@ -174,7 +175,7 @@ def main(index_file, index_attributes,
 
         print()
         print("##############################################################")
-        print("  Build and Query without calculating metrics")
+        print("  Build and Query (%s) on %s without calculating metrics" % (indexer, datasetname))
         print("##############################################################")
 
         print()
@@ -202,7 +203,8 @@ def main(index_file, index_attributes,
 
         print()
         print("##############################################################")
-        print("Analyzing engine (%s) on %s dataset:" % (indexer, datasetname))
+        print("  Analyzing engine (%s) on %s dataset:" % (indexer, datasetname))
+        print("##############################################################")
 
         engine = None
         if indexer == "MDySimII":
@@ -268,7 +270,8 @@ def main(index_file, index_attributes,
         print()
         print("------------------------------ 4 -----------------------------")
         print("Metrics.")
-        measurements["pair_completeness"] = engine.pair_completeness()
+        measurements["pair_completeness"] = engine.pairs_completeness()
+        measurements["pairs_quality"] = engine.pairs_quality()
         measurements["reduction_ratio"] = engine.reduction_ratio()
         measurements["recall"] = engine.recall()
         measurements["precision"] = engine.precision()
@@ -278,7 +281,8 @@ def main(index_file, index_attributes,
         measurements["prc_recalls"] = recalls.tolist()
         measurements["prc_thresholds"] = thresholds.tolist()
 
-        print("\tPair completeness:", measurements["pair_completeness"])
+        print("\tPairs completeness:", measurements["pair_completeness"])
+        print("\tPairs quality:", measurements["pairs_quality"])
         print("\tReduction ratio:", measurements["reduction_ratio"])
         print("\tRecall:", measurements["recall"])
         print("\tPrecision:", measurements["precision"])

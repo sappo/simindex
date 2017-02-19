@@ -228,7 +228,7 @@ class MDySimII(object):
 
     def __init__(self, count, dns_blocking_scheme, similarity_fns,
                  normalize=False):
-        self.count = count
+        self.attribute_count = count
         self.dns_blocking_scheme = dns_blocking_scheme
         self.similarity_fns = similarity_fns
 
@@ -275,22 +275,22 @@ class MDySimII(object):
         self.nrecords += 1
 
     def query(self, q_record):
-        accumulator = defaultdict(float)
+        accumulator = defaultdict(partial(np.zeros, self.attribute_count, np.float))
         q_id = q_record[0]
         q_attributes = q_record[1:]
 
         #  Insert new record into index
         self.insert(q_id, q_attributes)
 
-        for q_attribute in q_attributes:
+        for field, q_attribute in enumerate(q_attributes):
             if q_attribute in self.RI:
                 for id in self.RI[q_attribute]:
-                    accumulator[id] += 1.0
+                    accumulator[id][field] = 1.0
 
             if q_attribute in self.SI:
                 for attribute, sim in self.SI[q_attribute].items():
                     for id in self.RI[attribute]:
-                        accumulator[id] += sim
+                        accumulator[id][field] = sim
 
         if q_id in accumulator:
             del accumulator[q_id]
@@ -457,9 +457,6 @@ class MDySimIII(object):
 
         if q_id in accumulator:
             del accumulator[q_id]
-
-        for id, sim_values in accumulator.items():
-            accumulator[id] = np.sum(sim_values)
 
         return accumulator
 

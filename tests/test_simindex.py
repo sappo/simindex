@@ -14,6 +14,7 @@ from .testhelper import has_common_token, tokens
 from .testdata import restaurant_records
 
 from pprint import pprint
+import numpy as np
 
 # from contextlib import contextmanager
 from click.testing import CliRunner
@@ -93,7 +94,7 @@ def test_mdysimII():
     s.insert(restaurant_records[0][0], restaurant_records[0][1:])
     s.insert(restaurant_records[1][0], restaurant_records[1][1:])
     result = s.query(restaurant_records[1])
-    assert result == {"0": 1.96}
+    assert np.equal(result["0"] ,np.array([0.96, 1.0])).all()
     assert s.RI == {"mario's pizza": {"0"},
                     "marios pizza": {"1"},
                     "italian": {"0", "1"}}
@@ -120,7 +121,7 @@ def test_mdysimIII():
     s.insert(restaurant_records[0][0], restaurant_records[0][1:])
     s.insert(restaurant_records[1][0], restaurant_records[1][1:])
     result = s.query(restaurant_records[1])
-    assert result == {"0": 1.96}
+    assert np.equal(result["0"] ,np.array([0.96, 1.0])).all()
     assert s.FBI[0] == {"mario'sitalian": {"mario's pizza": {'0'}},
                         'mariositalian': {'marios pizza': {'1'}},
                         'pizzaitalian': {"mario's pizza": {'0'},

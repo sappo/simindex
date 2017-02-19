@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import subprocess
+import numpy as np
 import pandas as pd
 import itertools as it
 import psutil
@@ -70,13 +71,29 @@ def prepare_record_fitting(dataset, ground_truth):
 
     return X, y
 
+def matches_count(q_id, result, gold_records):
+    count = 0
+    if q_id in gold_records.keys():
+        for r_id in result.keys():
+            if r_id in gold_records[q_id]:
+                count += 1
+
+    return count
+
+
+def all_matches_count(id, gold_records):
+    if id in gold_records.keys():
+        return len(gold_records[id])
+    else:
+        return 0
+
 
 def calc_micro_scores(q_id, result, y_true, y_score, gold_records):
-    # Only consider querys with relevant records
+    # Only consider querys with relevant records this disregards
+    # True negatives (TN)
     if q_id in gold_records.keys():
-        # Disregards True negatives (TN)
         for result_id in result.keys():
-                result_score = result[result_id]
+                result_score = np.sum(result[result_id])
                 y_score.append(result_score)
                 if result_id in gold_records[q_id]:
                     # True Positive (TP)
@@ -92,9 +109,9 @@ def calc_micro_scores(q_id, result, y_true, y_score, gold_records):
 
 
 def calc_micro_metrics(q_id, result, y_true, y_pred, gold_records):
-    # Only consider querys with relevant records
+    # Only consider querys with relevant records this disregards
+    # True negatives (TN)
     if q_id in gold_records.keys():
-        # Disregards True negatives (TN)
         for result_id in result.keys():
                 y_pred.append(1)
                 if result_id in gold_records[q_id]:
@@ -132,10 +149,8 @@ def file_len(filename):
 
 
 def merge_sum(collector, *dicts):
-    print(collector)
     for d in dicts:
         for k, v in d.items():
-            print(k)
             collector[k] += v
 
 

@@ -13,6 +13,7 @@ from .testprofiler import profile
 from .testdata import restaurant_records
 from .testhelper import tokens
 
+import numpy as np
 from pprint import pprint
 from difflib import SequenceMatcher
 
@@ -120,11 +121,11 @@ def test_MultiSimAwareAttributeIndex():
            Feature([BlockingKey(0, tokens)], 0.),
            Feature([BlockingKey(1, tokens)], 0.)]
 
-    msaai = MultiSimAwareAttributeIndex(dnf, [__compare, __compare])
+    msaai = MultiSimAwareAttributeIndex(2, dnf, [__compare, __compare])
 
     msaai.insert(restaurant_records[0][0], restaurant_records[0][1:])
     result = msaai.query(restaurant_records[1], ["0"])
-    assert result == {"0": 1.96}
+    assert np.equal(result["0"], np.array([0.96, 1.0])).all()
     assert msaai.FBI[0] == {"mario'sitalian": {"mario's pizza"},
                            'mariositalian': {'marios pizza'},
                            'pizzaitalian': {"mario's pizza", 'marios pizza'},
@@ -140,8 +141,10 @@ def test_MultiSimAwareAttributeIndex():
 
     msaai.insert(restaurant_records[4][0], restaurant_records[4][1:])
     result = msaai.query(restaurant_records[1], ["0"])
+    assert np.equal(result["0"], np.array([0.96, 1.0])).all()
     result = msaai.query(restaurant_records[5], ["4"])
-    assert result == {"4": 1.8727272727272726}
+    print(result["4"])
+    assert np.equal(result["4"], np.array([0.87, 1.])).all()
     assert msaai.FBI[0] == {"mario'sitalian": {"mario's pizza"},
                            'mariositalian': {'marios pizza'},
                            'pizzaitalian': {"mario's pizza", 'marios pizza'},

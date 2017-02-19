@@ -7,7 +7,7 @@ import json
 from pprint import pprint
 
 from collections import defaultdict, Counter
-import sklearn.metrics as skm
+import sklearn as skm
 
 from .dysim import MDySimIII
 from .weak_labels import WeakLabels, \
@@ -43,7 +43,8 @@ def file_len(fname):
 
 class SimEngine(object):
 
-    def __init__(self, name, indexer=MDySimIII, max_bk_conjunction=2,
+    def __init__(self, name, indexer=MDySimIII, classifier=None,
+                 max_bk_conjunction=2,
                  max_positive_labels=None, max_negative_labels=None,
                  threshold=0.0, top_n=0, datadir='.',
                  insert_timer=None, query_timer=None, verbose=False):
@@ -55,6 +56,7 @@ class SimEngine(object):
         self.indexdatastore_name = "%s/.%s_indexdata.h5" % (self.datadir, self.name)
         self.querydatastore_name = "%s/.%s_querydata.h5" % (self.datadir, self.name)
         self.indexer_class = indexer
+        self.classifier_class = classifier
         self.attribute_count = None
         self.stoplist = set('for a of the and to in'.split())
         self.max_bk_conjunction = max_bk_conjunction
@@ -64,7 +66,10 @@ class SimEngine(object):
         self.threshold = threshold
         self.top_n = top_n
 
-        self.reductionratio = None
+        self.true_matches = 0
+        self.true_nonmatches = 0
+        self.total_matches = 0
+        self.total_nonmatches = 0
         self.insert_timer = insert_timer
         self.query_timer = query_timer
         self.verbose = verbose
@@ -118,6 +123,7 @@ class SimEngine(object):
 
     @profile
     def fit(self, records):
+        # Load Data
         dataset = {}
         for record in records:
             if self.attribute_count is None:
@@ -129,7 +135,7 @@ class SimEngine(object):
         if self.verbose:
             logger.info("Dataset has %d records" % len(dataset))
 
-        #  Predict labels
+        # Predict labels
         P, N = self.load_labels()
         if P is None and N is None:
             if not self.gold_pairs:
@@ -197,6 +203,66 @@ class SimEngine(object):
             logger.info("Predicted the following similarities:")
             pprint(self.similarities)
 
+        # Train classifier
+        similarity_fns = []
+        for measure in SimLearner.strings_to_prediction(self.similarities):
+            similarity_fns.append(measure().compare)
+
+        fields = set()
+        for blocking_key in self.blocking_scheme:
+            fields.update(blocking_key.covered_fields())
+
+        tuned_parameters = [
+                {'kernel': ['linear'], 'C': [1, 10, 100, 1000]},
+                {'kernel': ['rbf'], 'gamma': [1e-3, 1e-4], 'C': [1, 10, 100, 1000]},
+                {'kernel': ['poly'], 'C': [1, 10, 100, 1000]},
+                {'kernel': ['sigmoid'], 'C': [1, 10, 100, 1000]}
+        ]
+        self.clf = skm.model_selection.GridSearchCV(skm.svm.SVC(class_weight='balanced'),
+                                                    tuned_parameters, cv=3)
+                                                    #scoring="recall_macro")
+        X = []
+        y = []
+        for pair in P:
+            x = np.zeros(self.attribute_count, np.float)
+            p1_attributes = dataset[pair.t1]
+            p2_attributes = dataset[pair.t2]
+            for field, (p1_attribute, p2_attribute) in enumerate(zip(p1_attributes, p2_attributes)):
+                if field in fields:
+                    x[field] = similarity_fns[field](p1_attribute, p2_attribute)
+                else:
+                    x[field] = 0
+
+            X.append(x)
+            y.append(1)
+
+        for pair in N:
+            x = np.zeros(self.attribute_count, np.float)
+            p1_attributes = dataset[pair.t1]
+            p2_attributes = dataset[pair.t2]
+            for field, (p1_attribute, p2_attribute) in enumerate(zip(p1_attributes, p2_attributes)):
+                if field in fields:
+                    x[field] = similarity_fns[field](p1_attribute, p2_attribute)
+                else:
+                    x[field] = 0
+
+            X.append(x)
+            y.append(0)
+
+        self.clf.fit(X, y)
+        print("Best parameters set found on development set:")
+        print()
+        print(self.clf.best_params_)
+        print()
+        print("Grid scores on development set:")
+        print()
+        means = self.clf.cv_results_['mean_test_score']
+        stds = self.clf.cv_results_['std_test_score']
+        for mean, std, params in zip(means, stds, self.clf.cv_results_['params']):
+            print("%0.3f (+/-%0.03f) for %r"
+                  % (mean, std * 2, params))
+        print()
+
         # Cleanup
         del dataset
         del P, N
@@ -247,22 +313,24 @@ class SimEngine(object):
             # Run Query
             result = self.indexer.query(q_record)
 
-            # Calculate reduction ratio
-            query_reduction_ratio = 1 - len(result)/self.indexer.nrecords
-            if self.reductionratio:
-                self.reductionratio = np.mean([self.reductionratio,
-                                                query_reduction_ratio])
-            else:
-                self.reductionratio = query_reduction_ratio
+            # Calculate complexity metrics
+            if self.gold_records:
+                q_id = q_record[0]
+                matches_count = hp.matches_count(q_id, result, self.gold_records)
+                all_matches_count = hp.all_matches_count(q_id, self.gold_records)
+                self.true_matches += matches_count
+                self.true_nonmatches += len(result) - matches_count
+                self.total_matches += all_matches_count
+                self.total_nonmatches += self.indexer.nrecords - 1 - all_matches_count
 
-            # Apply filters
-            if self.threshold > 0:
-                result = {k: v for k, v in result.items() if v > self.threshold}
 
-            if self.top_n > 0:
-                result = dict(Counter(result).most_common(self.top_n))
+            # Apply classifier
+            for candidate in list(result.keys()):
+                prediction = self.clf.predict([result[candidate]])[0]
+                if prediction == 0:
+                    del result[candidate]
 
-            # Calculate ground truth metrics
+            # Calculate quality metrics
             if self.gold_records:
                 q_id = q_record[0]
                 hp.calc_micro_scores(q_id, result, self.y_true_score,
@@ -294,7 +362,10 @@ class SimEngine(object):
         self.y_true = []
         self.y_pred = []
 
-    def pair_completeness(self):
+    def pairs_completeness(self):
+        if self.gold_pairs:
+            return self.true_matches / self.total_matches
+
         with pd.HDFStore(self.traindatastore_name) as store:
             gold_ids = list(hp.flatten(self.gold_pairs))
             query = "index == %r" % gold_ids
@@ -304,23 +375,31 @@ class SimEngine(object):
 
         return self.indexer.pair_completeness(self.gold_pairs, dataset)
 
+    def pairs_quality(self):
+        return self.true_matches / (self.true_matches + self.true_nonmatches)
+
     def reduction_ratio(self):
-        return self.reductionratio
+        return 1 - (
+                    (self.true_matches + self.true_nonmatches) /
+                    (self.total_matches + self.total_nonmatches)
+                   )
 
     def recall(self):
-        return skm.recall_score(self.y_true, self.y_pred)
+        return skm.metrics.recall_score(self.y_true, self.y_pred)
 
     def precision(self):
-        return skm.precision_score(self.y_true, self.y_pred)
+        return skm.metrics.precision_score(self.y_true, self.y_pred)
 
     def f1_score(self):
-        return skm.f1_score(self.y_true, self.y_pred)
+        return skm.metrics.f1_score(self.y_true, self.y_pred)
 
     def precision_recall_curve(self):
-        return skm.precision_recall_curve(self.y_true_score, self.y_scores)
+        print(self.y_true_score)
+        print(self.y_scores)
+        return skm.metrics.precision_recall_curve(self.y_true_score, self.y_scores)
 
     def roc_curve(self):
-        return skm.roc_curve(self.y_true_score, self.y_scores)
+        return skm.metrics.roc_curve(self.y_true_score, self.y_scores)
 
     def save_labels(self, P, N):
         with pd.HDFStore(self.configstore_name,
