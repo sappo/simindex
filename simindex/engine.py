@@ -213,10 +213,10 @@ class SimEngine(object):
             fields.update(blocking_key.covered_fields())
 
         tuned_parameters = [
-                {'kernel': ['linear'], 'C': [1, 10, 100, 1000]},
-                {'kernel': ['rbf'], 'gamma': [1e-3, 1e-4], 'C': [1, 10, 100, 1000]},
-                {'kernel': ['poly'], 'C': [1, 10, 100, 1000]},
-                {'kernel': ['sigmoid'], 'C': [1, 10, 100, 1000]}
+                {'kernel': ['linear'], 'C': [1, 10, 100]},
+                {'kernel': ['rbf'], 'gamma': [1e-3, 1e-4], 'C': [1, 10, 100]},
+                {'kernel': ['poly'], 'C': [1, 10, 100]},
+                {'kernel': ['sigmoid'], 'C': [1, 10, 100]}
         ]
         self.clf = skm.model_selection.GridSearchCV(skm.svm.SVC(class_weight='balanced'),
                                                     tuned_parameters, cv=3)
