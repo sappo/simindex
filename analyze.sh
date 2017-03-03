@@ -18,7 +18,7 @@ do
             --run-type fit -r "${timestamp}" \
             -o "${reportprefix}/${timestamp}_fit_${dataset}" \
             -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
-            -t rec_id -t given_name -t surname -t suburb -t state -t postcode -t address_1 -t date_of_birth -t phone_number \
+            -t rec_id -t date_of_birth -t given_name -t surname -t state -t suburb -t postcode -t address_1 -t phone_number \
             -b "0 surname term_id" \
             -b "0 address_1 tokens" \
             -b "0 postcode term_id" \
@@ -36,7 +36,7 @@ do
             --run-type fit -r "${timestamp}" \
             -o "${reportprefix}/${timestamp}_fit_${dataset}" \
             -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
-            -t rec_id -t given_name -t surname -t suburb -t state -t postcode -t address_1 -t date_of_birth -t phone_number \
+            -t rec_id -t date_of_birth -t given_name -t surname -t state -t suburb -t postcode -t address_1 -t phone_number \
             ${datasetprefix}${dataset}_index.csv \
             ${datasetprefix}${dataset}_train_query.csv \
             ${datasetprefix}${dataset}_train.csv
@@ -88,7 +88,7 @@ if [ "$2" == '-b' ]; then
         --run-type fit -r "${timestamp}" \
         -o "${reportprefix}/${timestamp}_fit_${dataset}" \
         -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
-        -t id -t first_name -t middle_name -t last_name -t city -t state -t zip_code -t street_address -t full_phone_num \
+        -t id -t first_name -t middle_name -t last_name -t street_address -t city -t state -t zip_code -t full_phone_num \
         -b "0 last_name term_id" \
         -b "0 street_address tokens" \
         -b "0 zip_code term_id" \
@@ -104,7 +104,7 @@ else
         --run-type fit -r "${timestamp}" \
         -o "${reportprefix}/${timestamp}_fit_${dataset}" \
         -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
-        -t id -t first_name -t middle_name -t last_name -t city -t state -t zip_code -t street_address -t full_phone_num \
+        -t id -t first_name -t middle_name -t last_name -t street_address -t city -t state -t zip_code -t full_phone_num \
         ${datasetprefix}${dataset}_index.csv \
         ${datasetprefix}${dataset}_train_query.csv \
         ${datasetprefix}${dataset}_train.csv
