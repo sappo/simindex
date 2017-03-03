@@ -408,6 +408,8 @@ class MDySimIII(object):
                 for blocking_key in feature.blocking_keys:
                     field = blocking_key.field
                     attribute = r_attributes[field]
+                    if not attribute:
+                        continue    # Do not block on empty attributes
 
                     BI = self.FBI[field]
                     if encoding not in BI.keys():
@@ -444,6 +446,9 @@ class MDySimIII(object):
                 for field in feature.covered_fields():
                     BI = self.FBI[field]
                     q_attribute = q_attributes[field]
+                    if not q_attribute:
+                        continue    # Empty attributes are not blocked
+
                     for attribute in BI[encoding].keys():
                         # print("Added %d for %r in %r" %
                                 # (len(BI[encoding][attribute]), attribute, encoding))

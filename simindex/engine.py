@@ -204,64 +204,63 @@ class SimEngine(object):
             pprint(self.similarities)
 
         # Train classifier
-        similarity_fns = []
-        for measure in SimLearner.strings_to_prediction(self.similarities):
-            similarity_fns.append(measure().compare)
+        self.clf = self.load_model()
+        if self.clf is None:
+            similarity_fns = []
+            for measure in SimLearner.strings_to_prediction(self.similarities):
+                similarity_fns.append(measure().compare)
 
-        fields = set()
-        for blocking_key in self.blocking_scheme:
-            fields.update(blocking_key.covered_fields())
+            fields = set()
+            for blocking_key in self.blocking_scheme:
+                fields.update(blocking_key.covered_fields())
 
-        tuned_parameters = [
-                {'kernel': ['linear'], 'C': [1, 10, 100]},
-                {'kernel': ['rbf'], 'gamma': [1e-3, 1e-4], 'C': [1, 10, 100]},
-                {'kernel': ['poly'], 'C': [1, 10, 100]},
-                {'kernel': ['sigmoid'], 'C': [1, 10, 100]}
-        ]
-        self.clf = skm.model_selection.GridSearchCV(skm.svm.SVC(class_weight='balanced'),
-                                                    tuned_parameters, cv=3)
-                                                    #scoring="recall_macro")
-        X = []
-        y = []
-        for pair in P:
-            x = np.zeros(self.attribute_count, np.float)
-            p1_attributes = dataset[pair.t1]
-            p2_attributes = dataset[pair.t2]
-            for field, (p1_attribute, p2_attribute) in enumerate(zip(p1_attributes, p2_attributes)):
-                if field in fields:
-                    x[field] = similarity_fns[field](p1_attribute, p2_attribute)
-                else:
-                    x[field] = 0
+            tuned_parameters = [
+                    {'kernel': ['linear'], 'C': [0.1, 1, 10, 100]},
+                    # {'kernel': ['rbf'], 'gamma': [1e-3, 1e-4], 'C': [0.1, 1, 10, 100]},
+                    {'kernel': ['poly'], 'C': [0.1, 1, 10, 100]},
+                    {'kernel': ['sigmoid'], 'C': [0.1, 1, 10, 100]}
+            ]
+            self.clf = skm.model_selection.GridSearchCV(
+                    skm.svm.SVC(class_weight={0: 0.75, 1: 0.25}),
+                    tuned_parameters, scoring='f1')
+            X = []
+            y = []
+            for pair in P:
+                x = np.zeros(self.attribute_count, np.float)
+                p1_attributes = dataset[pair.t1]
+                p2_attributes = dataset[pair.t2]
+                for field, (p1_attribute, p2_attribute) in enumerate(zip(p1_attributes, p2_attributes)):
+                    if field in fields and p1_attribute and p2_attribute:
+                        x[field] = similarity_fns[field](p1_attribute, p2_attribute)
 
-            X.append(x)
-            y.append(1)
+                X.append(x)
+                y.append(1)
 
-        for pair in N:
-            x = np.zeros(self.attribute_count, np.float)
-            p1_attributes = dataset[pair.t1]
-            p2_attributes = dataset[pair.t2]
-            for field, (p1_attribute, p2_attribute) in enumerate(zip(p1_attributes, p2_attributes)):
-                if field in fields:
-                    x[field] = similarity_fns[field](p1_attribute, p2_attribute)
-                else:
-                    x[field] = 0
+            for pair in N:
+                x = np.zeros(self.attribute_count, np.float)
+                p1_attributes = dataset[pair.t1]
+                p2_attributes = dataset[pair.t2]
+                for field, (p1_attribute, p2_attribute) in enumerate(zip(p1_attributes, p2_attributes)):
+                    if field in fields and p1_attribute and p2_attribute:
+                        x[field] = similarity_fns[field](p1_attribute, p2_attribute)
 
-            X.append(x)
-            y.append(0)
+                X.append(x)
+                y.append(0)
 
-        self.clf.fit(X, y)
-        print("Best parameters set found on development set:")
-        print()
-        print(self.clf.best_params_)
-        print()
-        print("Grid scores on development set:")
-        print()
-        means = self.clf.cv_results_['mean_test_score']
-        stds = self.clf.cv_results_['std_test_score']
-        for mean, std, params in zip(means, stds, self.clf.cv_results_['params']):
-            print("%0.3f (+/-%0.03f) for %r"
-                  % (mean, std * 2, params))
-        print()
+            self.clf.fit(X, y)
+            self.save_model()
+            print("Best parameters set found on development set:")
+            print()
+            print(self.clf.best_params_)
+            print()
+            print("Grid scores on development set:")
+            print()
+            means = self.clf.cv_results_['mean_test_score']
+            stds = self.clf.cv_results_['std_test_score']
+            for mean, std, params in zip(means, stds, self.clf.cv_results_['params']):
+                print("%0.3f (+/-%0.03f) for %r"
+                      % (mean, std * 2, params))
+            print()
 
         # Cleanup
         del dataset
