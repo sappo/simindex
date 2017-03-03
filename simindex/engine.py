@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import pickle
 import subprocess
 import pandas as pd
 import numpy as np
@@ -44,9 +45,8 @@ def file_len(fname):
 class SimEngine(object):
 
     def __init__(self, name, indexer=MDySimIII, classifier=None,
-                 max_bk_conjunction=2,
+                 max_bk_conjunction=2, datadir='.',
                  max_positive_labels=None, max_negative_labels=None,
-                 threshold=0.0, top_n=0, datadir='.',
                  insert_timer=None, query_timer=None, verbose=False):
         self.name = name
         self.datadir = datadir.strip('/')
@@ -61,11 +61,11 @@ class SimEngine(object):
         self.stoplist = set('for a of the and to in'.split())
         self.max_bk_conjunction = max_bk_conjunction
 
+        # WeakLabels parameters
         self.max_p = max_positive_labels
         self.max_n = max_negative_labels
-        self.threshold = threshold
-        self.top_n = top_n
 
+        # Evaluation attributes
         self.true_matches = 0
         self.true_nonmatches = 0
         self.total_matches = 0
@@ -322,7 +322,6 @@ class SimEngine(object):
                 self.total_matches += all_matches_count
                 self.total_nonmatches += self.indexer.nrecords - 1 - all_matches_count
 
-
             # Apply classifier
             for candidate in list(result.keys()):
                 prediction = self.clf.predict([result[candidate]])[0]
@@ -393,8 +392,6 @@ class SimEngine(object):
         return skm.metrics.f1_score(self.y_true, self.y_pred)
 
     def precision_recall_curve(self):
-        print(self.y_true_score)
-        print(self.y_scores)
         return skm.metrics.precision_recall_curve(self.y_true_score, self.y_scores)
 
     def roc_curve(self):
@@ -485,3 +482,15 @@ class SimEngine(object):
                                                                "similarities")]
             else:
                 return None
+
+    def save_model(self):
+        with open("%s/.%s_model.cls" % (self.datadir, self.name), "wb") as handle:
+            pickle.dump(self.clf, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def load_model(self):
+        model_filename = "%s/.%s_model.cls" % (self.datadir, self.name)
+        if os.path.exists(model_filename):
+            with open(model_filename, "rb") as handle:
+                return pickle.load(handle)
+        else:
+            return None

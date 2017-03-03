@@ -435,7 +435,7 @@ class MDySimIII(object):
         q_attributes = q_record[1:]
         accumulator = defaultdict(partial(np.zeros, self.attribute_count, np.float))
 
-        #  Insert new record into index
+        # Insert new record into index
         self.insert(q_id, q_attributes)
 
         # for q_attribute in q_attributes:
