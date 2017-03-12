@@ -210,20 +210,20 @@ class WeakLabels(object):
         return P, N
 
     @staticmethod
-    def filter(fPDisj, P, N):
+    def filter(blocking_scheme, P, N):
         # filtered_P = []
         # for index, pair in enumerate(P):
-            # for feature in fPDisj:
-                # if feature.pv[index] == 1:
-                    # filtered_P.append(pair)
-                    # break
+        #     for feature in blocking_scheme:
+        #         if feature.pv[index] == 1:
+        #             filtered_P.append(pair)
+        #             break
 
         # filtered_N = []
         # for index, pair in enumerate(N):
-            # for feature in fPDisj:
-                # if feature.nv[index] == 1:
-                    # filtered_N.append(pair)
-                    # break
+        #     for feature in blocking_scheme:
+        #         if feature.nv[index] == 1:
+        #             filtered_N.append(pair)
+        #             break
 
         return P, N
 

@@ -217,16 +217,16 @@ class SimEngine(object):
                 fields.update(blocking_key.covered_fields())
 
             tuned_parameters = [
-                    {'kernel': ['linear'], 'C': [0.1, 1, 10, 100]},
-                    # {'kernel': ['rbf'], 'gamma': [1e-3, 1e-4], 'C': [0.1, 1, 10, 100]},
-                    {'kernel': ['poly'], 'C': [0.1, 1, 10, 100]},
-                    {'kernel': ['sigmoid'], 'C': [0.1, 1, 10, 100]}
+                    {'kernel': ['linear'],  'C': [0.1, 1, 10, 100, 1000]},
+                    {'kernel': ['rbf'],     'C': [0.1, 1, 10, 100, 1000]},
+                    # {'kernel': ['poly'],    'C': [0.1, 1, 10, 100, 1000]},
+                    # {'kernel': ['sigmoid'], 'C': [0.1, 1, 10, 100, 1000]}
             ]
             self.clf = skm.model_selection.GridSearchCV(
-                    skm.svm.SVC(class_weight={0: 0.75, 1: 0.25}),
-                    tuned_parameters, scoring='f1')
-            X = []
-            y = []
+                    skm.svm.SVC(C=1, class_weight='balanced'),
+                    tuned_parameters, scoring='f1_macro', refit=False)
+            X_P = []
+            y_P = []
             for pair in P:
                 x = np.zeros(self.attribute_count, np.float)
                 p1_attributes = dataset[pair.t1]
@@ -235,9 +235,11 @@ class SimEngine(object):
                     if field in fields and p1_attribute and p2_attribute:
                         x[field] = similarity_fns[field](p1_attribute, p2_attribute)
 
-                X.append(x)
-                y.append(1)
+                X_P.append(x)
+                y_P.append(1)
 
+            X_N = []
+            y_N = []
             for pair in N:
                 x = np.zeros(self.attribute_count, np.float)
                 p1_attributes = dataset[pair.t1]
@@ -246,14 +248,37 @@ class SimEngine(object):
                     if field in fields and p1_attribute and p2_attribute:
                         x[field] = similarity_fns[field](p1_attribute, p2_attribute)
 
-                X.append(x)
-                y.append(0)
+                X_N.append(x)
+                y_N.append(0)
 
-            self.clf.fit(X, y)
-            self.save_model()
+            # Shrink training set to max 5000 samples
+            # P
+            X_train = []
+            y_train = []
+            P_samples = min(1000, len(X_P))
+            choices = np.random.choice(np.arange(len(X_P)), size=P_samples, replace=False)
+            for choice in choices:
+                X_train.append(X_P[choice])
+                y_train.append(y_P[choice])
+
+            N_samples = min(4000, len(X_N))
+            choices = np.random.choice(np.arange(len(X_N)), size=N_samples, replace=False)
+            for choice in choices:
+                X_train.append(X_N[choice])
+                y_train.append(y_N[choice])
+
+            X_P.extend(X_N)
+            y_P.extend(y_N)
+            X = X_P
+            y = y_P
+            assert len(X_train) < 5001
+            assert len(y_train) < 5001
+
+            self.clf.fit(X_train, y_train)
             print("Best parameters set found on development set:")
             print()
-            print(self.clf.best_params_)
+            self.clf_best_params = self.clf.best_params_
+            print(self.clf_best_params)
             print()
             print("Grid scores on development set:")
             print()
@@ -263,6 +288,10 @@ class SimEngine(object):
                 print("%0.3f (+/-%0.03f) for %r"
                       % (mean, std * 2, params))
             print()
+            self.clf = skm.svm.SVC(kernel=self.clf_best_params['kernel'],
+                                   C=self.clf_best_params['C'], class_weight='balanced')
+            self.clf.fit(X, y)
+            self.save_model()
 
         # Cleanup
         del dataset
