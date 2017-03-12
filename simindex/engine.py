@@ -278,6 +278,7 @@ class SimEngine(object):
             print("Best parameters set found on development set:")
             print()
             self.clf_best_params = self.clf.best_params_
+            self.clf_best_score = self.clf.best_score_
             print(self.clf_best_params)
             print()
             print("Grid scores on development set:")

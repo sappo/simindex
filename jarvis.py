@@ -300,10 +300,6 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             columns_data[indexer].append(urwid.Divider())
             columns_data[indexer].append(urwid.Divider())
 
-        model_report = "%s/%s_fit_%s" % (self.prefix, self.run, self.dataset)
-        with open(model_report) as fp:
-            model = json.load(fp)
-
         for indexer, measurements in metrics.items():
             text =  "Index\n"
             text += "Pairs completeness: %f\n" % measurements["pair_completeness"]
@@ -326,8 +322,9 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             text += "Queries (s):        %.0f\n" % measurements["queries_sec"]
             columns_data[indexer].append(urwid.Text([text]))
             text =  "Other\n"
-            text += "Memory peak (MB)    %.2f\n" % measurements["build_memory_peak"]
-            text += "Best Params (CLF)   %s"     % model.get("best_params", "N/A")
+            text += "Memory peak (MB)    %.2f\n" % measurements.get("build_memory_peak", "N/A")
+            text += "Best Params (CLF)   %s\n"   % measurements['model'].get("best_params", "N/A")
+            text += "Best Score (CLF)    %s"     % measurements['model'].get("best_score", "N/A")
             columns_data[indexer].append(urwid.Text([text]))
 
         return columns_data
@@ -381,6 +378,12 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             run = self.run
             dataset = self.dataset
 
+        model = ""
+        for resultfile in glob.glob("%s/%s*%s" % (prefix, run, dataset)):
+            if resultfile.count("fit"):
+                with open(resultfile) as fp:
+                    model = json.load(fp)
+
         for resultfile in glob.glob("%s/%s*%s" % (prefix, run, dataset)):
             if resultfile.count("fit"):
                 continue
@@ -390,6 +393,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
             indexer_dataset = resultfile[resultfile.index('_') + 1:]
             indexer = indexer_dataset[:indexer_dataset.index('_')]
+            measurements['model'] = model
             metrics[indexer] = measurements
 
         return metrics
