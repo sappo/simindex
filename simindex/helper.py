@@ -54,7 +54,6 @@ def hdf_records(store, group, query=None):
 
     frames = store.select(group, where=query, iterator=True, chunksize=50000)
     for df in frames:
-
         df.fillna('', inplace=True)
         for record in df.to_records():
             yield list(record)

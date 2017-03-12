@@ -174,6 +174,7 @@ class SimEngine(object):
                 blocking_keys.append(BlockingKey(field, term_id))
 
             dbs = DisjunctiveBlockingScheme(blocking_keys, P, N,
+                                            self.indexer_class,
                                             self.max_bk_conjunction,
                                             verbose=self.verbose)
             self.blocking_scheme = dbs.transform(dataset)
@@ -212,9 +213,43 @@ class SimEngine(object):
             for measure in SimLearner.strings_to_prediction(self.similarities):
                 similarity_fns.append(measure().compare)
 
-            fields = set()
-            for blocking_key in self.blocking_scheme:
-                fields.update(blocking_key.covered_fields())
+            X_P = []
+            y_P = []
+            for pair in P:
+                x = np.zeros(self.attribute_count, np.float)
+                for blocking_key in self.blocking_scheme:
+                    p1_attributes = dataset[pair.t1]
+                    p2_attributes = dataset[pair.t2]
+                    p1_bkvs = blocking_key.blocking_key_values(p1_attributes)
+                    p2_bkvs = blocking_key.blocking_key_values(p2_attributes)
+                    if not p1_bkvs.isdisjoint(p2_bkvs):
+                        for field in blocking_key.covered_fields():
+                            p1_attribute = p1_attributes[field]
+                            p2_attribute = p2_attributes[field]
+                            if p1_attribute and p2_attribute:
+                                x[field] = similarity_fns[field](p1_attribute, p2_attribute)
+
+                X_P.append(x)
+                y_P.append(1)
+
+            X_N = []
+            y_N = []
+            for pair in N:
+                x = np.zeros(self.attribute_count, np.float)
+                for blocking_key in self.blocking_scheme:
+                    p1_attributes = dataset[pair.t1]
+                    p2_attributes = dataset[pair.t2]
+                    p1_bkvs = blocking_key.blocking_key_values(p1_attributes)
+                    p2_bkvs = blocking_key.blocking_key_values(p2_attributes)
+                    if not p1_bkvs.isdisjoint(p2_bkvs):
+                        for field in blocking_key.covered_fields():
+                            p1_attribute = p1_attributes[field]
+                            p2_attribute = p2_attributes[field]
+                            if p1_attribute and p2_attribute:
+                                x[field] = similarity_fns[field](p1_attribute, p2_attribute)
+
+                X_N.append(x)
+                y_N.append(0)
 
             tuned_parameters = [
                     {'kernel': ['linear'],  'C': [0.1, 1, 10, 100, 1000]},
@@ -225,32 +260,6 @@ class SimEngine(object):
             self.clf = skm.model_selection.GridSearchCV(
                     skm.svm.SVC(C=1, class_weight='balanced'),
                     tuned_parameters, scoring='f1_macro', refit=False)
-            X_P = []
-            y_P = []
-            for pair in P:
-                x = np.zeros(self.attribute_count, np.float)
-                p1_attributes = dataset[pair.t1]
-                p2_attributes = dataset[pair.t2]
-                for field, (p1_attribute, p2_attribute) in enumerate(zip(p1_attributes, p2_attributes)):
-                    if field in fields and p1_attribute and p2_attribute:
-                        x[field] = similarity_fns[field](p1_attribute, p2_attribute)
-
-                X_P.append(x)
-                y_P.append(1)
-
-            X_N = []
-            y_N = []
-            for pair in N:
-                x = np.zeros(self.attribute_count, np.float)
-                p1_attributes = dataset[pair.t1]
-                p2_attributes = dataset[pair.t2]
-                for field, (p1_attribute, p2_attribute) in enumerate(zip(p1_attributes, p2_attributes)):
-                    if field in fields and p1_attribute and p2_attribute:
-                        x[field] = similarity_fns[field](p1_attribute, p2_attribute)
-
-                X_N.append(x)
-                y_N.append(0)
-
             # Shrink training set to max 5000 samples
             # P
             X_train = []

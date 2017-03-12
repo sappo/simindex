@@ -430,6 +430,36 @@ class MDySimIII(object):
 
         self.nrecords += 1
 
+    @staticmethod
+    def blocks(feature, dataset):
+        """
+            Builds all blocks for a specific feature. Returns the blocks build
+            by this indexer. Each block only contains the record ids instead of
+            the attributes.
+        """
+        FBI = defaultdict(dict)
+        for r_id, r_attributes in dataset.items():
+            blocking_key_values = feature.blocking_key_values(r_attributes)
+            for encoding in blocking_key_values:
+                for blocking_key in feature.blocking_keys:
+                    field = blocking_key.field
+                    attribute = r_attributes[field]
+                    if not attribute:
+                        continue    # Do not block on empty attributes
+
+                    BI = FBI[field]
+                    if encoding not in BI.keys():
+                        BI[encoding] = set()
+
+                    BI[encoding].add(r_id)
+
+        blocks = []
+        for BI in FBI.values():
+            for block_key in BI.keys():
+                blocks.append((block_key, BI[block_key]))
+
+        return blocks
+
     def query(self, q_record):
         q_id = q_record[0]
         q_attributes = q_record[1:]

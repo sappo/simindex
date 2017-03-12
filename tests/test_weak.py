@@ -16,6 +16,7 @@ from .testhelper import tokens
 
 from pprint import pprint
 
+from simindex.dysim import MDySimIII
 from simindex.weak_labels import WeakLabels, SimTupel, \
                                  Feature, DisjunctiveBlockingScheme, \
                                  BlockingKey
@@ -57,7 +58,7 @@ def test_weak_labels():
     blocking_keys.append(BlockingKey(0, tokens))
     blocking_keys.append(BlockingKey(1, tokens))
 
-    dnfblock = DisjunctiveBlockingScheme(blocking_keys, P_actual, N_actual)
+    dnfblock = DisjunctiveBlockingScheme(blocking_keys, P_actual, N_actual, MDySimIII)
     dnf = dnfblock.transform(restaurant_dataset)
     dnf_expected = [Feature([BlockingKey(0, tokens),
                              BlockingKey(1, tokens)], 0.),
@@ -76,7 +77,8 @@ def test_filter_labels():
     blocking_keys.append(BlockingKey(0, tokens))
     blocking_keys.append(BlockingKey(1, tokens))
 
-    dnfblock = DisjunctiveBlockingScheme(blocking_keys, P, N)
+    dnfblock = DisjunctiveBlockingScheme(blocking_keys, P, N, MDySimIII)
+
     dnf = dnfblock.transform(restaurant_dataset)
 
     # Only use first combined blocking key which filters half positives and all

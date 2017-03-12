@@ -174,6 +174,8 @@ def restaurant_cleanup(engine):
         os.remove(".%s_FBI.idx" % engine.name)
     if os.path.exists(".%s_SI.idx" % engine.name):
         os.remove(".%s_SI.idx" % engine.name)
+    if os.path.exists(".%s_model.cls" % engine.name):
+        os.remove(".%s_model.cls" % engine.name)
 
 
 def test_engine_preprocessing(verbose):

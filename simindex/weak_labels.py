@@ -317,7 +317,7 @@ class Feature:
 
 class DisjunctiveBlockingScheme(object):
 
-    def __init__(self, blocking_keys, P, N, k=2,
+    def __init__(self, blocking_keys, P, N, indexer, k=2,
                  block_timer=None, verbose=False):
         self.P = [frozenset((p.t1, p.t2)) for p in P]
         self.N = [frozenset((p.t1, p.t2)) for p in N]
@@ -325,6 +325,7 @@ class DisjunctiveBlockingScheme(object):
         self.flat_P = set(hp.flatten(self.frozen_P))
         self.features = []
         self.k = k
+        self.indexer = indexer
 
         self.verbose = verbose
         self.block_timer = block_timer
@@ -379,26 +380,13 @@ class DisjunctiveBlockingScheme(object):
             logger.info("%r" % feature.signature())
             logger.info("0) Build blocks\t\t\t%s" % hp.memory_usage())
 
-        FBI = defaultdict(dict)
-        for r_id, r_attributes in self.dataset.items():
-            blocking_key_values = feature.blocking_key_values(r_attributes)
-            for encoding in blocking_key_values:
-                for blocking_key in feature.blocking_keys:
-                    field = blocking_key.field
-
-                    BI = FBI[field]
-                    if encoding not in BI.keys():
-                        BI[encoding] = set()
-
-                    BI[encoding].add(r_id)
+        blocks = self.indexer.blocks(feature, self.dataset)
 
         # Check frequency distribution of blocks
         block_sizes = []
-        nblocks = 0
-        for BI in FBI.values():
-            nblocks += len(BI)
-            for block_key in BI.keys():
-                block_sizes.append(len(BI[block_key]))
+        nblocks = len(blocks)
+        for block_key, block in blocks:
+            block_sizes.append(len(block))
 
         freq_dis = Counter(block_sizes)
         ngood = sum([freq_dis[b] * b for b in freq_dis.keys() if b > 1 and b < 101])
@@ -418,40 +406,39 @@ class DisjunctiveBlockingScheme(object):
             logger.info("----------------------------------------------------")
             return 0
 
-        FBI_candidate_pairs = set()
+        term_candidate_pairs = set()
         TP, FP, FN = 0, 0, 0
-        for BI in FBI.values():
-            for block_key in BI.keys():
-                if len(BI[block_key]) > 100:
-                    feature.add_illegal_bkv(block_key)
-                    continue
+        for block_key, block in blocks:
+            if len(block) > 100:
+                feature.add_illegal_bkv(block_key)
+                continue
 
-                candidates = BI[block_key]
-                # Generate candidate pairs
-                cp_list = it.combinations(candidates, 2)
-                candidate_pairs = set([frozenset(p) for p in cp_list])
-                del cp_list
+            candidates = block
+            # Generate candidate pairs
+            cp_list = it.combinations(candidates, 2)
+            block_candidate_pairs = set([frozenset(p) for p in cp_list])
+            del cp_list
 
-                # Calculate TP, FP, FN
-                block_TP_pairs = candidate_pairs.intersection(self.frozen_P)
-                block_FP_pairs = candidate_pairs.difference(block_TP_pairs)
-                FP_canidates = set(hp.flatten(block_FP_pairs))
+            # Calculate TP, FP, FN
+            block_TP_pairs = block_candidate_pairs.intersection(self.frozen_P)
+            block_FP_pairs = block_candidate_pairs.difference(block_TP_pairs)
+            FP_canidates = set(hp.flatten(block_FP_pairs))
 
-                TP += len(block_TP_pairs)
-                FP += len(block_FP_pairs)
-                FN += len(FP_canidates.intersection(self.flat_P))
+            TP += len(block_TP_pairs)
+            FP += len(block_FP_pairs)
+            FN += len(FP_canidates.intersection(self.flat_P))
 
-                FBI_candidate_pairs.update(candidate_pairs)
+            term_candidate_pairs.update(block_candidate_pairs)
 
         if self.verbose:
-            logger.info("2) Generated candidates %s" % len(FBI_candidate_pairs))
+            logger.info("2) Generated candidates %s" % len(term_candidate_pairs))
             logger.info("3) Building ytrue/ypred\t\t%s" % hp.memory_usage())
 
         # Create feature vectors based on positive and negative labels
         y_true = np.zeros(len(self.P) + len(self.N), np.bool)
         y_pred = np.zeros(len(self.P) + len(self.N), np.bool)
         for index, pair in enumerate(self.P):
-            if pair in FBI_candidate_pairs:
+            if pair in term_candidate_pairs:
                 y_true[index] = True
                 y_pred[index] = True
             else:
@@ -459,7 +446,7 @@ class DisjunctiveBlockingScheme(object):
                 y_pred[index] = False
 
         for index, pair in enumerate(self.N):
-            if pair in FBI_candidate_pairs:
+            if pair in term_candidate_pairs:
                 y_true[index + len(self.P)] = False
                 y_pred[index + len(self.P)] = True
             else:
@@ -485,8 +472,8 @@ class DisjunctiveBlockingScheme(object):
         f1_score = 2 * ((precision * recall) / (precision + recall))
 
         # Force cleanup
-        del FBI
-        del FBI_candidate_pairs
+        del blocks
+        del term_candidate_pairs
 
         if self.verbose:
             logger.info("5) Calculated block metrics\t%s" % hp.memory_usage())
