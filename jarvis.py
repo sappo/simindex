@@ -264,8 +264,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             urwid.ListBox([
                 urwid.Text("Model."), urwid.Divider(),
                 urwid.Columns(simrow), urwid.Divider(),
-                urwid.Text("Blocking Scheme - P (%s), N (%s)" % (
-                    blocking_P, blocking_N)),
+                urwid.Text("Blocking Scheme - P (%s), N (%s)" % (blocking_P, blocking_N)),
+                urwid.Text("Fusion-Params - %s" % model.get("best_params", "N/A")),
                 urwid.Divider(),
                 urwid.Columns(columns),
                 urwid.Divider(),
@@ -300,6 +300,10 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             columns_data[indexer].append(urwid.Divider())
             columns_data[indexer].append(urwid.Divider())
 
+        model_report = "%s/%s_fit_%s" % (self.prefix, self.run, self.dataset)
+        with open(model_report) as fp:
+            model = json.load(fp)
+
         for indexer, measurements in metrics.items():
             text =  "Index\n"
             text += "Pairs completeness: %f\n" % measurements["pair_completeness"]
@@ -323,6 +327,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             columns_data[indexer].append(urwid.Text([text]))
             text =  "Other\n"
             text += "Memory peak (MB)    %.2f\n" % measurements["build_memory_peak"]
+            text += "Best Params (CLF)   %s"     % model.get("best_params", "N/A")
             columns_data[indexer].append(urwid.Text([text]))
 
         return columns_data

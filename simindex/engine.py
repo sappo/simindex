@@ -64,6 +64,8 @@ class SimEngine(object):
         # WeakLabels parameters
         self.max_p = max_positive_labels
         self.max_n = max_negative_labels
+        self.nfP = 0
+        self.nfN = 0
 
         # Evaluation attributes
         self.true_matches = 0

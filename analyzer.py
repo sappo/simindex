@@ -151,6 +151,7 @@ def main(index_file, index_attributes,
 
         model["blocking_scheme"] = blocking_scheme
         model["similarities"] = engine.similarities
+        model["best_params"] = engine.clf_best_params
         if len(baseline) == 0:
             model["positive_labels"] = engine.nP
             model["negative_labels"] = engine.nN
