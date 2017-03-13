@@ -160,9 +160,13 @@ def main(index_file, index_attributes,
                 similarities[index] = (train_attributes[index + 1], similarity)
 
         model["blocking_scheme"] = blocking_scheme
+        model["blocking_scheme_max_c"] = engine.max_bk_conjunction
         model["similarities"] = engine.similarities
+        model["best_classifier"] = engine.clf.__name__
         model["best_params"] = engine.clf_best_params
         model["best_score"] = engine.clf_best_score
+        model["use_classifier"] = engine.use_classifier
+        model["use_fullvector"] = engine.use_full_simvector
         if len(baseline) == 0:
             model["positive_labels"] = engine.nP
             model["negative_labels"] = engine.nN

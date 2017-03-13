@@ -262,13 +262,17 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
         self.open_box(
             urwid.ListBox([
-                urwid.Text("Model."), urwid.Divider(),
-                urwid.Columns(simrow), urwid.Divider(),
-                urwid.Text("Blocking Scheme - P (%s), N (%s)" % (blocking_P, blocking_N)),
-                urwid.Text("Fusion-Params - %s" % model.get("best_params", "N/A")),
+                urwid.Text("Model."),
+                urwid.Divider(),
+                urwid.Text("Ground Truth - P (%s), N (%s)" % (blocking_P, blocking_N)),
+                urwid.Divider(),
+                urwid.Columns(simrow),
+                urwid.Divider(),
+                urwid.Text("Fusion Learner - %s = %s" % (model.get("best_classifier", "N/A"), model.get("best_params", "N/A"))),
+                urwid.Divider(),
+                urwid.Text("Blocking Scheme - max disjunction: 3, max conjunction: %d" % model.get("blocking_scheme_max_c", int(2))),
                 urwid.Divider(),
                 urwid.Columns(columns),
-                urwid.Divider(),
             ])
          )
 
@@ -321,10 +325,15 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             text += "Inserts (s):        %.0f\n" % measurements["inserts_sec"]
             text += "Queries (s):        %.0f\n" % measurements["queries_sec"]
             columns_data[indexer].append(urwid.Text([text]))
+            text =  "Classification\n"
+            text += "Best Classifier     %s\n"   % measurements['model'].get("best_classifier", "N/A")
+            text += "Best Params         %s\n"   % measurements['model'].get("best_params", "N/A")
+            text += "Best Score          %s\n"   % measurements['model'].get("best_score", "N/A")
+            text += "Use Classifier      %s\n"   % measurements['model'].get("use_classifier", "N/A")
+            text += "Use Full Simvector  %s\n"   % measurements['model'].get("use_fullvector", "N/A")
+            columns_data[indexer].append(urwid.Text([text]))
             text =  "Other\n"
-            text += "Memory peak (MB)    %.2f\n" % measurements.get("build_memory_peak", float('nan'))
-            text += "Best Params (CLF)   %s\n"   % measurements['model'].get("best_params", "N/A")
-            text += "Best Score (CLF)    %s"     % measurements['model'].get("best_score", "N/A")
+            text += "Memory peak (MB)    %.2f" % measurements.get("build_memory_peak", float('nan'))
             columns_data[indexer].append(urwid.Text([text]))
 
         return columns_data
