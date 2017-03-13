@@ -69,6 +69,14 @@ def setup_logging(default_path='logging.json',
     u'-m', u'--indexer', help=u'Which indexer to use!'
 )
 @click.option(
+    u'--classifier/--no-classifier', help=u'Usage of a classifier?',
+    default=True
+)
+@click.option(
+    u'--full-simvector/--no-full-simvector', help=u'Calalucate full simvector?',
+    default=True
+)
+@click.option(
     u'-rt', u'--run-type', help=u'What are you benchmarking?\
                                  evaluation - calculate all metrics\
                                  plot - draw results'
@@ -86,7 +94,8 @@ def main(index_file, index_attributes,
          query_file, query_attributes,
          train_file, train_attributes,
          gold_standard, gold_attributes,
-         run_type, output, run_name, indexer,
+         run_type, classifier,
+         full_simvector, output, run_name, indexer,
          baseline):
     """
     Analyze simindex engine!
@@ -114,7 +123,8 @@ def main(index_file, index_attributes,
         print("  Fitting training dataset.")
         print("##############################################################")
         engine = SimEngine(datasetname, datadir=engine_datadir, verbose=True,
-                           max_bk_conjunction=2)
+                           max_bk_conjunction=2,
+                           use_classifier=classifier, use_full_simvector=full_simvector)
 
         if len(baseline) > 0:
             baseline_scheme = []
@@ -167,13 +177,16 @@ def main(index_file, index_attributes,
         engine = None
         if indexer == "MDySimII":
             engine = SimEngine(datasetname, indexer=MDySimII,
-                               datadir=engine_datadir, verbose=False)
+                               datadir=engine_datadir, verbose=False,
+                               use_classifier=classifier, use_full_simvector=full_simvector)
         elif indexer == "MDySimIII":
             engine = SimEngine(datasetname, indexer=MDySimIII,
-                               datadir=engine_datadir, verbose=False)
+                               datadir=engine_datadir, verbose=False,
+                               use_classifier=classifier, use_full_simvector=full_simvector)
         elif indexer == "MDyLSH":
             engine = SimEngine(datasetname, indexer=MDyLSH,
-                               datadir=engine_datadir, verbose=False)
+                               datadir=engine_datadir, verbose=False,
+                               use_classifier=classifier, use_full_simvector=full_simvector)
 
         print()
         print("##############################################################")
@@ -213,17 +226,20 @@ def main(index_file, index_attributes,
             engine = SimEngine(datasetname, indexer=MDySimII, verbose=True,
                                datadir=engine_datadir,
                                insert_timer=insert_timer,
-                               query_timer=query_timer)
+                               query_timer=query_timer,
+                               use_classifier=classifier, use_full_simvector=full_simvector)
         elif indexer == "MDySimIII":
             engine = SimEngine(datasetname, indexer=MDySimIII, verbose=True,
                                datadir=engine_datadir,
                                insert_timer=insert_timer,
-                               query_timer=query_timer)
+                               query_timer=query_timer,
+                               use_classifier=classifier, use_full_simvector=full_simvector)
         elif indexer == "MDyLSH":
             engine = SimEngine(datasetname, indexer=MDyLSH, verbose=True,
                                datadir=engine_datadir,
                                insert_timer=insert_timer,
-                               query_timer=query_timer)
+                               query_timer=query_timer,
+                               use_classifier=classifier, use_full_simvector=full_simvector)
 
         print()
         print("------------------------------ 1 -----------------------------")
