@@ -74,7 +74,7 @@ def setup_logging(default_path='logging.json',
 )
 @click.option(
     u'--full-simvector/--no-full-simvector', help=u'Calalucate full simvector?',
-    default=True
+    default=False
 )
 @click.option(
     u'-rt', u'--run-type', help=u'What are you benchmarking?\
@@ -162,7 +162,7 @@ def main(index_file, index_attributes,
         model["blocking_scheme"] = blocking_scheme
         model["blocking_scheme_max_c"] = engine.max_bk_conjunction
         model["similarities"] = engine.similarities
-        model["best_classifier"] = engine.clf.__name__
+        model["best_classifier"] = type(engine.clf).__name__
         model["best_params"] = engine.clf_best_params
         model["best_score"] = engine.clf_best_score
         model["use_classifier"] = engine.use_classifier

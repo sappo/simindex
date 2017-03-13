@@ -25,6 +25,7 @@ do
             -b "1 given_name term_id" \
             -b "1 date_of_birth term_id" \
             -b "2 phone_number term_id" \
+            $EVAL_FLAGS \
             ${datasetprefix}${dataset}_index.csv \
             ${datasetprefix}${dataset}_train_query.csv \
             ${datasetprefix}${dataset}_train.csv
@@ -55,6 +56,7 @@ do
             -t rec_id -t given_name -t surname -t suburb -t state -t postcode -t address_1 -t date_of_birth -t phone_number \
             -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
             --run-type build -r "${timestamp}" -m ${indexer} \
+            $EVAL_FLAGS \
             ${datasetprefix}${dataset}_index.csv \
             ${datasetprefix}${dataset}_train_query.csv \
             ${datasetprefix}${dataset}_train.csv
@@ -69,6 +71,7 @@ do
             -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
             --run-type evaluation -o $result_output \
             -m ${indexer} \
+            $EVAL_FLAGS \
             ${datasetprefix}${dataset}_index.csv \
             ${datasetprefix}${dataset}_train_query.csv \
             ${datasetprefix}${dataset}_train.csv
@@ -95,6 +98,7 @@ if [ "$2" == '-b' ]; then
         -b "1 first_name term_id" \
         -b "1 middle_name term_id" \
         -b "2 full_phone_num term_id" \
+        $EVAL_FLAGS \
         ${datasetprefix}${dataset}_index.csv \
         ${datasetprefix}${dataset}_train_query.csv \
         ${datasetprefix}${dataset}_train.csv
@@ -105,6 +109,7 @@ else
         -o "${reportprefix}/${timestamp}_fit_${dataset}" \
         -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
         -t id -t first_name -t middle_name -t last_name -t street_address -t city -t state -t zip_code -t full_phone_num \
+        $EVAL_FLAGS \
         ${datasetprefix}${dataset}_index.csv \
         ${datasetprefix}${dataset}_train_query.csv \
         ${datasetprefix}${dataset}_train.csv
@@ -121,6 +126,7 @@ do
         -t id -t first_name -t middle_name -t last_name -t city -t state -t zip_code -t street_address -t full_phone_num \
         -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
         --run-type build -r "${timestamp}" -m ${indexer} \
+        $EVAL_FLAGS \
         ${datasetprefix}${dataset}_index.csv \
         ${datasetprefix}${dataset}_train_query.csv \
         ${datasetprefix}${dataset}_train.csv
@@ -133,6 +139,7 @@ do
         -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
         --run-type evaluation -o $result_output \
         -m ${indexer} \
+        $EVAL_FLAGS \
         ${datasetprefix}${dataset}_index.csv \
         ${datasetprefix}${dataset}_train_query.csv \
         ${datasetprefix}${dataset}_train.csv
