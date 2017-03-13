@@ -387,7 +387,7 @@ class MDySimII(object):
 class MDySimIII(object):
 
     def __init__(self, count, dns_blocking_scheme, similarity_fns,
-                 normalize=False):
+                 normalize=False, dataset=None):
         self.dns_blocking_scheme = dns_blocking_scheme
         self.similarity_fns = similarity_fns
 
@@ -395,6 +395,7 @@ class MDySimIII(object):
         self.nrecords = 0              # Number of records indexed
         self.FBI = defaultdict(dict)   # Field Block Indicies (FBI)
         self.SI = defaultdict(dict)    # Similarity Index (SI)
+        self.dataset = dataset
 
         # Format output
         self.attribute_count = count
@@ -492,6 +493,13 @@ class MDySimIII(object):
 
         if q_id in accumulator:
             del accumulator[q_id]
+
+        if self.dataset:
+            for id in accumulator.keys():
+                for field, sim in enumerate(accumulator[id]):
+                    if sim == 0 and q_attributes[field] and self.dataset[id][field]:
+                        sim = self.similarity_fns[field](q_attributes[field], self.dataset[id][field])
+                        accumulator[id][field] = sim
 
         return accumulator
 

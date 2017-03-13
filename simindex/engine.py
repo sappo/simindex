@@ -44,10 +44,13 @@ def file_len(fname):
 
 class SimEngine(object):
 
-    def __init__(self, name, indexer=MDySimIII, classifier=None,
-                 max_bk_conjunction=2, datadir='.',
+    def __init__(self, name, datadir='.',
+                 indexer=MDySimIII, classifier_candidates=None,
                  max_positive_labels=None, max_negative_labels=None,
-                 insert_timer=None, query_timer=None, verbose=False):
+                 max_bk_conjunction=2,
+                 insert_timer=None, query_timer=None,
+                 use_classifier=True, use_full_simvector=False,
+                 verbose=False):
         self.name = name
         self.datadir = datadir.strip('/')
         os.makedirs(self.datadir, exist_ok=True)
@@ -56,16 +59,23 @@ class SimEngine(object):
         self.indexdatastore_name = "%s/.%s_indexdata.h5" % (self.datadir, self.name)
         self.querydatastore_name = "%s/.%s_querydata.h5" % (self.datadir, self.name)
         self.indexer_class = indexer
-        self.classifier_class = classifier
+        self.classifier_candidates = classifier_candidates
         self.attribute_count = None
         self.stoplist = set('for a of the and to in'.split())
-        self.max_bk_conjunction = max_bk_conjunction
 
         # WeakLabels parameters
         self.max_p = max_positive_labels
         self.max_n = max_negative_labels
         self.nfP = 0
         self.nfN = 0
+
+        # DNF Blocking Scheme Learner parameters
+        self.max_bk_conjunction = max_bk_conjunction
+
+        # FusionLearner parameters
+        self.clf = None
+        self.clf_best_params = None
+        self.clf_best_score = None
 
         # Evaluation attributes
         self.true_matches = 0
@@ -74,6 +84,8 @@ class SimEngine(object):
         self.total_nonmatches = 0
         self.insert_timer = insert_timer
         self.query_timer = query_timer
+        self.use_classifier = use_classifier
+        self.use_full_simvector = use_full_simvector
         self.verbose = verbose
 
         # Gold Standard/Ground Truth attributes
@@ -220,14 +232,22 @@ class SimEngine(object):
                 for blocking_key in self.blocking_scheme:
                     p1_attributes = dataset[pair.t1]
                     p2_attributes = dataset[pair.t2]
-                    p1_bkvs = blocking_key.blocking_key_values(p1_attributes)
-                    p2_bkvs = blocking_key.blocking_key_values(p2_attributes)
-                    if not p1_bkvs.isdisjoint(p2_bkvs):
-                        for field in blocking_key.covered_fields():
-                            p1_attribute = p1_attributes[field]
-                            p2_attribute = p2_attributes[field]
+                    if self.use_full_simvector:
+                        # Calculate similarities between all attributes
+                        for field, (p1_attribute, p2_attribute) in enumerate(zip(p1_attributes, p2_attributes)):
                             if p1_attribute and p2_attribute:
                                 x[field] = similarity_fns[field](p1_attribute, p2_attribute)
+                    else:
+                        # Calculate similarites between pairs whose attributes
+                        # have a common block.
+                        p1_bkvs = blocking_key.blocking_key_values(p1_attributes)
+                        p2_bkvs = blocking_key.blocking_key_values(p2_attributes)
+                        if not p1_bkvs.isdisjoint(p2_bkvs):
+                            for field in blocking_key.covered_fields():
+                                p1_attribute = p1_attributes[field]
+                                p2_attribute = p2_attributes[field]
+                                if p1_attribute and p2_attribute:
+                                    x[field] = similarity_fns[field](p1_attribute, p2_attribute)
 
                 X_P.append(x)
                 y_P.append(1)
@@ -319,9 +339,24 @@ class SimEngine(object):
         for measure in SimLearner.strings_to_prediction(self.similarities):
             similarity_fns.append(measure().compare)
 
-        self.indexer = self.indexer_class(self.attribute_count,
-                                          self.blocking_scheme,
-                                          similarity_fns)
+        if self.use_full_simvector:
+            dataset = {}
+            for record in hp.hdf_records(pd.HDFStore(self.traindatastore_name, mode="r"), self.name):
+                if self.attribute_count is None:
+                    self.attribute_count = len(record[1:])
+                r_id = record[0]
+                r_attributes = record[1:]
+                dataset[r_id] = r_attributes
+
+            self.indexer = self.indexer_class(self.attribute_count,
+                                              self.blocking_scheme,
+                                              similarity_fns,
+                                              dataset=dataset)
+        else:
+            self.indexer = self.indexer_class(self.attribute_count,
+                                              self.blocking_scheme,
+                                              similarity_fns)
+
         if not self.indexer.load(self.name, self.datadir):
             for record in records:
                 r_id = record[0]
