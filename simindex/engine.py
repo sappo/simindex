@@ -19,6 +19,7 @@ from .weak_labels import WeakLabels, \
                          tokens, \
                          term_id
 from .similarity import SimLearner
+from .fusionlearner import FusionLearner
 import simindex.helper as hp
 import logging
 
@@ -303,24 +304,12 @@ class SimEngine(object):
             assert len(X_train) < 5001
             assert len(y_train) < 5001
 
-            self.clf.fit(X_train, y_train)
-            print("Best parameters set found on development set:")
-            print()
-            self.clf_best_params = self.clf.best_params_
-            self.clf_best_score = self.clf.best_score_
-            print(self.clf_best_params)
-            print()
-            print("Grid scores on development set:")
-            print()
-            means = self.clf.cv_results_['mean_test_score']
-            stds = self.clf.cv_results_['std_test_score']
-            for mean, std, params in zip(means, stds, self.clf.cv_results_['params']):
-                print("%0.3f (+/-%0.03f) for %r"
-                      % (mean, std * 2, params))
-            print()
-            self.clf = skm.svm.SVC(kernel=self.clf_best_params['kernel'],
-                                   C=self.clf_best_params['C'], class_weight='balanced')
-            self.clf.fit(X, y)
+            # Train the best model
+            ful = FusionLearner(FusionLearner.candidate_families())
+            self.clf = ful.best_model(X_train, y_train)
+            self.clf_best_params = ful.best_params
+            self.clf_best_score = ful.best_quality
+            self.clf.fit(X, y)  # refit classifier with whole ground truth
             self.save_model()
 
         # Cleanup
