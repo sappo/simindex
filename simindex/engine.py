@@ -219,8 +219,10 @@ class SimEngine(object):
             pprint(self.similarities)
 
         # Train classifier
-        self.clf = self.load_model()
-        if self.clf is None:
+        if self.use_classifier:
+            self.clf = self.load_model()
+
+        if self.clf is None and self.use_classifier:
             similarity_fns = []
             for measure in SimLearner.strings_to_prediction(self.similarities):
                 similarity_fns.append(measure().compare)
@@ -259,29 +261,27 @@ class SimEngine(object):
                 for blocking_key in self.blocking_scheme:
                     p1_attributes = dataset[pair.t1]
                     p2_attributes = dataset[pair.t2]
-                    p1_bkvs = blocking_key.blocking_key_values(p1_attributes)
-                    p2_bkvs = blocking_key.blocking_key_values(p2_attributes)
-                    if not p1_bkvs.isdisjoint(p2_bkvs):
-                        for field in blocking_key.covered_fields():
-                            p1_attribute = p1_attributes[field]
-                            p2_attribute = p2_attributes[field]
+                    if self.use_full_simvector:
+                        # Calculate similarities between all attributes
+                        for field, (p1_attribute, p2_attribute) in enumerate(zip(p1_attributes, p2_attributes)):
                             if p1_attribute and p2_attribute:
                                 x[field] = similarity_fns[field](p1_attribute, p2_attribute)
+                    else:
+                        # Calculate similarites between pairs whose attributes
+                        # have a common block.
+                        p1_bkvs = blocking_key.blocking_key_values(p1_attributes)
+                        p2_bkvs = blocking_key.blocking_key_values(p2_attributes)
+                        if not p1_bkvs.isdisjoint(p2_bkvs):
+                            for field in blocking_key.covered_fields():
+                                p1_attribute = p1_attributes[field]
+                                p2_attribute = p2_attributes[field]
+                                if p1_attribute and p2_attribute:
+                                    x[field] = similarity_fns[field](p1_attribute, p2_attribute)
 
                 X_N.append(x)
                 y_N.append(0)
 
-            tuned_parameters = [
-                    {'kernel': ['linear'],  'C': [0.1, 1, 10, 100, 1000]},
-                    {'kernel': ['rbf'],     'C': [0.1, 1, 10, 100, 1000]},
-                    # {'kernel': ['poly'],    'C': [0.1, 1, 10, 100, 1000]},
-                    # {'kernel': ['sigmoid'], 'C': [0.1, 1, 10, 100, 1000]}
-            ]
-            self.clf = skm.model_selection.GridSearchCV(
-                    skm.svm.SVC(C=1, class_weight='balanced'),
-                    tuned_parameters, scoring='f1_macro', refit=False)
-            # Shrink training set to max 5000 samples
-            # P
+            # Shrink training set to max 5000 (max 1000 P, max 4000 N) samples
             X_train = []
             y_train = []
             P_samples = min(1000, len(X_P))
@@ -399,10 +399,11 @@ class SimEngine(object):
                 self.total_nonmatches += self.indexer.nrecords - 1 - all_matches_count
 
             # Apply classifier
-            for candidate in list(result.keys()):
-                prediction = self.clf.predict([result[candidate]])[0]
-                if prediction == 0:
-                    del result[candidate]
+            if self.use_classifier:
+                for candidate in list(result.keys()):
+                    prediction = self.clf.predict([result[candidate]])[0]
+                    if prediction == 0:
+                        del result[candidate]
 
             # Calculate quality metrics
             if self.gold_records:
