@@ -260,6 +260,16 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         if "negative_labels" in model:
             blocking_N = model["negative_labels"]
 
+        text = ""
+        clf_result_grid = model.get("clf_result_grid", None)
+        if clf_result_grid:
+            for classifier in clf_result_grid.keys():
+                text += "  %s.\n" % classifier
+                for mean, std, params in clf_result_grid[classifier]:
+                    text += "  %0.3f (+/-%0.03f) for %r\n" % (mean, std * 2, params)
+
+        result_grid = urwid.Text([text])
+
         self.open_box(
             urwid.ListBox([
                 urwid.Text("Model."),
@@ -270,7 +280,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                 urwid.Columns(simrow),
                 urwid.Divider(),
                 urwid.Text("Fusion Learner - %s = %s" % (model.get("best_classifier", "N/A"), model.get("best_params", "N/A"))),
-                urwid.Divider(),
+                result_grid,
                 urwid.Text("Blocking Scheme - max disjunction: 3, max conjunction: %d" % model.get("blocking_scheme_max_c", int(2))),
                 urwid.Divider(),
                 urwid.Columns(columns),

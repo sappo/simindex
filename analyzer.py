@@ -172,6 +172,7 @@ def main(index_file, index_attributes,
         model["best_classifier"] = type(engine.clf).__name__
         model["best_params"] = engine.clf_best_params
         model["best_score"] = engine.clf_best_score
+        model["clf_result_grid"] = engine.clf_result_grid
         model["use_classifier"] = engine.use_classifier
         model["use_fullvector"] = engine.use_full_simvector
         if len(baseline) == 0:

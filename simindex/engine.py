@@ -77,6 +77,7 @@ class SimEngine(object):
         self.clf = None
         self.clf_best_params = None
         self.clf_best_score = None
+        self.clf_result_grid = None
 
         # Evaluation attributes
         self.true_matches = 0
@@ -309,6 +310,7 @@ class SimEngine(object):
             self.clf = ful.best_model(X_train, y_train)
             self.clf_best_params = ful.best_params
             self.clf_best_score = ful.best_quality
+            self.clf_result_grid = ful.result_grid
             self.clf.fit(X, y)  # refit classifier with whole ground truth
             self.save_model()
 
