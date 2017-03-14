@@ -27,6 +27,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         self.max_box_levels = 4
         self.edit_mode = False
         self.selected_reports = []
+        self.close_on_level = []
 
         self.refresh_menu()
 
@@ -97,7 +98,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
     def close_box(self):
         self.original_widget = self.original_widget[0]
         self.box_level -= 1
-        if self.box_level % 2 == 1:
+        if self.box_level in self.close_on_level:
+            del self.close_on_level[-1]
             del self.selected_reports[-1]
 
     def keypress(self, size, key):
@@ -135,68 +137,85 @@ class JarvisMenu(urwid.WidgetPlaceholder):
     def result_menu(self, run, dataset, indexer, prefix,
                     reports, saved_reports):
         btn_caption = "%s (%s) - %s" % (run, dataset, ', '.join(indexer))
-        title = "Choose an option for %s!" % btn_caption
+        def open_menu(button):
+            title = "Choose an option for %s!" % btn_caption
+            def open_comparemenu(button):
+                compare_contents = self.compare_menu(reports, saved_reports, 1)
+                return self.open_box(compare_contents)
+
+            contents = self.menu(title, [
+                            self.menu_button(u'Model', self.model_info),
+                            self.menu_button(u'Metrics', self.metrics_info),
+                            self.menu_button(u'Show Plots', self.show_plots),
+                            self.menu_button(u'Save Plots', self.save_plots),
+                            self.sub_menu(u'Memory Usage', [
+                                self.menu_button(idx, self.show_mprof) for idx in
+                                sorted(it.chain(indexer, ['fit']))
+                                ]),
+                            self.menu_button(u'Compare', open_comparemenu),
+                            self.save_menu(),
+                            self.menu_button(u'Delete', self.delete_report),
+                       ])
+            self.selected_reports.append((prefix, run, dataset))
+            self.close_on_level.append(self.box_level)
+            return self.open_box(contents)
+
+        return self.menu_button([btn_caption], open_menu)
+
+    def compare_menu(self, reports, saved_reports, level):
         compare_elements = [
-            self.compare_menu(key[0], key[1], value, './reports', 1)
+            self.compare_menu_button(key[0], key[1], value, './reports', level,
+                reports, saved_reports)
             for key, value in sorted(reports.items(), reverse=True)
         ]
         compare_elements.extend([
             self.sub_menu(u'Saved reports ...', [
-                self.compare_menu(key[0], key[1], value, './evaluation', 2)
+                self.compare_menu_button(key[0], key[1], value, './evaluation', level,
+                    reports, saved_reports)
                 for key, value in sorted(saved_reports.items(), reverse=True)
             ])
         ])
-        compare_contents = self.menu("Choose a report to compare!", compare_elements)
-        def open_comparemenu(button):
-            return self.open_box(compare_contents)
+        return self.menu("Choose a report to compare!", compare_elements)
 
-        contents = self.menu(title, [
-                        self.menu_button(u'Model', self.model_info),
-                        self.menu_button(u'Metrics', self.metrics_info),
-                        self.menu_button(u'Show Plots', self.show_plots),
-                        self.menu_button(u'Save Plots', self.save_plots),
-                        self.sub_menu(u'Memory Usage', [
-                            self.menu_button(idx, self.show_mprof) for idx in
-                            sorted(it.chain(indexer, ['fit']))
-                            ]),
-                        self.menu_button(u'Compare', open_comparemenu),
-                        self.save_menu(),
-                        self.menu_button(u'Delete', self.delete_report),
-                   ])
+
+    def compare_menu_button(self, run, dataset, indexer, prefix, level, reports, saved_reports):
         def open_menu(button):
-            self.selected_reports.append((prefix, run, dataset))
-            return self.open_box(contents)
-        return self.menu_button([btn_caption], open_menu)
+            def open_comparemenu(button):
+                compare_contents = self.compare_menu(reports, saved_reports, level + 1)
+                return self.open_box(compare_contents)
 
-    def compare_menu(self, run, dataset, indexer, prefix, level):
+            contents = self.menu("Compare with - %s" % btn_caption, [
+                            self.menu_button(u'Model', self.model_info),
+                            self.menu_button(u'Metrics', self.metrics_info),
+                            self.menu_button(u'Show Plots', self.show_plots_comparision),
+                            self.menu_button(u'Compare', open_comparemenu),
+                       ])
+
+            self.selected_reports.append((prefix, run, dataset))
+            self.close_on_level.append(self.box_level)
+            return self.open_box(contents)
+
         btn_caption = "%s (%s) - %s" % (run, dataset, ', '.join(indexer))
-        contents = self.menu("Compare with - %s" % btn_caption, [
-                        self.menu_button(u'Model', self.model_info),
-                        self.menu_button(u'Metrics', self.metrics_info),
-                        self.menu_button(u'Show Plots', self.show_plots_comparision),
-                        self.menu_button(u'Save Plots', self.save_plots_comparision),
-                   ])
-        def open_menu(button):
-            self.selected_reports.append((prefix, run, dataset))
-            return self.open_box(contents)
         return self.menu_button([btn_caption], open_menu)
 
     def save_menu(self):
-        edit = urwid.Edit(u'Enter name for report: ')
-        contents = self.menu("Save report", [
-            edit,
-            urwid.Divider(),
-            self.menu_button("Save", self.save_report)
-        ])
         def open_menu(button):
+            edit = urwid.Edit(u'Enter name for report: ')
+            contents = self.menu("Save report", [
+                edit,
+                urwid.Divider(),
+                self.menu_button("Save", self.save_report)
+            ])
             self.edit = edit
             return self.open_box(contents)
+
         return self.menu_button(['Save'], open_menu)
 
     def sub_menu(self, caption, choices):
-        contents = self.menu(caption, choices)
         def open_menu(button):
+            contents = self.menu(caption, choices)
             return self.open_box(contents)
+
         return self.menu_button([caption], open_menu)
 
     def menu_button(self, caption, callback):
