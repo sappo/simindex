@@ -26,6 +26,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         self.box_level = 0
         self.max_box_levels = 4
         self.edit_mode = False
+        self.selected_reports = []
 
         self.refresh_menu()
 
@@ -96,6 +97,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
     def close_box(self):
         self.original_widget = self.original_widget[0]
         self.box_level -= 1
+        if self.box_level % 2 == 1:
+            del self.selected_reports[-1]
 
     def keypress(self, size, key):
         if self.edit_mode:
@@ -161,9 +164,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                         self.menu_button(u'Delete', self.delete_report),
                    ])
         def open_menu(button):
-            self.prefix = prefix
-            self.run = run
-            self.dataset = dataset
+            self.selected_reports.append((prefix, run, dataset))
             return self.open_box(contents)
         return self.menu_button([btn_caption], open_menu)
 
@@ -171,14 +172,12 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         btn_caption = "%s (%s) - %s" % (run, dataset, ', '.join(indexer))
         contents = self.menu("Compare with - %s" % btn_caption, [
                         self.menu_button(u'Model', self.model_info),
-                        self.menu_button(u'Metrics', self.metric_comparison),
+                        self.menu_button(u'Metrics', self.metrics_info),
                         self.menu_button(u'Show Plots', self.show_plots_comparision),
                         self.menu_button(u'Save Plots', self.save_plots_comparision),
                    ])
         def open_menu(button):
-            self.compareprefix = prefix
-            self.comparerun = run
-            self.comparedataset = dataset
+            self.selected_reports.append((prefix, run, dataset))
             return self.open_box(contents)
         return self.menu_button([btn_caption], open_menu)
 
@@ -206,7 +205,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         return urwid.AttrMap(button, None, focus_map='reversed')
 
     def model_info(self, button):
-        model_report = "%s/%s_fit_%s" % (self.prefix, self.run, self.dataset)
+        prefix, run, dataset = self.selected_reports[-1]
+        model_report = "%s/%s_fit_%s" % (prefix, run, dataset)
         with open(model_report) as fp:
             model = json.load(fp)
 
@@ -287,22 +287,27 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             ])
          )
 
-    def metric_comparison(self, button):
-        metrics = self.read_metrics()
-        othermetrics = self.read_metrics(True)
+    def metrics_info(self, button):
+        metrics_columns = []
+        for prefix, run, dataset in self.selected_reports:
+            metrics = self.read_metrics(prefix, run, dataset)
+            metrics_columns.append(self.metrics_columns(metrics))
 
-        mcolumns = self.metrics_columns(metrics)
-        ocolumns = self.metrics_columns(othermetrics)
+        common_indexers = None
+        for mcolumns in metrics_columns:
+            if not common_indexers:
+                common_indexers = set(mcolumns.keys())
+            else:
+                common_indexers.intersection_update(set(mcolumns.keys()))
 
         columns = []
-        for indexer in sorted(mcolumns.keys()):
-            if indexer in ocolumns:
+        for indexer in sorted(common_indexers):
+            for mcolumns in metrics_columns:
                 columns.append(urwid.Pile(mcolumns[indexer]))
-                columns.append(urwid.Pile(ocolumns[indexer]))
 
         self.open_box(
             urwid.ListBox([
-                urwid.Text("Comparison."), urwid.Divider(),
+                urwid.Text("Metrics."), urwid.Divider(),
                 urwid.Columns(columns),
                 urwid.Divider(),
             ])
@@ -349,21 +354,6 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
         return columns_data
 
-    def metrics_info(self, button):
-        metrics = self.read_metrics()
-        columns_data = self.metrics_columns(metrics)
-        columns = []
-        for indexer in sorted(columns_data.keys()):
-            columns.append(urwid.Pile(columns_data[indexer]))
-
-        self.open_box(
-            urwid.ListBox([
-                urwid.Text("Metrics."), urwid.Divider(),
-                urwid.Columns(columns),
-                urwid.Divider(),
-            ])
-        )
-
     def save_report(self, button):
         name = self.edit.edit_text
         for report in glob.glob("%s/*%s*%s*" % (self.prefix, self.run, self.dataset)):
@@ -387,17 +377,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
         self.refresh_menu()
 
-    def read_metrics(self, compare=False):
+    def read_metrics(self, prefix, run, dataset):
         metrics = {}
-        if compare:
-            prefix = self.compareprefix
-            run = self.comparerun
-            dataset = self.comparedataset
-        else:
-            prefix = self.prefix
-            run = self.run
-            dataset = self.dataset
-
         model = ""
         for resultfile in glob.glob("%s/%s*%s" % (prefix, run, dataset)):
             if resultfile.count("fit"):
@@ -461,11 +442,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         query_times = defaultdict(lambda: defaultdict(dict))
         prc_curves = defaultdict(lambda: defaultdict(dict))
 
-        fileparts = [(self.prefix, self.run, self.dataset)]
-        if compare:
-            fileparts.append((self.compareprefix, self.comparerun, self.comparedataset))
-
-        for prefix, run, dataset in fileparts:
+        for prefix, run, dataset in self.selected_reports:
             for resultfile in glob.glob("%s/%s*%s" % (prefix, run, dataset)):
                 if resultfile.count("fit"):
                     continue
