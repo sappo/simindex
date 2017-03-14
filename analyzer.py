@@ -77,6 +77,10 @@ def setup_logging(default_path='logging.json',
     default=False
 )
 @click.option(
+    u'--gt-labels/--no-gt-labels', help=u'Provide Label Generate with ground truth matches?',
+    default=True
+)
+@click.option(
     u'-rt', u'--run-type', help=u'What are you benchmarking?\
                                  evaluation - calculate all metrics\
                                  plot - draw results'
@@ -94,8 +98,9 @@ def main(index_file, index_attributes,
          query_file, query_attributes,
          train_file, train_attributes,
          gold_standard, gold_attributes,
-         run_type, classifier,
-         full_simvector, output, run_name, indexer,
+         run_type, classifier, full_simvector,
+         gt_labels,
+         output, run_name, indexer,
          baseline):
     """
     Analyze simindex engine!
@@ -144,7 +149,9 @@ def main(index_file, index_attributes,
             engine.set_baseline({'scheme': baseline_scheme,
                                  'similarities': similarities})
 
-        engine.read_ground_truth(gold_standard, gold_attributes)
+        if gt_labels:
+            engine.read_ground_truth(gold_standard, gold_attributes)
+
         with timer:
             engine.fit_csv(train_file, train_attributes)
         model["fit_time"] = timer.times.pop()
@@ -172,6 +179,7 @@ def main(index_file, index_attributes,
             model["negative_labels"] = engine.nN
             model["positive_filtered_labels"] = engine.nfP
             model["negative_filtered_labels"] = engine.nfN
+            model["use_gt_matches"] = engine.gold_pairs != None
 
         # Save metrics
         fp = open(output, mode='w')

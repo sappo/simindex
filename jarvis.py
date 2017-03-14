@@ -264,7 +264,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             urwid.ListBox([
                 urwid.Text("Model."),
                 urwid.Divider(),
-                urwid.Text("Ground Truth - P (%s), N (%s)" % (blocking_P, blocking_N)),
+                urwid.Text("Ground Truth - P (%s), N (%s) - with Matches? %s" %
+                    (blocking_P, blocking_N, model.get("use_gt_matches", "True"))),
                 urwid.Divider(),
                 urwid.Columns(simrow),
                 urwid.Divider(),
