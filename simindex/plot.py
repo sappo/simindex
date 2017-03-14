@@ -1,3 +1,4 @@
+import sys
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
 import numpy as np
@@ -6,6 +7,11 @@ from sklearn.metrics import precision_recall_curve
 # setup plot details
 lw = 2
 
+plt.rcParams.update({'font.size': '12'})
+plt.rcParams.update({'figure.titlesize': 'x-large'})
+plt.rcParams.update({'axes.titlesize': 'x-large'})
+plt.rcParams.update({'axes.labelsize': 'large'})
+plt.rcParams.update({'legend.fontsize': 'medium'})
 
 def show():
     plt.show()
@@ -60,13 +66,17 @@ def new_figure(title):
 
 def draw_record_time_curve(times, dataset, action):
     nplots = len(times)
+    nrows = int((nplots - 1) / 2) + 1
+    ncols = min(2, nplots)
     title = "%s time for a single record (%s)" % (action.capitalize(), dataset)
-    fig = plt.figure(figsize=(8 * nplots, 5), dpi=None, facecolor="white")
+    fig = plt.figure(figsize=(8 * ncols, 5 * nrows), dpi=None, facecolor="white")
     fig.canvas.set_window_title(title)
-    st = fig.suptitle("Dataset %s" % dataset, fontsize='large')
-    gs = gridspec.GridSpec(1, nplots)
+    st = fig.suptitle("Dataset %s" % dataset)
+    gs = gridspec.GridSpec(nrows, ncols)
     for index, run in enumerate(times.keys()):
-        ax = fig.add_subplot(gs[0, index])
+        row = int(index - (index / 2))
+        col = index % 2
+        ax = fig.add_subplot(gs[row, col])
         draw_time_curve(times[run], action, run, ax)
 
     fig.tight_layout()
@@ -110,16 +120,20 @@ def draw_precision_recall_curve(y_true, y_scores, dataset):
 
 def draw_prc(prc_curves, dataset):
     nplots = len(prc_curves)
-    fig = plt.figure(figsize=(8 * nplots, 5), dpi=None, facecolor="white")
+    nrows = int((nplots - 1) / 2) + 1
+    ncols = min(2, nplots)
+    fig = plt.figure(figsize=(8 * ncols, 5 * nrows), dpi=None, facecolor="white")
     fig.canvas.set_window_title("PRC (%s)" % dataset)
-    st = fig.suptitle("Dataset %s" % dataset, fontsize='large')
+    st = fig.suptitle("Dataset %s" % dataset)
     color_sequence = ['#1f77b4',  '#ff7f0e',  '#2ca02c', '#d62728',
                       '#9467bd', '#8c564b',  '#e377c2',  '#7f7f7f',
                       '#bcbd22',  '#17becf']
     # Plot Precision-Recall curve
-    gs = gridspec.GridSpec(1, nplots)
-    for index, run in enumerate(prc_curves.keys()):
-        ax = fig.add_subplot(gs[0, index])
+    gs = gridspec.GridSpec(nrows, ncols)
+    for index, run in enumerate(sorted(prc_curves.keys())):
+        row = int(index - (index / 2))
+        col = index % 2
+        ax = fig.add_subplot(gs[row, col])
         for index, indexer in enumerate(sorted(prc_curves[run].keys())):
             precisions, recalls, thresholds = prc_curves[run][indexer]
             if (thresholds[0] == 0):
@@ -203,4 +217,4 @@ def draw_bar_chart(data, title, unit):
 
     y_pos = [y + offset / 4 for y in np.arange(len(objects))]
     plt.xticks(y_pos, objects)
-    plt.legend(loc="best")
+    plt.legend(loc="lower right")

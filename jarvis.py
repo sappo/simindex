@@ -187,7 +187,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             contents = self.menu("Compare with - %s" % btn_caption, [
                             self.menu_button(u'Model', self.model_info),
                             self.menu_button(u'Metrics', self.metrics_info),
-                            self.menu_button(u'Show Plots', self.show_plots_comparision),
+                            self.menu_button(u'Show Plots', self.show_plots),
+                            self.menu_button(u'Save Plots', self.save_plots),
                             self.menu_button(u'Compare', open_comparemenu),
                        ])
 
@@ -428,19 +429,6 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                                                       self.dataset)
         ])
 
-    def save_plots_comparision(self, button):
-        self.open_box(self.menu('Saving plots...', []), small=True)
-        self.mainloop.draw_screen()
-        self.close_box()
-        self.draw_plots(compare=True, save=True)
-        self.open_box(self.menu('Plots have been saved!', []), small=True)
-
-    def show_plots_comparision(self, button):
-        self.open_box(self.menu('Rendering plots (close all to continue)', []), small=True)
-        self.mainloop.draw_screen()
-        self.draw_plots(compare=True)
-        self.close_box()
-
     def save_plots(self, button):
         self.open_box(self.menu('Saving plots...', []), small=True)
         self.mainloop.draw_screen()
@@ -454,7 +442,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         self.draw_plots()
         self.close_box()
 
-    def draw_plots(self, compare=False, save=False):
+    def draw_plots(self, save=False):
         memory_usage = defaultdict(lambda: defaultdict(dict))
         index_build_time = defaultdict(lambda: defaultdict(dict))
         insert_times = defaultdict(lambda: defaultdict(dict))
