@@ -232,17 +232,17 @@ class SimEngine(object):
             y_P = []
             for pair in P:
                 x = np.zeros(self.attribute_count, np.float)
-                for blocking_key in self.blocking_scheme:
-                    p1_attributes = dataset[pair.t1]
-                    p2_attributes = dataset[pair.t2]
-                    if self.use_full_simvector:
-                        # Calculate similarities between all attributes
-                        for field, (p1_attribute, p2_attribute) in enumerate(zip(p1_attributes, p2_attributes)):
-                            if p1_attribute and p2_attribute:
-                                x[field] = similarity_fns[field](p1_attribute, p2_attribute)
-                    else:
-                        # Calculate similarites between pairs whose attributes
-                        # have a common block.
+                p1_attributes = dataset[pair.t1]
+                p2_attributes = dataset[pair.t2]
+                if self.use_full_simvector:
+                    # Calculate similarities between all attributes
+                    for field, (p1_attribute, p2_attribute) in enumerate(zip(p1_attributes, p2_attributes)):
+                        if p1_attribute and p2_attribute:
+                            x[field] = similarity_fns[field](p1_attribute, p2_attribute)
+                else:
+                    # Calculate similarites between pairs whose attributes have
+                    # a common block.
+                    for blocking_key in self.blocking_scheme:
                         p1_bkvs = blocking_key.blocking_key_values(p1_attributes)
                         p2_bkvs = blocking_key.blocking_key_values(p2_attributes)
                         if not p1_bkvs.isdisjoint(p2_bkvs):
@@ -259,17 +259,17 @@ class SimEngine(object):
             y_N = []
             for pair in N:
                 x = np.zeros(self.attribute_count, np.float)
-                for blocking_key in self.blocking_scheme:
-                    p1_attributes = dataset[pair.t1]
-                    p2_attributes = dataset[pair.t2]
-                    if self.use_full_simvector:
-                        # Calculate similarities between all attributes
-                        for field, (p1_attribute, p2_attribute) in enumerate(zip(p1_attributes, p2_attributes)):
-                            if p1_attribute and p2_attribute:
-                                x[field] = similarity_fns[field](p1_attribute, p2_attribute)
-                    else:
-                        # Calculate similarites between pairs whose attributes
-                        # have a common block.
+                p1_attributes = dataset[pair.t1]
+                p2_attributes = dataset[pair.t2]
+                if self.use_full_simvector:
+                    # Calculate similarities between all attributes
+                    for field, (p1_attribute, p2_attribute) in enumerate(zip(p1_attributes, p2_attributes)):
+                        if p1_attribute and p2_attribute:
+                            x[field] = similarity_fns[field](p1_attribute, p2_attribute)
+                else:
+                    # Calculate similarites between pairs whose attributes have
+                    # a common block.
+                    for blocking_key in self.blocking_scheme:
                         p1_bkvs = blocking_key.blocking_key_values(p1_attributes)
                         p2_bkvs = blocking_key.blocking_key_values(p2_attributes)
                         if not p1_bkvs.isdisjoint(p2_bkvs):
