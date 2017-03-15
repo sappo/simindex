@@ -19,9 +19,21 @@ class FusionLearner(object):
         svm_tuned_parameters = [{'kernel': ['linear'],  'C': [0.1, 1, 10, 100, 1000]},
                                 {'kernel': ['rbf'],     'C': [0.1, 1, 10, 100, 1000]}]
         candidates.append(["SVM", SVC(C=1, class_weight='balanced'), svm_tuned_parameters])
-        # dt_tuned_parameters = [{'max_features': ['auto', 'sqrt', 'log2']}]
-        # candidates.append(["DecisionTree", tree.DecisionTreeClassifier(class_weight='balanced'), dt_tuned_parameters])
+        dt_tuned_parameters = [{'max_features': ['auto', 'sqrt', 'log2']}]
+        candidates.append(["DecisionTree", tree.DecisionTreeClassifier(class_weight='balanced'), dt_tuned_parameters])
         return candidates
+
+    @staticmethod
+    def build_candidates(classifier, params):
+        candidates = []
+        if classifier == 'SVM':
+            candidates.append(["SVM", SVC(C=1, class_weight='balanced'), params])
+        elif classifier == 'DT':
+            candidates.append(["DecisionTree",
+                tree.DecisionTreeClassifier(class_weight='balanced'), params])
+
+        return candidates
+
 
     def best_model(self, X, y):
         """

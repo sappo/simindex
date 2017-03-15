@@ -1,6 +1,7 @@
 import os
 import glob
 import sys
+import ast
 import json
 import click
 import numpy as np
@@ -69,6 +70,12 @@ def setup_logging(default_path='logging.json',
     u'-m', u'--indexer', help=u'Which indexer to use!'
 )
 @click.option(
+    u'--clf', help=u'Which clf to use!', type=click.STRING
+)
+@click.option(
+    u'--clf-params', help=u'Which clf params to train on!', type=click.STRING
+)
+@click.option(
     u'--classifier/--no-classifier', help=u'Usage of a classifier?',
     default=True
 )
@@ -99,7 +106,7 @@ def main(index_file, index_attributes,
          train_file, train_attributes,
          gold_standard, gold_attributes,
          run_type, classifier, full_simvector,
-         gt_labels,
+         gt_labels, clf, clf_params,
          output, run_name, indexer,
          baseline):
     """
@@ -127,16 +134,24 @@ def main(index_file, index_attributes,
         print("##############################################################")
         print("  Fitting training dataset.")
         print("##############################################################")
+        print(clf)
+        print(clf_params)
+        if clf_params:
+            clf_params = ast.literal_eval(clf_params)
+
         if indexer == "MDySimII":
             engine = SimEngine(datasetname, indexer=MDySimII,
+                               clf_cfg=clf, clf_cfg_params=clf_params,
                                datadir=engine_datadir, verbose=True, max_bk_conjunction=2,
                                use_classifier=classifier, use_full_simvector=full_simvector)
         elif indexer == "MDySimIII":
             engine = SimEngine(datasetname, indexer=MDySimIII,
+                               clf_cfg=clf, clf_cfg_params=clf_params,
                                datadir=engine_datadir, verbose=True, max_bk_conjunction=2,
                                use_classifier=classifier, use_full_simvector=full_simvector)
         elif indexer == "MDyLSH":
             engine = SimEngine(datasetname, indexer=MDyLSH,
+                               clf_cfg=clf, clf_cfg_params=clf_params,
                                datadir=engine_datadir, verbose=True, max_bk_conjunction=2,
                                use_classifier=classifier, use_full_simvector=full_simvector)
 

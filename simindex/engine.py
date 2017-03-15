@@ -49,6 +49,7 @@ class SimEngine(object):
                  indexer=MDySimIII, classifier_candidates=None,
                  max_positive_labels=None, max_negative_labels=None,
                  max_bk_conjunction=2,
+                 clf_cfg=None, clf_cfg_params=None,
                  insert_timer=None, query_timer=None,
                  use_classifier=True, use_full_simvector=False,
                  verbose=False):
@@ -78,6 +79,8 @@ class SimEngine(object):
         self.clf_best_params = None
         self.clf_best_score = None
         self.clf_result_grid = None
+        self.clf_cfg = clf_cfg
+        self.clf_cfg_params = clf_cfg_params
 
         # Evaluation attributes
         self.true_matches = 0
@@ -306,7 +309,13 @@ class SimEngine(object):
             assert len(y_train) < 5001
 
             # Train the best model
-            ful = FusionLearner(FusionLearner.candidate_families())
+            if self.clf_cfg and self.clf_cfg_params:
+                ful = FusionLearner(
+                          FusionLearner.build_candidates(
+                              self.clf_cfg, self.clf_cfg_params))
+            else:
+                ful = FusionLearner(FusionLearner.candidate_families())
+
             self.clf = ful.best_model(X_train, y_train)
             self.clf_best_params = ful.best_params
             self.clf_best_score = ful.best_quality
