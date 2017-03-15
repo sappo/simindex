@@ -35,6 +35,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         self.mainloop = mainloop
 
     def refresh_menu(self):
+        self.selected_reports.clear()
+        self.selected_reports.clear()
         reports = defaultdict(list)
         for report in sorted(glob.glob("./reports/*"), reverse=True):
             if os.path.basename(report).startswith("mprofile") \
