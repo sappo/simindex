@@ -13,6 +13,13 @@ plt.rcParams.update({'axes.titlesize': 'x-large'})
 plt.rcParams.update({'axes.labelsize': 'large'})
 plt.rcParams.update({'legend.fontsize': 'medium'})
 
+def mycolors():
+    color_sequence = ['#1f77b4',  '#ff7f0e',  '#2ca02c', '#d62728',
+                      '#9467bd', '#8c564b',  '#e377c2',  '#7f7f7f',
+                      '#bcbd22',  '#17becf']
+    for color in color_sequence:
+        yield color
+
 def show():
     plt.show()
 
@@ -197,24 +204,26 @@ def draw_bar_chart(data, title, unit):
                     str(round(height, 2)), ha='center', va='bottom')
 
     ax = plt.subplot(111)
+    width = 0.28
+    gap = 0.07
     offset = 0.
-    color_sequence = ['#1f77b4',  '#ff7f0e',  '#2ca02c', '#d62728',
-                      '#9467bd', '#8c564b',  '#e377c2',  '#7f7f7f',
-                      '#bcbd22',  '#17becf']
+    color_series = mycolors()
+    ticklabels = sorted(data.keys())
+    ticks_pos = []
     for index, indexer in enumerate(sorted(data.keys())):
+        start_offset = offset
         # Sort data by label
-        y_vals = []
-        objects = []
-        for dataset, value in sorted(data[indexer].items(), key=lambda x: (x[0])):
-            y_vals.append(value)
-            objects.append(dataset)
+        for dataset, values in sorted(data[indexer].items(), key=lambda x: (x[0])):
+            y_pos = width + offset
+            offset += width
+            color = next(color_series)
+            bars = ax.bar(y_pos, values, width=width, align="center",
+                          alpha=0.8, color=color, label=dataset)
+            autolabel(bars, ax)
 
-        y_pos = [y + offset for y in np.arange(len(objects))]
-        offset += 0.28
-        bars = ax.bar(y_pos, y_vals, width=0.28, align="center",
-                      alpha=0.8, color=color_sequence[index], label=indexer)
-        autolabel(bars, ax)
+        ticks_pos.append(offset - ((len(data[indexer]) - 1) * (width  / 2)))
+        offset += gap
 
-    y_pos = [y + offset / 4 for y in np.arange(len(objects))]
-    plt.xticks(y_pos, objects)
-    plt.legend(loc="lower right")
+    ax.set_xticks(ticks_pos)
+    ax.set_xticklabels(ticklabels)
+    ax.legend(loc="lower right")

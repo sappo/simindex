@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import sys
 import glob
 import re
 import json
@@ -321,12 +322,13 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             if not common_indexers:
                 common_indexers = set(mcolumns.keys())
             else:
-                common_indexers.intersection_update(set(mcolumns.keys()))
+                common_indexers.update(set(mcolumns.keys()))
 
         columns = []
         for indexer in sorted(common_indexers):
             for mcolumns in metrics_columns:
-                columns.append(urwid.Pile(mcolumns[indexer]))
+                if indexer in mcolumns:
+                    columns.append(urwid.Pile(mcolumns[indexer]))
 
         self.open_box(
             urwid.ListBox([
@@ -477,8 +479,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                 )
 
                 # Sort data by indexer and then by dataset
-                memory_usage[dataset][run][indexer] = measurements["build_memory_peak"]
-                index_build_time[dataset][run][indexer] = measurements["build_time"]
+                memory_usage[dataset][indexer][run] = measurements["build_memory_peak"]
+                index_build_time[dataset][indexer][run] = measurements["build_time"]
 
         picture_names = []
         for dataset in prc_curves.keys():
