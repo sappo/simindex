@@ -388,8 +388,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
             os.renames(report, "./evaluation/%s" % filename)
 
-        if not os.path.exists(self.prefix):
-            os.mkdir(self.prefix)
+        if not os.path.exists(prefix):
+            os.mkdir(prefix)
 
         self.refresh_menu()
 
@@ -424,12 +424,13 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
     def show_mprof(self, button):
         indexer = button.label
+        prefix, run, dataset = self.selected_reports[-1]
         subprocess.Popen([
             '/bin/sh', '-c',
-             'mprof plot %s/mprofile_%s_%s_%s.dat' % (self.prefix,
-                                                      self.run,
+             'mprof plot %s/mprofile_%s_%s_%s.dat' % (prefix,
+                                                      run,
                                                       indexer,
-                                                      self.dataset)
+                                                      dataset)
         ])
 
     def save_plots(self, button):
