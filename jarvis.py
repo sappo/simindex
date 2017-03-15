@@ -100,8 +100,10 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         self.original_widget = self.original_widget[0]
         self.box_level -= 1
         if self.box_level in self.close_on_level:
-            del self.close_on_level[-1]
-            del self.selected_reports[-1]
+            if len(self.close_on_level) > 0:
+                del self.close_on_level[-1]
+            if len(self.selected_reports) > 0:
+                del self.selected_reports[-1]
 
     def keypress(self, size, key):
         if self.edit_mode:
