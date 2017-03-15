@@ -1,7 +1,6 @@
 import os
 import glob
 import sys
-import ast
 import json
 import click
 import numpy as np
@@ -73,9 +72,6 @@ def setup_logging(default_path='logging.json',
     u'--clf', help=u'Which clf to use!', type=click.STRING
 )
 @click.option(
-    u'--clf-params', help=u'Which clf params to train on!', type=click.STRING
-)
-@click.option(
     u'--classifier/--no-classifier', help=u'Usage of a classifier?',
     default=True
 )
@@ -106,7 +102,7 @@ def main(index_file, index_attributes,
          train_file, train_attributes,
          gold_standard, gold_attributes,
          run_type, classifier, full_simvector,
-         gt_labels, clf, clf_params,
+         gt_labels, clf,
          output, run_name, indexer,
          baseline):
     """
@@ -134,10 +130,17 @@ def main(index_file, index_attributes,
         print("##############################################################")
         print("  Fitting training dataset.")
         print("##############################################################")
-        print(clf)
-        print(clf_params)
-        if clf_params:
-            clf_params = ast.literal_eval(clf_params)
+        clf_params = None
+        if clf:
+            if clf == "svmlinear":
+                clf = "SVM"
+                clf_params = [{'kernel': ['linear'],  'C': [0.1, 1, 10, 100, 1000]}]
+            elif clf == "svmrbf":
+                clf = "SVM"
+                clf_params = [{'kernel': ['rbf'],     'C': [0.1, 1, 10, 100, 1000]}]
+            elif clf == "decisiontree":
+                clf = "DT"
+                clf_params = [{'max_features': ['auto', 'sqrt', 'log2']}]
 
         if indexer == "MDySimII":
             engine = SimEngine(datasetname, indexer=MDySimII,
