@@ -376,7 +376,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
     def save_report(self, button):
         name = self.edit.edit_text
-        for report in glob.glob("%s/*%s*%s*" % (self.prefix, self.run, self.dataset)):
+        prefix, run, dataset = self.selected_reports[-1]
+        for report in glob.glob("%s/*%s*%s*" % (prefix, run, dataset)):
             reportname = os.path.basename(report)
             parts = reportname.split('_')
             if reportname.startswith('mprofile'):
@@ -392,7 +393,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         self.refresh_menu()
 
     def delete_report(self, button):
-        for report in glob.glob("%s/*%s*%s*" % (self.prefix, self.run, self.dataset)):
+        prefix, run, dataset = self.selected_reports[-1]
+        for report in glob.glob("%s/*%s*%s*" % (prefix, run, dataset)):
             os.remove(report)
 
         self.refresh_menu()
