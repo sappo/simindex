@@ -72,6 +72,9 @@ def setup_logging(default_path='logging.json',
     u'--clf', help=u'Which clf to use!', type=click.STRING
 )
 @click.option(
+    u'--similarity', help=u'Which similarity to use!', type=click.STRING
+)
+@click.option(
     u'--classifier/--no-classifier', help=u'Usage of a classifier?',
     default=True
 )
@@ -102,7 +105,7 @@ def main(index_file, index_attributes,
          train_file, train_attributes,
          gold_standard, gold_attributes,
          run_type, classifier, full_simvector,
-         gt_labels, clf,
+         gt_labels, clf, similarity,
          output, run_name, indexer,
          baseline):
     """
@@ -175,6 +178,21 @@ def main(index_file, index_attributes,
 
             engine.set_baseline({'scheme': baseline_scheme,
                                  'similarities': similarities})
+
+        if similarity:
+            similarities = []
+            for _ in train_attributes[1:]:
+                if similarity == "bag":
+                    similarities.append('SimBag')
+                if similarity == "levenshtein":
+                    similarities.append('SimLevenshtein')
+                if similarity == "jaro":
+                    similarities.append('SimJaro')
+                if similarity == "ratio":
+                    similarities.append('SimRatio')
+
+            engine.similarities = similarities
+            engine.save_similarities()
 
         if gt_labels:
             engine.read_ground_truth(gold_standard, gold_attributes)
