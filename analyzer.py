@@ -127,9 +127,18 @@ def main(index_file, index_attributes,
         print("##############################################################")
         print("  Fitting training dataset.")
         print("##############################################################")
-        engine = SimEngine(datasetname, datadir=engine_datadir, verbose=True,
-                           max_bk_conjunction=2,
-                           use_classifier=classifier, use_full_simvector=full_simvector)
+        if indexer == "MDySimII":
+            engine = SimEngine(datasetname, indexer=MDySimII,
+                               datadir=engine_datadir, verbose=True, max_bk_conjunction=2,
+                               use_classifier=classifier, use_full_simvector=full_simvector)
+        elif indexer == "MDySimIII":
+            engine = SimEngine(datasetname, indexer=MDySimIII,
+                               datadir=engine_datadir, verbose=True, max_bk_conjunction=2,
+                               use_classifier=classifier, use_full_simvector=full_simvector)
+        elif indexer == "MDyLSH":
+            engine = SimEngine(datasetname, indexer=MDyLSH,
+                               datadir=engine_datadir, verbose=True, max_bk_conjunction=2,
+                               use_classifier=classifier, use_full_simvector=full_simvector)
 
         if len(baseline) > 0:
             baseline_scheme = []

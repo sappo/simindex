@@ -227,19 +227,17 @@ class SimAwareIndex(object):
 class MDySimII(object):
 
     def __init__(self, count, dns_blocking_scheme, similarity_fns,
-                 normalize=False):
+            dataset=None):
         self.attribute_count = count
         self.dns_blocking_scheme = dns_blocking_scheme
         self.similarity_fns = similarity_fns
+        self.dataset = dataset
 
         # Class structure
         self.nrecords = 0              # Number of records indexed
         self.RI = defaultdict(set)     # Record Index (RI)
         self.FBI = defaultdict(dict)   # Field Block Indicies (FBI)
         self.SI = defaultdict(dict)    # Similarity Index (SI)
-
-        # Format output
-        self.normalize = normalize
 
     def insert(self, r_id, r_attributes):
         for feature in self.dns_blocking_scheme:
@@ -274,6 +272,44 @@ class MDySimII(object):
 
         self.nrecords += 1
 
+    @staticmethod
+    def blocks(feature, dataset):
+        """
+            Builds all blocks for a specific feature. Returns the blocks build
+            by this indexer. Each block only contains the record ids instead of
+            the attributes.
+        """
+        RI = defaultdict(set)
+        FBI = defaultdict(dict)
+        for r_id, r_attributes in dataset.items():
+            # Add id to RI index
+            for field in feature.covered_fields():
+                RI[r_attributes[field]].add(r_id)
+
+            blocking_key_values = feature.blocking_key_values(r_attributes)
+            for encoding in blocking_key_values:
+                for blocking_key in feature.blocking_keys:
+                    field = blocking_key.field
+                    attribute = r_attributes[field]
+                    if not attribute:
+                        continue    # Do not block on empty attributes
+
+                    BI = FBI[field]
+                    if encoding not in BI.keys():
+                        BI[encoding] = set()
+
+                    BI[encoding].add(r_id)
+
+        blocks = []
+        for block_key in RI.keys():
+            blocks.append((block_key, RI[block_key]))
+
+        for BI in FBI.values():
+            for block_key in BI.keys():
+                blocks.append((block_key, BI[block_key]))
+
+        return blocks
+
     def query(self, q_record):
         accumulator = defaultdict(partial(np.zeros, self.attribute_count, np.float))
         q_id = q_record[0]
@@ -294,6 +330,13 @@ class MDySimII(object):
 
         if q_id in accumulator:
             del accumulator[q_id]
+
+        if self.dataset:
+            for id in accumulator.keys():
+                for field, sim in enumerate(accumulator[id]):
+                    if sim == 0 and q_attributes[field] and self.dataset[id][field]:
+                        sim = self.similarity_fns[field](q_attributes[field], self.dataset[id][field])
+                        accumulator[id][field] = sim
 
         return accumulator
 
@@ -387,7 +430,7 @@ class MDySimII(object):
 class MDySimIII(object):
 
     def __init__(self, count, dns_blocking_scheme, similarity_fns,
-                 normalize=False, dataset=None):
+                 dataset=None):
         self.dns_blocking_scheme = dns_blocking_scheme
         self.similarity_fns = similarity_fns
 

@@ -11,7 +11,7 @@ Tests for `simindex` module.
 import pytest
 from .testprofiler import profile
 from .testhelper import has_common_token, tokens
-from .testdata import restaurant_records
+from .testdata import restaurant_records, restaurant_dataset
 
 from pprint import pprint
 import numpy as np
@@ -117,7 +117,7 @@ def test_mdysimIII():
                     BlockingKey(1, tokens)], 0.),
            Feature([BlockingKey(0, tokens)], 0.),
            Feature([BlockingKey(1, tokens)], 0.)]
-    s = MDySimIII(2, dns, [_compare, _compare])
+    s = MDySimIII(2, dns, [_compare, _compare], dataset=restaurant_dataset)
     s.insert(restaurant_records[0][0], restaurant_records[0][1:])
     s.insert(restaurant_records[1][0], restaurant_records[1][1:])
     result = s.query(restaurant_records[1])
