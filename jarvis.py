@@ -58,8 +58,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                            report.split('_')[2])].append(report.split('_')[1])
 
         while self.box_level > 0:
-            self.original_widget = self.original_widget[0]
-            self.box_level -= 1
+            self.close_box()
 
         menu_elements = [
             self.result_menu(key[0], key[1], value, './reports',
