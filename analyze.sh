@@ -6,7 +6,7 @@ mkdir -p $reportprefix
 if [ "$1" == '-f' ]; then
 # Run ferbl datasets
 #for dataset in "ferbl-4k-1k-1" "ferbl-9k-1k-1" "ferbl-90k-10k-1"
-for dataset in "ferbl-90k-10k-1"
+for dataset in "ferbl-4k-1k-1"
 do
     ###########################################################################
     datasetprefix="../../master_thesis/datasets/febrl/"
@@ -90,40 +90,41 @@ dataset="ncvoter"
 datasetprefix="../../master_thesis/datasets/ncvoter/"
 ###############################################################################
 
-if [ "$2" == '-b' ]; then
-    # Fit baseline model once!
-    mprof run analyzer.py \
-        --run-type fit -r "${timestamp}" \
-        -o "${reportprefix}/${timestamp}_fit_${dataset}" \
-        -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
-        -t id -t first_name -t middle_name -t last_name -t street_address -t city -t state -t zip_code -t full_phone_num \
-        -b "0 last_name term_id" \
-        -b "0 street_address tokens" \
-        -b "0 zip_code term_id" \
-        -b "1 first_name term_id" \
-        -b "1 middle_name term_id" \
-        -b "2 full_phone_num term_id" \
-        $EVAL_FLAGS \
-        ${datasetprefix}${dataset}_index.csv \
-        ${datasetprefix}${dataset}_train_query.csv \
-        ${datasetprefix}${dataset}_train.csv
-else
-    # Fit model once!
-    mprof run analyzer.py \
-        --run-type fit -r "${timestamp}" \
-        -o "${reportprefix}/${timestamp}_fit_${dataset}" \
-        -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
-        -t id -t first_name -t middle_name -t last_name -t street_address -t city -t state -t zip_code -t full_phone_num \
-        $EVAL_FLAGS \
-        ${datasetprefix}${dataset}_index.csv \
-        ${datasetprefix}${dataset}_train_query.csv \
-        ${datasetprefix}${dataset}_train.csv
-fi
-
 for indexer in "MDySimIII"
 do
-    result_output="${reportprefix}/${timestamp}_${indexer}_${dataset}"
+    if [ "$2" == '-b' ]; then
+        # Fit baseline model once!
+        mprof run analyzer.py \
+            --run-type fit -r "${timestamp}" \
+            -o "${reportprefix}/${timestamp}_fit_${dataset}" \
+            -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
+            -t id -t first_name -t middle_name -t last_name -t street_address -t city -t state -t zip_code -t full_phone_num \
+            -b "0 last_name term_id" \
+            -b "0 street_address tokens" \
+            -b "0 zip_code term_id" \
+            -b "1 first_name term_id" \
+            -b "1 middle_name term_id" \
+            -b "2 full_phone_num term_id" \
+            $EVAL_FLAGS \
+            -m ${indexer} \
+            ${datasetprefix}${dataset}_index.csv \
+            ${datasetprefix}${dataset}_train_query.csv \
+            ${datasetprefix}${dataset}_train.csv
+    else
+        # Fit model once!
+        mprof run analyzer.py \
+            --run-type fit -r "${timestamp}" \
+            -o "${reportprefix}/${timestamp}_fit_${dataset}" \
+            -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
+            -t id -t first_name -t middle_name -t last_name -t street_address -t city -t state -t zip_code -t full_phone_num \
+            $EVAL_FLAGS \
+        -m ${indexer} \
+            ${datasetprefix}${dataset}_index.csv \
+            ${datasetprefix}${dataset}_train_query.csv \
+            ${datasetprefix}${dataset}_train.csv
+    fi
 
+    result_output="${reportprefix}/${timestamp}_${indexer}_${dataset}"
     # Build and Query without metrics to get precice memory usage
     mprof run analyzer.py \
         -i id -i first_name -i middle_name -i last_name -i city -i state -i zip_code -i street_address -i full_phone_num \
