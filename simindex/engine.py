@@ -175,7 +175,7 @@ class SimEngine(object):
                 logger.info("Saving labels now")
 
             self.save_labels(P, N)
-            del labels
+            # del labels
 
         if self.verbose:
             logger.info("Generated %d P and %d N labels" % (len(P), len(N)))
@@ -208,7 +208,7 @@ class SimEngine(object):
         # Learn similarity functions per attribute
         self.similarities = self.load_similarities()
         if self.similarities is None:
-            P, N = WeakLabels.filter(self.blocking_scheme, P, N)
+            P, N = labels.filter(self.blocking_scheme, dataset, P, N)
             if self.verbose:
                 logger.info("Have %d P and %d N filtered labels" % (len(P), len(N)))
                 self.nfP = len(P)

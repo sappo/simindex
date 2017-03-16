@@ -48,6 +48,8 @@ class WeakLabels(object):
         self.upper_threshold = upper_threshold
         self.lower_threshold = lower_threshold
         self.window_size = window_size
+        self.npairs = 0
+        self.draw_pair = None
         self.verbose = verbose
 
     def string_to_bow(self, record):
@@ -115,9 +117,9 @@ class WeakLabels(object):
                 max_positive_pairs = len(self.dataset) * 0.05
 
         if self.max_negative_pairs:
-            max_negative_pairs = self.max_negative_pairs
+            self.max_negative_pairs = self.max_negative_pairs
         else:
-            max_negative_pairs = max_positive_pairs * 3
+            self.max_negative_pairs = max_positive_pairs * 3
 
         P = []
         N = []
@@ -158,8 +160,9 @@ class WeakLabels(object):
             for t1, t2 in self.gold_pairs:
                 P.append(SimTupel(t1, t2, 1))
 
-            trim_threshold = max_negative_pairs * 3
-            candidate = candidates.difference(self.gold_pairs)
+            trim_threshold = self.max_negative_pairs * 3
+            candidates = candidates.difference(self.gold_pairs)
+            self.npairs = len(candidates)
             N_bins = [set() for x in range(bins)]
             for index, (t1, t2) in enumerate(candidates):
                 sim = self.tfidf_similarity(t1, t2)
@@ -178,21 +181,30 @@ class WeakLabels(object):
             wsum = sum(weights)
             weights[:] = [float(weight)/wsum for weight in weights]
 
+            choices = np.arange(bins)
+            def draw_pair():
+                pair = None
+                while not pair and self.npairs > 0:
+                    bin = np.random.choice(choices, p=weights)
+                    N_choice = N_bins[bin]
+                    if len(N_choice):
+                        pair = N_choice.pop()
+
+                self.npairs -= 1
+                return pair
+
+            self.draw_pair = draw_pair
+
             # Select pairs by probability distribution
             paircount = 0
-            choices = np.arange(bins)
-            for index, dummy in enumerate(range(max_negative_pairs)):
-                bin = np.random.choice(choices, p=weights)
-                N_choice = N_bins[bin]
-                if len(N_choice):
-                    N.append(N_choice.pop())
-
-                if index % 10000 == 0:
+            while len(N) < self.max_negative_pairs:
+                N.append(self.draw_pair())
+                if len(N) % 10000 == 0:
                     logger.info("Selected %d negative pairs" % paircount)
                     paircount += 10000
 
         else:
-            trim_threshold = max_negative_pairs * 3
+            trim_threshold = self.max_negative_pairs * 3
             for index, (t1, t2) in enumerate(candidates):
                 sim = self.tfidf_similarity(t1, t2)
                 if sim >= self.upper_threshold:
@@ -202,30 +214,46 @@ class WeakLabels(object):
 
                 if index % trim_threshold == 0:
                     P = heapq.nlargest(max_positive_pairs, P, key=lambda pair: pair.sim)
-                    N = heapq.nlargest(max_negative_pairs, N, key=lambda pair: pair.sim)
+                    N = heapq.nlargest(self.max_negative_pairs, N, key=lambda pair: pair.sim)
 
             P = heapq.nlargest(max_positive_pairs, P, key=lambda pair: pair.sim)
-            N = heapq.nlargest(max_negative_pairs, N, key=lambda pair: pair.sim)
+            N = heapq.nlargest(self.max_negative_pairs, N, key=lambda pair: pair.sim)
 
         return P, N
 
-    @staticmethod
-    def filter(blocking_scheme, P, N):
-        # filtered_P = []
-        # for index, pair in enumerate(P):
-        #     for feature in blocking_scheme:
-        #         if feature.pv[index] == 1:
-        #             filtered_P.append(pair)
-        #             break
+    def filter(self, blocking_scheme, dataset, P, N):
 
-        # filtered_N = []
-        # for index, pair in enumerate(N):
-        #     for feature in blocking_scheme:
-        #         if feature.nv[index] == 1:
-        #             filtered_N.append(pair)
-        #             break
+        def has_common_block(pair):
+            p1_attributes = dataset[pair.t1]
+            p2_attributes = dataset[pair.t2]
+            # Add pairs whose attributes have a common block.
+            for blocking_key in blocking_scheme:
+                p1_bkvs = blocking_key.blocking_key_values(p1_attributes)
+                p2_bkvs = blocking_key.blocking_key_values(p2_attributes)
+                if not p1_bkvs.isdisjoint(p2_bkvs):
+                    return True
 
-        return P, N
+            return False
+
+        filtered_P = []
+        for pair in P:
+            if has_common_block(pair):
+                filtered_P.append(pair)
+
+        filtered_N = []
+        for pair in N:
+            if has_common_block(pair):
+                filtered_N.append(pair)
+
+        while len(filtered_N) < self.max_negative_pairs:
+            pair = self.draw_pair()
+            if not pair:
+                break
+
+            if has_common_block(pair):
+                filtered_N.append(pair)
+
+        return filtered_P, filtered_N
 
 
 BlockingKey = namedtuple('BlockingKey', ['field', 'encoder'])

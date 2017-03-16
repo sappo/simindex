@@ -143,7 +143,6 @@ def test_MultiSimAwareAttributeIndex():
     result = msaai.query(restaurant_records[1], ["0"])
     assert np.equal(result["0"], np.array([0.96, 1.0])).all()
     result = msaai.query(restaurant_records[5], ["4"])
-    print(result["4"])
     assert np.equal(result["4"], np.array([0.87, 1.])).all()
     assert msaai.FBI[0] == {"mario'sitalian": {"mario's pizza"},
                            'mariositalian': {'marios pizza'},

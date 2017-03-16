@@ -67,6 +67,7 @@ def test_weak_labels():
     # assert(dnf == dnf_expected)
 
 
+@profile
 def test_filter_labels():
     labels = WeakLabels(2, max_positive_pairs=4, max_negative_pairs=4,
                         upper_threshold=0.5, lower_threshold=0.3)
@@ -83,7 +84,7 @@ def test_filter_labels():
 
     # Only use first combined blocking key which filters half positives and all
     # negatives.
-    fP, fN = labels.filter(dnf[:1], P, N)
+    fP, fN = labels.filter(dnf[:1], restaurant_dataset, P, N)
 
     fP_expected = [SimTupel(t1='0', t2='1', sim=0.),
                    SimTupel(t1='4', t2='5', sim=0.)]

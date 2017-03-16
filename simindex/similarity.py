@@ -20,9 +20,11 @@ except NameError as e:
 
 class SimLearner():
 
-    def __init__(self, count, dataset):
+    def __init__(self, count, dataset, blocking_scheme=None, use_full_simvector=False):
         self.dataset = dataset
         self.attribute_count = count
+        self.blocking_scheme = blocking_scheme
+        self.use_full_simvector = use_full_simvector
         self.measures = [SimBag,
                          SimDamerau,
                          SimLevenshtein,
