@@ -145,6 +145,7 @@ def main(index_file, index_attributes,
                 clf = "DT"
                 clf_params = [{'max_features': ['auto', 'sqrt', 'log2']}]
 
+        engine = None
         if indexer == "MDySimII":
             engine = SimEngine(datasetname, indexer=MDySimII,
                                clf_cfg=clf, clf_cfg_params=clf_params,
