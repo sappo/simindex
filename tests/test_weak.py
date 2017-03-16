@@ -24,9 +24,10 @@ import simindex.helper as hp
 
 
 def test_weak_labels():
-    labels = WeakLabels(2, max_positive_pairs=4, max_negative_pairs=4,
+    labels = WeakLabels(2, restaurant_dataset,
+                        max_positive_pairs=4, max_negative_pairs=4,
                         upper_threshold=0.5, lower_threshold=0.4999)
-    labels.fit(restaurant_dataset)
+    labels.fit()
     P_actual, N_actual = labels.predict()
     P_expected = [SimTupel(t1='0', t2='1', sim=0.),
                   SimTupel(t1='2', t2='3', sim=0.),
@@ -69,9 +70,10 @@ def test_weak_labels():
 
 @profile
 def test_filter_labels():
-    labels = WeakLabels(2, max_positive_pairs=4, max_negative_pairs=4,
+    labels = WeakLabels(2, restaurant_dataset,
+                        max_positive_pairs=4, max_negative_pairs=4,
                         upper_threshold=0.5, lower_threshold=0.3)
-    labels.fit(restaurant_dataset)
+    labels.fit()
     P, N = labels.predict()
 
     blocking_keys = []
@@ -84,7 +86,7 @@ def test_filter_labels():
 
     # Only use first combined blocking key which filters half positives and all
     # negatives.
-    fP, fN = labels.filter(dnf[:1], restaurant_dataset, P, N)
+    fP, fN = labels.filter(dnf[:1], P, N)
 
     fP_expected = [SimTupel(t1='0', t2='1', sim=0.),
                    SimTupel(t1='4', t2='5', sim=0.)]
@@ -101,11 +103,12 @@ def test_filter_labels():
 
 
 def test_probability_distribution_choice_small():
-    labels = WeakLabels(2, max_positive_pairs=4, max_negative_pairs=4,
+    labels = WeakLabels(2, restaurant_dataset,
+                        max_positive_pairs=4, max_negative_pairs=4,
                         gold_pairs=restaurant_gold_pairs,
                         upper_threshold=0.5, lower_threshold=0.3,
                         window_size=5)
-    labels.fit(restaurant_dataset)
+    labels.fit()
     P, N = labels.predict()
 
     for simtupel in P:
@@ -127,8 +130,9 @@ def test_probability_distribution_choice_large():
     for record in records:
         dataset[record[0]] = record[1:]
 
-    labels = WeakLabels(5, gold_pairs=gold_paris, window_size=5)
-    labels.fit(dataset)
+    labels = WeakLabels(5, dataset,
+                        gold_pairs=gold_paris, window_size=5)
+    labels.fit()
     P, N = labels.predict()
 
     assert len(P) == 38
@@ -191,8 +195,9 @@ def test_my_score():
 
 
 def test_tfidf_similarity():
-    labels = WeakLabels(2, max_positive_pairs=4, max_negative_pairs=4)
-    labels.fit(restaurant_dataset)
+    labels = WeakLabels(2, restaurant_dataset,
+                        max_positive_pairs=4, max_negative_pairs=4)
+    labels.fit()
     sim01 = labels.tfidf_similarity("0", "1")
     sim23 = labels.tfidf_similarity("2", "3")
     sim45 = labels.tfidf_similarity("4", "5")

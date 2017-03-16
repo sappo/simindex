@@ -27,13 +27,11 @@ def wglobal(doc_freq, total_docs):
 
 SimTupel = namedtuple('SimTupel', ['t1', 't2', 'sim'])
 
-
 class WeakLabels(object):
-
-    def __init__(self, attribute_count,
+    def __init__(self, attribute_count, dataset,
                  gold_pairs=None,
-                 max_positive_pairs=100,
-                 max_negative_pairs=200,
+                 max_positive_pairs=None,
+                 max_negative_pairs=None,
                  upper_threshold=0.6,
                  lower_threshold=0.1,
                  window_size=2,
@@ -43,24 +41,42 @@ class WeakLabels(object):
         self.P = None
         self.N = None
         self.gold_pairs = gold_pairs
-        self.max_positive_pairs = max_positive_pairs
-        self.max_negative_pairs = max_negative_pairs
+        self.dataset = dataset
         self.upper_threshold = upper_threshold
         self.lower_threshold = lower_threshold
         self.window_size = window_size
-        self.npairs = 0
-        self.draw_pair = None
         self.verbose = verbose
+
+        # Set max_candidates depending on available gold pairs and user definded
+        # values
+        if self.gold_pairs:
+            self.max_positive_pairs = len(self.gold_pairs)
+        else:
+            if max_positive_pairs:
+                self.max_positive_pairs = max_positive_pairs
+            else:
+                self.max_positive_pairs = len(self.dataset) * 0.05
+
+        if max_negative_pairs:
+            self.max_negative_pairs = max_negative_pairs
+        else:
+            self.max_negative_pairs = self.max_positive_pairs * 3
+
+        # Selecting negative pairs
+        self.npairs = 0
+        self.bins = 20
+        self.choices = np.arange(self.bins)
+        self.N_complete = None
+        self.weights = None
 
     def string_to_bow(self, record):
         # Remove stop words from record
         words = record.split()
         return self.dictionary.doc2bow(words)
 
-    def fit(self, dataset):
+    def fit(self):
         texts = []
-        self.dataset = dataset
-        for r_attributes in dataset.values():
+        for r_attributes in self.dataset.values():
             # Remove stop words
             for attribute in r_attributes:
                 texts.append(attribute.split())
@@ -101,25 +117,31 @@ class WeakLabels(object):
 
         return similarity / (tfidf_1_norm * tfidf_2_norm)
 
+
+    def draw_pair(self):
+        if self.N_complete and type(self.N_complete[0]) == set:
+            pair = None
+            N_bins = self.N_complete
+            while not pair and self.npairs > 0:
+                bin = np.random.choice(self.choices, p=self.weights)
+                N_choice = N_bins[bin]
+                try:
+                    pair = N_choice.pop()
+                except KeyError:
+                    pair = None
+
+            self.npairs -= 1
+            return pair
+        else:
+            if self.N_complete:
+                return self.N_complete.pop()
+            else:
+                return None
+
     def predict(self):
         blocker = {}
         candidates = set()
         window_size = self.window_size
-        bins = 20
-        # Set max_candidates depending on available gold pairs and user definded
-        # values
-        if self.gold_pairs:
-            max_positive_pairs = len(self.gold_pairs)
-        else:
-            if self.max_positive_pairs:
-                max_positive_pairs = self.max_positive_pairs
-            else:
-                max_positive_pairs = len(self.dataset) * 0.05
-
-        if self.max_negative_pairs:
-            self.max_negative_pairs = self.max_negative_pairs
-        else:
-            self.max_negative_pairs = max_positive_pairs * 3
 
         P = []
         N = []
@@ -163,12 +185,12 @@ class WeakLabels(object):
             trim_threshold = self.max_negative_pairs * 3
             candidates = candidates.difference(self.gold_pairs)
             self.npairs = len(candidates)
-            N_bins = [set() for x in range(bins)]
+            N_bins = [set() for x in range(self.bins)]
             for index, (t1, t2) in enumerate(candidates):
                 sim = self.tfidf_similarity(t1, t2)
-                bin = int(sim * bins)
-                if bin >= bins:
-                    bin = bins - 1
+                bin = int(sim * self.bins)
+                if bin >= self.bins:
+                    bin = self.bins - 1
 
                 N_bins[bin].add(SimTupel(t1, t2, sim))
 
@@ -177,26 +199,13 @@ class WeakLabels(object):
                     simcount += 50000
 
             # Calculate probability distribution
-            weights = [len(bin) for bin in N_bins]
-            wsum = sum(weights)
-            weights[:] = [float(weight)/wsum for weight in weights]
-
-            choices = np.arange(bins)
-            def draw_pair():
-                pair = None
-                while not pair and self.npairs > 0:
-                    bin = np.random.choice(choices, p=weights)
-                    N_choice = N_bins[bin]
-                    if len(N_choice):
-                        pair = N_choice.pop()
-
-                self.npairs -= 1
-                return pair
-
-            self.draw_pair = draw_pair
+            self.weights = [len(bin) for bin in N_bins]
+            wsum = sum(self.weights)
+            self.weights[:] = [float(weight)/wsum for weight in self.weights]
 
             # Select pairs by probability distribution
             paircount = 0
+            self.N_complete = N_bins
             while len(N) < self.max_negative_pairs:
                 N.append(self.draw_pair())
                 if len(N) % 10000 == 0:
@@ -213,18 +222,11 @@ class WeakLabels(object):
                     N.append(SimTupel(t1, t2, sim))
 
                 if index % trim_threshold == 0:
-                    P = heapq.nlargest(max_positive_pairs, P, key=lambda pair: pair.sim)
+                    P = heapq.nlargest(self.max_positive_pairs, P, key=lambda pair: pair.sim)
 
-            P = heapq.nlargest(max_positive_pairs, P, key=lambda pair: pair.sim)
-            ranked_N = N
-            ranked_N.sort(key=lambda pair: pair.sim) # Sort ascending by similarity
-            def draw_pair():
-                if ranked_N:
-                    return ranked_N.pop()
-                else:
-                    return None
-
-            self.draw_pair = draw_pair
+            P = heapq.nlargest(self.max_positive_pairs, P, key=lambda pair: pair.sim)
+            self.N_complete = N
+            self.N_complete.sort(key=lambda pair: pair.sim) # Sort ascending by similarity
 
             N = []
             while len(N) < self.max_negative_pairs:
@@ -236,11 +238,11 @@ class WeakLabels(object):
 
         return P, N
 
-    def filter(self, blocking_scheme, dataset, P, N):
+    def filter(self, blocking_scheme, P, N):
 
         def has_common_block(pair):
-            p1_attributes = dataset[pair.t1]
-            p2_attributes = dataset[pair.t2]
+            p1_attributes = self.dataset[pair.t1]
+            p2_attributes = self.dataset[pair.t2]
             # Add pairs whose attributes have a common block.
             for blocking_key in blocking_scheme:
                 p1_bkvs = blocking_key.blocking_key_values(p1_attributes)

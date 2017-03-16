@@ -177,6 +177,14 @@ def restaurant_cleanup(engine):
         os.remove(".%s_FBI.idx" % engine.name)
     if os.path.exists(".%s_SI.idx" % engine.name):
         os.remove(".%s_SI.idx" % engine.name)
+    if os.path.exists(".%s_ncomplete.lbl" % engine.name):
+        os.remove(".%s_ncomplete.lbl" % engine.name)
+    if os.path.exists(".%s_weights.lbl" % engine.name):
+        os.remove(".%s_weights.lbl" % engine.name)
+    if os.path.exists(".%s_maxp.lbl" % engine.name):
+        os.remove(".%s_maxp.lbl" % engine.name)
+    if os.path.exists(".%s_maxn.lbl" % engine.name):
+        os.remove(".%s_maxn.lbl" % engine.name)
     if os.path.exists(".%s_model.cls" % engine.name):
         os.remove(".%s_model.cls" % engine.name)
 

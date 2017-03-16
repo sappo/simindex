@@ -155,7 +155,7 @@ class SimEngine(object):
             logger.info("Dataset has %d records" % len(dataset))
 
         # Predict labels
-        P, N = self.load_labels()
+        P, N, state = self.load_labels()
         if P is None and N is None:
             if not self.gold_pairs:
                 if self.max_p is None:
@@ -164,18 +164,26 @@ class SimEngine(object):
                 if self.max_n is None:
                     self.max_n = int(len(dataset) * 0.25)
 
-            labels = WeakLabels(self.attribute_count,
+            labels = WeakLabels(self.attribute_count, dataset,
                                 gold_pairs=self.gold_pairs,
                                 max_positive_pairs=self.max_p,
                                 max_negative_pairs=self.max_n,
                                 verbose=self.verbose)
-            labels.fit(dataset)
+            labels.fit()
             P, N = labels.predict()
             if self.verbose:
                 logger.info("Saving labels now")
 
-            self.save_labels(P, N)
-            # del labels
+            self.save_labels(P, N, labels)
+        else:
+            labels = WeakLabels(self.attribute_count, dataset,
+                                gold_pairs=self.gold_pairs,
+                                max_positive_pairs=state[2],
+                                max_negative_pairs=state[3],
+                                verbose=self.verbose)
+            labels.N_complete = state[0]
+            labels.weights = state[1]
+            labels.npairs = sum([len(x) for x in labels.N_complete])
 
         if self.verbose:
             logger.info("Generated %d P and %d N labels" % (len(P), len(N)))
@@ -205,15 +213,16 @@ class SimEngine(object):
             logger.info("Learned the following blocking scheme:")
             pprint(self.blocking_scheme)
 
+        # Filter labels based on blocking scheme
+        P, N = labels.filter(self.blocking_scheme, P, N)
+        if self.verbose:
+            logger.info("Have %d P and %d N filtered labels" % (len(P), len(N)))
+            self.nfP = len(P)
+            self.nfN = len(N)
+
         # Learn similarity functions per attribute
         self.similarities = self.load_similarities()
         if self.similarities is None:
-            P, N = labels.filter(self.blocking_scheme, dataset, P, N)
-            if self.verbose:
-                logger.info("Have %d P and %d N filtered labels" % (len(P), len(N)))
-                self.nfP = len(P)
-                self.nfN = len(N)
-
             sl = SimLearner(self.attribute_count, dataset,
                             self.blocking_scheme, self.use_full_simvector)
             self.similarities = sl.predict(P, N)
@@ -287,6 +296,9 @@ class SimEngine(object):
                 X_N.append(x)
                 y_N.append(0)
 
+            assert len(X_P) > 0, "Must have at least one positive label"
+            assert len(X_N) > 0, "Must have at least one negative label"
+
             # Shrink training set to max 5000 (max 1000 P, max 4000 N) samples
             X_train = []
             y_train = []
@@ -306,8 +318,8 @@ class SimEngine(object):
             y_P.extend(y_N)
             X = X_P
             y = y_P
-            assert len(X_train) < 5001
-            assert len(y_train) < 5001
+            assert len(X_train) < 5001, "Whoops, training labels should be less then 5000"
+            assert len(y_train) < 5001, "Whoops, training labels should be less then 5000"
 
             # Train the best model
             if self.clf_cfg and self.clf_cfg_params:
@@ -475,13 +487,21 @@ class SimEngine(object):
     def roc_curve(self):
         return skm.metrics.roc_curve(self.y_true_score, self.y_scores)
 
-    def save_labels(self, P, N):
+    def save_labels(self, P, N, labels):
         with pd.HDFStore(self.configstore_name,
                          complevel=9, complib='blosc') as store:
             df_p = pd.DataFrame(P, columns=["t1", "t2", "sim"])
             df_n = pd.DataFrame(N, columns=["t1", "t2", "sim"])
             store.put("labels_p", df_p, format="t")
             store.put("labels_n", df_n, format="t")
+            with open("%s/.%s_ncomplete.lbl" % (self.datadir, self.name), "wb") as handle:
+                pickle.dump(labels.N_complete, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            with open("%s/.%s_weights.lbl" % (self.datadir, self.name), "wb") as handle:
+                pickle.dump(labels.weights, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            with open("%s/.%s_maxp.lbl" % (self.datadir, self.name), "wb") as handle:
+                pickle.dump(labels.max_positive_pairs, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            with open("%s/.%s_maxn.lbl" % (self.datadir, self.name), "wb") as handle:
+                pickle.dump(labels.max_negative_pairs, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load_labels(self):
         with pd.HDFStore(self.configstore_name) as store:
@@ -493,9 +513,18 @@ class SimEngine(object):
                 for label in hp.hdf_record_attributes(store, "labels_n"):
                     N.append(SimTupel(label[0], label[1], label[2]))
 
-                return P, N
+                with open("%s/.%s_ncomplete.lbl" % (self.datadir, self.name), "rb") as handle:
+                    N_complete = pickle.load(handle)
+                with open("%s/.%s_weights.lbl" % (self.datadir, self.name), "rb") as handle:
+                    weights = pickle.load(handle)
+                with open("%s/.%s_maxp.lbl" % (self.datadir, self.name), "rb") as handle:
+                    max_p = pickle.load(handle)
+                with open("%s/.%s_maxn.lbl" % (self.datadir, self.name), "rb") as handle:
+                    max_n =pickle.load(handle)
+
+                return P, N, (N_complete, weights, max_p, max_n)
             else:
-                return None, None
+                return None, None, None
 
     def set_baseline(self, baseline):
         self.blocking_scheme = self.read_blocking_scheme(baseline['scheme'])
