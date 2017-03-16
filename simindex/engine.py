@@ -214,7 +214,8 @@ class SimEngine(object):
                 self.nfP = len(P)
                 self.nfN = len(N)
 
-            sl = SimLearner(self.attribute_count, dataset)
+            sl = SimLearner(self.attribute_count, dataset,
+                            self.blocking_scheme, self.use_full_simvector)
             self.similarities = sl.predict(P, N)
             self.save_similarities()
             del sl
