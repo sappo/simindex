@@ -214,10 +214,25 @@ class WeakLabels(object):
 
                 if index % trim_threshold == 0:
                     P = heapq.nlargest(max_positive_pairs, P, key=lambda pair: pair.sim)
-                    N = heapq.nlargest(self.max_negative_pairs, N, key=lambda pair: pair.sim)
 
             P = heapq.nlargest(max_positive_pairs, P, key=lambda pair: pair.sim)
-            N = heapq.nlargest(self.max_negative_pairs, N, key=lambda pair: pair.sim)
+            ranked_N = N
+            ranked_N.sort(key=lambda pair: pair.sim) # Sort ascending by similarity
+            def draw_pair():
+                if ranked_N:
+                    return ranked_N.pop()
+                else:
+                    return None
+
+            self.draw_pair = draw_pair
+
+            N = []
+            while len(N) < self.max_negative_pairs:
+                pair = self.draw_pair()
+                if not pair:
+                    break
+
+                N.append(pair)
 
         return P, N
 

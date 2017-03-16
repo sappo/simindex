@@ -77,6 +77,9 @@ def test_engine_restaurant(verbose):
         engine.fit_csv("../../master_thesis/datasets/restaurant/restaurant_train.csv",
                        ["id","name","addr","city","phone","type"])
 
+        print("Labels P(%d), N(%d), fP(%d), fN(%d)" %
+                (engine.nP, engine.nN, engine.nfP, engine.nfN))
+
         # sim_strings_actual = engine.similarities
         # assert sim_strings_actual == sim_strings_expected
         blocking_scheme_actual = {(x[1], x[2]) for x in engine.blocking_scheme_to_strings()}
