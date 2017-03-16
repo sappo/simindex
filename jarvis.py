@@ -382,7 +382,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
     def save_report(self, button):
         name = self.edit.edit_text
         prefix, run, dataset = self.selected_reports[-1]
-        for report in glob.glob("%s/*%s*%s*" % (prefix, run, dataset)):
+        for report in glob.glob("%s/*%s_*%s*" % (prefix, run, dataset)):
             reportname = os.path.basename(report)
             parts = reportname.split('_')
             if reportname.startswith('mprofile'):
@@ -399,7 +399,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
     def delete_report(self, button):
         prefix, run, dataset = self.selected_reports[-1]
-        for report in glob.glob("%s/*%s*%s*" % (prefix, run, dataset)):
+        for report in glob.glob("%s/*%s_*%s*" % (prefix, run, dataset)):
             os.remove(report)
 
         self.refresh_menu()
@@ -407,12 +407,12 @@ class JarvisMenu(urwid.WidgetPlaceholder):
     def read_metrics(self, prefix, run, dataset):
         metrics = {}
         model = ""
-        for resultfile in glob.glob("%s/%s*%s" % (prefix, run, dataset)):
+        for resultfile in glob.glob("%s/%s_*%s" % (prefix, run, dataset)):
             if resultfile.count("fit"):
                 with open(resultfile) as fp:
                     model = json.load(fp)
 
-        for resultfile in glob.glob("%s/%s*%s" % (prefix, run, dataset)):
+        for resultfile in glob.glob("%s/%s_*%s" % (prefix, run, dataset)):
             if resultfile.count("fit"):
                 continue
 
@@ -458,7 +458,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         prc_curves = defaultdict(lambda: defaultdict(dict))
 
         for prefix, run, dataset in self.selected_reports:
-            for resultfile in glob.glob("%s/%s*%s" % (prefix, run, dataset)):
+            for resultfile in glob.glob("%s/%s_*%s" % (prefix, run, dataset)):
                 if resultfile.count("fit"):
                     continue
 
