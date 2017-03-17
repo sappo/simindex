@@ -5,6 +5,7 @@ import glob
 import re
 import json
 import click
+import concurrent.futures
 from pathlib import Path
 import urwid
 import subprocess
@@ -70,6 +71,20 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             saved_reports[(report.split('_')[0],
                            report.split('_')[2])].append(report.split('_')[1])
 
+        its_reports = {}
+        for no in np.arange(19):
+            machine = "its%s" % str(no).zfill(2)
+            its_reports[machine] = defaultdict(list)
+            its_report = its_reports[machine]
+            for report in sorted(glob.glob("./evaluation/%s/*" % machine), reverse=True):
+                if os.path.basename(report).startswith("mprofile") \
+                        or report.count('fit'):
+                    continue
+
+                report = os.path.basename(report)
+                its_report[(report.split('_')[0],
+                            report.split('_')[2])].append(report.split('_')[1])
+
         while self.box_level > 0:
             self.close_box()
 
@@ -79,18 +94,29 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             for key, value in sorted(reports.items(), reverse=True)
         ]
         menu_elements.extend([
-            self.sub_menu(u'Saved reports ...', [
+            self.sub_menu(u'Saved reports (%d) ...' % len(saved_reports), [
                 self.result_menu(key[0], key[1], value, './evaluation',
                                  reports, saved_reports)
                 for key, value in sorted(saved_reports.items(), reverse=True)
             ])
         ])
+        for no in np.arange(19):
+            machine = "its%s" % str(no).zfill(2)
+            its_report = its_reports[machine]
+            menu_elements.extend([
+                self.sub_menu(u'%s reports (%d) ...' % (machine, len(its_report)), [
+                    self.result_menu(key[0], key[1], value, './evaluation/%s' % machine,
+                                     reports, saved_reports)
+                    for key, value in sorted(its_report.items(), reverse=True)
+                ])
+            ])
 
         menu_elements.extend([
             self.sub_menu(u'Run remote evaluation ...', [
                 self.machines_menu(u'Classifier', "eval_classifier_ncvoter.sh"),
                 self.machines_menu(u'GT vs no GT', "eval_gtvsnogt_ncvoter.sh"),
-                self.machines_menu(u'Simimlarities', "eval_simeffect_ncvoter.sh"),
+                self.machines_menu(u'Similarities', "eval_simeffect_ncvoter.sh"),
+                self.menu_button(u'Grep Data', self.machines_grep_data),
             ])
         ])
         menu_elements.append(self.menu_button(u'Quit', exit_program))
@@ -98,36 +124,81 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         self.top_menu = self.menu(u'Choose a report!', menu_elements)
         self.open_box(self.top_menu)
 
-    def machines_menu(self, label, script):
+    def machines_grep_data(self, button):
+        self.open_box(self.menu('Checking for data (0/19)', []), small=True)
+        self.mainloop.draw_screen()
 
+        def do_rsync(machine):
+            cmd = "ssh ksapp002@login1.cs.hs-rm.de 'ssh %s ps ax | grep nohup'" % machine
+            with subprocess.Popen([cmd], shell=True, stdout=subprocess.PIPE) as proc:
+                stdout = proc.stdout.read()
+
+            if not stdout:
+                cmd2 = "rsync -avz --remove-source-files -e 'ssh -o ProxyCommand=\"ssh -W %%h:%%p ksapp002@login1.cs.hs-rm.de\"' ksapp002@%s:/its/ksapp002/reports/ evaluation/%s"
+                retcode = subprocess.call([cmd2 % (machine, machine)], shell=True, stdout=subprocess.DEVNULL)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            futures = []
+            for no in np.arange(19):
+                machine = "its%s" % str(no).zfill(2)
+                futures.append(executor.submit(do_rsync, machine))
+
+            counter = 0
+            for future in concurrent.futures.as_completed(futures):
+                self.close_box()
+                self.open_box(self.menu('Checking for data (%d/19)' % counter, []), small=True)
+                self.mainloop.draw_screen()
+                counter += 1
+
+        self.close_box()
+
+
+    def machines_menu(self, label, script):
         def open_menu(button):
+            self.script = script
             self.machines = set()
-            def blub(checkbox, state):
+            def check_machine(checkbox, state):
                 if state == True:
                     self.machines.add(checkbox.label)
                 else:
                     self.machines.remove(checkbox.label)
 
-            contents = []
-            for no in np.arange(16):
-                machine = "its%s" % str(no).zfill(2)
-                self.open_box(self.menu('Checking %s for WIP' % machine, []), small=True)
-                self.mainloop.draw_screen()
+            self.open_box(self.menu('Checking for WIP (0/19)', []), small=True)
+            self.mainloop.draw_screen()
 
+            def is_wip(machine):
                 cmd = "ssh ksapp002@login1.cs.hs-rm.de 'ssh %s ps ax | grep nohup'" % machine
                 with subprocess.Popen([cmd], shell=True, stdout=subprocess.PIPE) as proc:
-                    stdout = proc.stdout.read()
+                    return proc.stdout.read()
 
-                if not stdout:
-                    contents.append(urwid.CheckBox(machine, on_state_change=blub))
+            checkboxes = {}
+            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+                future_to_stdout = {}
+                for no in np.arange(19):
+                    machine = "its%s" % str(no).zfill(2)
+                    future_to_stdout[executor.submit(is_wip, machine)] = machine
+
+                counter = 0
+                for future in concurrent.futures.as_completed(future_to_stdout):
+                    machine = future_to_stdout[future]
+                    stdout = future.result()
+                    if not stdout:
+                        checkboxes[machine] = urwid.CheckBox(machine, on_state_change=check_machine)
+
+                    self.close_box()
+                    self.open_box(self.menu('Checking for WIP (%d/19)' % counter, []), small=True)
+                    self.mainloop.draw_screen()
+                    counter += 1
 
                 self.close_box()
 
+            contents = []
+            contents.extend([checkboxes[machine] for machine in sorted(checkboxes.keys())])
             contents.append(self.menu_button("Run", self.run_evaluation))
             menu = self.menu("Choose the machines to run the evaluation on!", contents)
             return self.open_box(menu)
 
-        return self.menu_button([job], open_menu)
+        return self.menu_button([label], open_menu)
 
     def run_evaluation(self, button):
         for machine in self.machines:
@@ -135,14 +206,14 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             if not os.path.exists(machine_report_dir):
                 os.mkdir(machine_report_dir)
 
-            retcode = subprocess.call(["./jarvis_helper.sh %s" % machine], shell=True)
+            cmd = "ssh -o \"ProxyCommand=ssh -W %%h:%%p ksapp002@login1.cs.hs-rm.de\" ksapp002@%s -t \"nohup bash -ic '( ( cd ~/workspace/simindex > /dev/null 2>&1 && ./%s > /dev/null 2>&1 ) & )'\""
+            retcode = subprocess.call([cmd % (machine, self.script)], shell=True)
             if retcode == 0:
-                Path("%s/wip" % machine_report_dir).touch()
                 pass #OK
             else:
                 pass #Wrong
 
-            self.open_box(self.menu('%s' % retcode, []), small=True)
+        self.close_box()
 
     def open_box(self, box, small=False):
         width = 90
