@@ -5,6 +5,7 @@ import glob
 import re
 import json
 import click
+from pathlib import Path
 import urwid
 import subprocess
 import itertools as it
@@ -34,6 +35,17 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
     def set_mainloop(self, mainloop):
         self.mainloop = mainloop
+        self.mainloop.set_alarm_in(0, self.process_mprofiles)
+
+    def process_mprofiles(self, mainloop, _):
+        self.open_box(self.menu('Processing memory profiles...', []), small=True)
+        self.mainloop.draw_screen()
+
+        # Parse memory usage output
+        for mprofile in glob.glob("./reports/mprofile*"):
+            parse_mprofile(mprofile)
+
+        self.close_box()
 
     def refresh_menu(self):
         self.selected_reports.clear()
@@ -49,7 +61,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                      report.split('_')[2])].append(report.split('_')[1])
 
         saved_reports = defaultdict(list)
-        for report in sorted(glob.glob("./evaluation/*"), reverse=True):
+        for report in sorted(filter(lambda f: os.path.isfile(f), glob.glob("./evaluation/*")), reverse=True):
             if os.path.basename(report).startswith("mprofile") \
                     or report.count('fit'):
                 continue
@@ -73,10 +85,64 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                 for key, value in sorted(saved_reports.items(), reverse=True)
             ])
         ])
+
+        menu_elements.extend([
+            self.sub_menu(u'Run remote evaluation ...', [
+                self.machines_menu(u'Classifier', "eval_classifier_ncvoter.sh"),
+                self.machines_menu(u'GT vs no GT', "eval_gtvsnogt_ncvoter.sh"),
+                self.machines_menu(u'Simimlarities', "eval_simeffect_ncvoter.sh"),
+            ])
+        ])
         menu_elements.append(self.menu_button(u'Quit', exit_program))
 
         self.top_menu = self.menu(u'Choose a report!', menu_elements)
         self.open_box(self.top_menu)
+
+    def machines_menu(self, label, script):
+
+        def open_menu(button):
+            self.machines = set()
+            def blub(checkbox, state):
+                if state == True:
+                    self.machines.add(checkbox.label)
+                else:
+                    self.machines.remove(checkbox.label)
+
+            contents = []
+            for no in np.arange(16):
+                machine = "its%s" % str(no).zfill(2)
+                self.open_box(self.menu('Checking %s for WIP' % machine, []), small=True)
+                self.mainloop.draw_screen()
+
+                cmd = "ssh ksapp002@login1.cs.hs-rm.de 'ssh %s ps ax | grep nohup'" % machine
+                with subprocess.Popen([cmd], shell=True, stdout=subprocess.PIPE) as proc:
+                    stdout = proc.stdout.read()
+
+                if not stdout:
+                    contents.append(urwid.CheckBox(machine, on_state_change=blub))
+
+                self.close_box()
+
+            contents.append(self.menu_button("Run", self.run_evaluation))
+            menu = self.menu("Choose the machines to run the evaluation on!", contents)
+            return self.open_box(menu)
+
+        return self.menu_button([job], open_menu)
+
+    def run_evaluation(self, button):
+        for machine in self.machines:
+            machine_report_dir = './evaluation/%s' % machine
+            if not os.path.exists(machine_report_dir):
+                os.mkdir(machine_report_dir)
+
+            retcode = subprocess.call(["./jarvis_helper.sh %s" % machine], shell=True)
+            if retcode == 0:
+                Path("%s/wip" % machine_report_dir).touch()
+                pass #OK
+            else:
+                pass #Wrong
+
+            self.open_box(self.menu('%s' % retcode, []), small=True)
 
     def open_box(self, box, small=False):
         width = 90
@@ -594,12 +660,6 @@ def parse_mprofile(filename):
 
 @click.command(context_settings=dict(help_option_names=[u'-h', u'--help']))
 def main():
-
-    # Parse memory usage output
-    for mprofile in glob.glob("./reports/mprofile*"):
-        parse_mprofile(mprofile)
-
-
     # Open menu with available reports
     top = JarvisMenu()
     mainloop = urwid.MainLoop(top, palette=[('reversed', 'standout', '')])
