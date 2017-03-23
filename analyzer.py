@@ -138,6 +138,7 @@ def main(index_file, index_attributes,
         print("##############################################################")
         print("  Fitting training dataset.")
         print("##############################################################")
+        clf_name = None
         clf_params = None
         if clf:
             if clf == "svmlinear":
