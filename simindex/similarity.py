@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 from abc import ABCMeta, abstractmethod
 from collections import defaultdict, OrderedDict
+from sklearn.metrics import average_precision_score
 
 import numpy as np
 import jellyfish
 from difflib import SequenceMatcher
 from harry import Measures, Hstring
+from pprint import pprint
 
 import simindex.helper as hp
 
@@ -50,7 +52,7 @@ class SimLearner():
                 self.gold_records[b].add(a)
 
     @profile
-    def predict(self, P, N):
+    def predict_old(self, P, N):
         prediction = defaultdict(OrderedDict)
         for field in range(self.attribute_count):
             for sim_obj in self.similarity_objs:
@@ -68,6 +70,81 @@ class SimLearner():
                     result[field] = sim_name
 
         return list(result.values())
+
+    def predict(self, P, N):
+        result = OrderedDict()
+        for field in range(self.attribute_count):
+            best_field_similarity = None
+            best_field_score = 0
+            print("Field %d" % field)
+            for sim_obj in self.similarity_objs:
+                field_score = self.score(sim_obj.compare, field, P, N)
+                print("%s: %f" % (type(sim_obj).__name__, field_score))
+                if field_score > best_field_score:
+                    best_field_similarity = type(sim_obj).__name__
+                    best_field_score = field_score
+
+            result[field] = best_field_similarity
+            print()
+
+        return list(result.values())
+
+    def score(self, similarity, field, P, N):
+        y_true = []
+        y_scores = []
+        for pair in P:
+            x = 0
+            p1_attributes = self.dataset[pair.t1]
+            p2_attributes = self.dataset[pair.t2]
+            if self.use_full_simvector:
+                # Calculate similarities between all attributes
+                p1_attribute = p1_attributes[field]
+                p2_attribute = p2_attributes[field]
+                if p1_attribute and p2_attribute:
+                    x = similarity(p1_attribute, p2_attribute)
+            else:
+                for blocking_key in self.blocking_scheme:
+                    # Calculate similarites between pairs whose attributes
+                    # have a common block.
+                    if field in blocking_key.covered_fields():
+                        p1_bkvs = blocking_key.blocking_key_values(p1_attributes)
+                        p2_bkvs = blocking_key.blocking_key_values(p2_attributes)
+                        if not p1_bkvs.isdisjoint(p2_bkvs):
+                            p1_attribute = p1_attributes[field]
+                            p2_attribute = p2_attributes[field]
+                            if p1_attribute and p2_attribute:
+                                x = similarity(p1_attribute, p2_attribute)
+
+            y_true.append(1)
+            y_scores.append(x)
+
+        for pair in N:
+            x = 0
+            p1_attributes = self.dataset[pair.t1]
+            p2_attributes = self.dataset[pair.t2]
+            if self.use_full_simvector:
+                # Calculate similarities between all attributes
+                p1_attribute = p1_attributes[field]
+                p2_attribute = p2_attributes[field]
+                if p1_attribute and p2_attribute:
+                    x = similarity(p1_attribute, p2_attribute)
+            else:
+                for blocking_key in self.blocking_scheme:
+                    # Calculate similarites between pairs whose attributes
+                    # have a common block.
+                    if field in blocking_key.covered_fields():
+                        p1_bkvs = blocking_key.blocking_key_values(p1_attributes)
+                        p2_bkvs = blocking_key.blocking_key_values(p2_attributes)
+                        if not p1_bkvs.isdisjoint(p2_bkvs):
+                            p1_attribute = p1_attributes[field]
+                            p2_attribute = p2_attributes[field]
+                            if p1_attribute and p2_attribute:
+                                x = similarity(p1_attribute, p2_attribute)
+
+            y_true.append(0)
+            y_scores.append(x)
+
+        return average_precision_score(y_true, y_scores)
 
     def mean_similarity(self, pairs, field, similarity):
         result = []
