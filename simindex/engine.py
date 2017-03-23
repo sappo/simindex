@@ -388,8 +388,6 @@ class SimEngine(object):
 
             self.indexer.save(self.name, self.datadir)
 
-        # pprint(self.indexer.FBI)
-
     @profile
     def query_csv(self, query_file, attributes=None):
         store = pd.HDFStore(self.querydatastore_name, mode="w")
