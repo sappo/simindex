@@ -49,6 +49,7 @@ class SimEngine(object):
                  indexer=MDySimIII, classifier_candidates=None,
                  max_positive_labels=None, max_negative_labels=None,
                  max_bk_conjunction=2,
+                 label_thresholds=(0.1, 0.6),
                  clf_cfg=None, clf_cfg_params=None,
                  insert_timer=None, query_timer=None,
                  use_classifier=True, use_full_simvector=False,
@@ -66,6 +67,7 @@ class SimEngine(object):
         self.stoplist = set('for a of the and to in'.split())
 
         # WeakLabels parameters
+        self.label_thresholds = label_thresholds
         self.max_p = max_positive_labels
         self.max_n = max_negative_labels
         self.nfP = 0
@@ -168,6 +170,8 @@ class SimEngine(object):
                                 gold_pairs=self.gold_pairs,
                                 max_positive_pairs=self.max_p,
                                 max_negative_pairs=self.max_n,
+                                lower_threshold=self.label_thresholds[0],
+                                upper_threshold=self.label_thresholds[1],
                                 verbose=self.verbose)
             labels.fit()
             P, N = labels.predict()
@@ -180,6 +184,8 @@ class SimEngine(object):
                                 gold_pairs=self.gold_pairs,
                                 max_positive_pairs=state[2],
                                 max_negative_pairs=state[3],
+                                lower_threshold=self.label_thresholds[0],
+                                upper_threshold=self.label_thresholds[1],
                                 verbose=self.verbose)
             labels.N_complete = state[0]
             labels.weights = state[1]
