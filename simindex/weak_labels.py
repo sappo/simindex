@@ -262,13 +262,21 @@ class WeakLabels(object):
             if has_common_block(pair):
                 filtered_N.append(pair)
 
+        x = 0
+        y = 0
+        print("Filtered %d vs Max %d" % (len(filtered_N), self.max_negative_pairs))
         while len(filtered_N) < self.max_negative_pairs:
             pair = self.draw_pair()
             if not pair:
                 break
 
             if has_common_block(pair):
+                y += 1
                 filtered_N.append(pair)
+
+            x += 1
+
+        print("Tried %d pairs hits %d" % (x, y))
 
         return filtered_P, filtered_N
 
