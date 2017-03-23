@@ -6,6 +6,7 @@ import re
 import json
 import click
 import concurrent.futures
+from datetime import datetime, timedelta
 from pathlib import Path
 import urwid
 import subprocess
@@ -90,13 +91,13 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
         menu_elements = [
             self.result_menu(key[0], key[1], value, './reports',
-                             reports, saved_reports)
+                             reports, saved_reports, its_reports)
             for key, value in sorted(reports.items(), reverse=True)
         ]
         menu_elements.extend([
             self.sub_menu(u'Saved reports (%d) ...' % len(saved_reports), [
                 self.result_menu(key[0], key[1], value, './evaluation',
-                                 reports, saved_reports)
+                                 reports, saved_reports, its_reports)
                 for key, value in sorted(saved_reports.items(), reverse=True)
             ])
         ])
@@ -106,7 +107,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             menu_elements.extend([
                 self.sub_menu(u'%s reports (%d) ...' % (machine, len(its_report)), [
                     self.result_menu(key[0], key[1], value, './evaluation/%s' % machine,
-                                     reports, saved_reports)
+                                     reports, saved_reports, its_reports)
                     for key, value in sorted(its_report.items(), reverse=True)
                 ])
             ])
@@ -129,7 +130,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         self.mainloop.draw_screen()
 
         def do_rsync(machine):
-            cmd = "ssh ksapp002@login1.cs.hs-rm.de 'ssh %s ps ax | grep nohup'" % machine
+            cmd = "ssh -o ProxyCommand=\"ssh -W %%h:%%p ksapp002@login1.cs.hs-rm.de\" ksapp002@%s ps ax | grep [a]nalyzer.py" % machine
             with subprocess.Popen([cmd], shell=True, stdout=subprocess.PIPE) as proc:
                 stdout = proc.stdout.read()
 
@@ -167,7 +168,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             self.mainloop.draw_screen()
 
             def is_wip(machine):
-                cmd = "ssh ksapp002@login1.cs.hs-rm.de 'ssh %s ps ax | grep nohup'" % machine
+                cmd = "ssh -o ProxyCommand=\"ssh -W %%h:%%p ksapp002@login1.cs.hs-rm.de\" ksapp002@%s ps ax | grep [a]nalyzer.py" % machine
                 with subprocess.Popen([cmd], shell=True, stdout=subprocess.PIPE) as proc:
                     return proc.stdout.read()
 
@@ -276,12 +277,13 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         return urwid.ListBox(urwid.SimpleFocusListWalker(body))
 
     def result_menu(self, run, dataset, indexer, prefix,
-                    reports, saved_reports):
-        btn_caption = "%s (%s) - %s" % (run, dataset, ', '.join(indexer))
+                    reports, saved_reports, its_reports):
+        short_info = self.model_info_short(prefix, run, dataset)
+        btn_caption = "%s    %s (%s) - %s" % (run, short_info, dataset, ', '.join(indexer))
         def open_menu(button):
             title = "Choose an option for %s!" % btn_caption
             def open_comparemenu(button):
-                compare_contents = self.compare_menu(reports, saved_reports, 1)
+                compare_contents = self.compare_menu(reports, saved_reports, its_reports, 1)
                 return self.open_box(compare_contents)
 
             contents = self.menu(title, [
@@ -303,7 +305,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
         return self.menu_button([btn_caption], open_menu)
 
-    def compare_menu(self, reports, saved_reports, level):
+    def compare_menu(self, reports, saved_reports, its_reports, level):
         compare_elements = [
             self.compare_menu_button(key[0], key[1], value, './reports', level,
                 reports, saved_reports)
@@ -316,13 +318,23 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                 for key, value in sorted(saved_reports.items(), reverse=True)
             ])
         ])
+        for no in np.arange(19):
+            machine = "its%s" % str(no).zfill(2)
+            its_report = its_reports[machine]
+            compare_elements.extend([
+                self.sub_menu(u'%s reports (%d) ...' % (machine, len(its_report)), [
+                    self.result_menu(key[0], key[1], value, './evaluation/%s' % machine,
+                                     reports, saved_reports, its_reports)
+                    for key, value in sorted(its_report.items(), reverse=True)
+                ])
+            ])
         return self.menu("Choose a report to compare!", compare_elements)
 
 
     def compare_menu_button(self, run, dataset, indexer, prefix, level, reports, saved_reports):
         def open_menu(button):
             def open_comparemenu(button):
-                compare_contents = self.compare_menu(reports, saved_reports, level + 1)
+                compare_contents = self.compare_menu(reports, saved_reports, its_reports, level + 1)
                 return self.open_box(compare_contents)
 
             contents = self.menu("Compare with - %s" % btn_caption, [
@@ -337,7 +349,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             self.close_on_level.append(self.box_level)
             return self.open_box(contents)
 
-        btn_caption = "%s (%s) - %s" % (run, dataset, ', '.join(indexer))
+        short_info = self.model_info_short(prefix, run, dataset)
+        btn_caption = "%s   %s (%s) - %s" % (run, short_info, dataset, ', '.join(indexer))
         return self.menu_button([btn_caption], open_menu)
 
     def save_menu(self):
@@ -364,6 +377,37 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         button = urwid.Button(caption)
         urwid.connect_signal(button, 'click', callback)
         return urwid.AttrMap(button, None, focus_map='reversed')
+
+    def model_info_short(self, prefix, run, dataset):
+        model_report = "%s/%s_fit_%s" % (prefix, run, dataset)
+        with open(model_report) as fp:
+            model = json.load(fp)
+
+        if model.get("use_classifier", True):
+            if model.get("clf", None):
+                clf_info = "clf" + model.get("clf", "")
+            else:
+                clf_info = "clflearn"
+        else:
+            clf_info = "noclf"
+
+        if model.get("use_fullvector", False):
+            vec_info = "full"
+        else:
+            vec_info = "par "
+
+        if model.get("use_gt_matches", True):
+            gt_info = "gt              "
+        else:
+            gt_info = "nogt(%.2f, %.2f)" % model.get("gt_lbl_thresholds", (0.1, 0.6))
+
+        if model.get("similarity", None):
+            sim_info = "sim" + model.get("similarity", "")
+        else:
+            sim_info = "simlearn"
+
+        return clf_info.ljust(10) + vec_info.ljust(7) + gt_info.ljust(20) + sim_info.ljust(10)
+
 
     def model_info(self, button):
         prefix, run, dataset = self.selected_reports[-1]
@@ -431,12 +475,20 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
         result_grid = urwid.Text([text])
 
+        gt_text = "%r" % model.get("use_gt_matches", True)
+        if not model.get("use_gt_matches", True):
+            thres = model.get("gt_lbl_thresholds", (0.1, 0.6))
+            gt_text += " (%.2f, %.2f)" % thres
+
         self.open_box(
             urwid.ListBox([
                 urwid.Text("Model."),
                 urwid.Divider(),
-                urwid.Text("Ground Truth - P (%s), N (%s) - with Matches? %s" %
-                    (blocking_P, blocking_N, model.get("use_gt_matches", "True"))),
+                urwid.Text(self.model_info_short(prefix, run, dataset)),
+                urwid.Divider(),
+                urwid.Text("Fit time: %dh %dm %ds %dms" % time_to_hms(model.get("fit_time", "N/A"))),
+                urwid.Divider(),
+                urwid.Text("Ground Truth - P (%s), N (%s) - with Matches? %s" % (blocking_P, blocking_N, gt_text)),
                 urwid.Divider(),
                 urwid.Columns(simrow),
                 urwid.Divider(),
@@ -494,10 +546,10 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             text += "F1-Score:           %f\n" % measurements["f1_score"]
             columns_data[indexer].append(urwid.Text([text]))
             text =  "Times\n"
-            text += "Build time:         %f\n" % measurements["build_time"]
-            text += "Build time sum:     %f\n" % measurements["build_time_sum"]
-            text += "Query time:         %f\n" % measurements["query_time"]
-            text += "Query time sum:     %f\n" % measurements["query_time_sum"]
+            text += "Build time:         %dh %dm %ds %dms\n" % time_to_hms(measurements["build_time"])
+            text += "Build time sum:     %dh %dm %ds %dms\n" % time_to_hms(measurements["build_time_sum"])
+            text += "Query time:         %dh %dm %ds %dms\n" % time_to_hms(measurements["query_time"])
+            text += "Query time sum:     %dh %dm %ds %dms\n" % time_to_hms(measurements["query_time_sum"])
             text += "Inserts mean:       %f\n" % measurements["inserts_mean"]
             text += "Queries mean:       %f\n" % measurements["queries_mean"]
             text += "Inserts (s):        %.0f\n" % measurements["inserts_sec"]
@@ -647,6 +699,23 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             splt.show()
         else:
             splt.save(picture_names)
+
+
+def time_to_hms(time):
+    if not time == "N/A":
+        sec = timedelta(seconds=time)
+        d = datetime(1,1,1) + sec
+        hours = d.hour
+        minutes = d.minute
+        seconds = d.second
+        microsecond = d.microsecond / 1000
+    else:
+        hours = "N/A"
+        minutes = "N/A"
+        seconds = "N/A"
+        microsecond = "N/A"
+
+    return hours, minutes, seconds, microsecond
 
 
 def parse_mprofile(filename):

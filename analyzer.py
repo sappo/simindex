@@ -87,6 +87,10 @@ def setup_logging(default_path='logging.json',
     default=True
 )
 @click.option(
+    u'--gt-thresholds', help=u'',
+    type=(float, float), default=(0.1, 0.6)
+)
+@click.option(
     u'-rt', u'--run-type', help=u'What are you benchmarking?\
                                  evaluation - calculate all metrics\
                                  plot - draw results'
@@ -105,7 +109,8 @@ def main(index_file, index_attributes,
          train_file, train_attributes,
          gold_standard, gold_attributes,
          run_type, classifier, full_simvector,
-         gt_labels, clf, similarity,
+         gt_labels, gt_thresholds,
+         clf, similarity,
          output, run_name, indexer,
          baseline):
     """
@@ -123,7 +128,7 @@ def main(index_file, index_attributes,
 
     if run_type == "fit":
         # Clean engine state
-        for index_state in glob.glob("%s/.%s*" % (engine_datadir, datasetname)):
+        for index_state in glob.glob("%s/.%s*.cls" % (engine_datadir, datasetname)):
             os.remove(index_state)
 
         model = {}
@@ -136,28 +141,31 @@ def main(index_file, index_attributes,
         clf_params = None
         if clf:
             if clf == "svmlinear":
-                clf = "SVM"
+                clf_name = "SVM"
                 clf_params = [{'kernel': ['linear'],  'C': [0.1, 1, 10, 100, 1000]}]
             elif clf == "svmrbf":
-                clf = "SVM"
+                clf_name = "SVM"
                 clf_params = [{'kernel': ['rbf'],     'C': [0.1, 1, 10, 100, 1000]}]
             elif clf == "decisiontree":
-                clf = "DT"
+                clf_name = "DT"
                 clf_params = [{'max_features': ['auto', 'sqrt', 'log2']}]
 
         if indexer == "MDySimII":
             engine = SimEngine(datasetname, indexer=MDySimII,
-                               clf_cfg=clf, clf_cfg_params=clf_params,
+                               label_thresholds=gt_thresholds,
+                               clf_cfg=clf_name, clf_cfg_params=clf_params,
                                datadir=engine_datadir, verbose=True, max_bk_conjunction=2,
                                use_classifier=classifier, use_full_simvector=full_simvector)
         elif indexer == "MDySimIII":
             engine = SimEngine(datasetname, indexer=MDySimIII,
-                               clf_cfg=clf, clf_cfg_params=clf_params,
+                               label_thresholds=gt_thresholds,
+                               clf_cfg=clf_name, clf_cfg_params=clf_params,
                                datadir=engine_datadir, verbose=True, max_bk_conjunction=2,
                                use_classifier=classifier, use_full_simvector=full_simvector)
         elif indexer == "MDyLSH":
             engine = SimEngine(datasetname, indexer=MDyLSH,
-                               clf_cfg=clf, clf_cfg_params=clf_params,
+                               label_thresholds=gt_thresholds,
+                               clf_cfg=clf_name, clf_cfg_params=clf_params,
                                datadir=engine_datadir, verbose=True, max_bk_conjunction=2,
                                use_classifier=classifier, use_full_simvector=full_simvector)
 
@@ -213,13 +221,16 @@ def main(index_file, index_attributes,
 
         model["blocking_scheme"] = blocking_scheme
         model["blocking_scheme_max_c"] = engine.max_bk_conjunction
+        model["similarity"] = similarity
         model["similarities"] = engine.similarities
         model["best_classifier"] = type(engine.clf).__name__
         model["best_params"] = engine.clf_best_params
         model["best_score"] = engine.clf_best_score
         model["clf_result_grid"] = engine.clf_result_grid
+        model["clf"] = clf
         model["use_classifier"] = engine.use_classifier
         model["use_fullvector"] = engine.use_full_simvector
+        model["gt_lbl_thresholds"] = engine.label_thresholds
         if len(baseline) == 0:
             model["positive_labels"] = engine.nP
             model["negative_labels"] = engine.nN
