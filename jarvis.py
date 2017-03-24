@@ -226,10 +226,10 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         self.original_widget = \
             urwid.Overlay(urwid.AttrMap(urwid.LineBox(frame), '', 'line'),
                           self.original_widget,
-                          align='center', width=('relative', width),
+                          align='left', width=('relative', width),
                           valign='middle', height=('relative', height),
                           min_width=24, min_height=8,
-                          left=self.box_level * 3,
+                          left=(self.box_level + 1) * 3,
                           right=(self.max_box_levels - self.box_level - 1) * 3,
                           top=self.box_level * 2,
                           bottom=(self.max_box_levels - self.box_level - 1) * 2)
@@ -308,13 +308,13 @@ class JarvisMenu(urwid.WidgetPlaceholder):
     def compare_menu(self, reports, saved_reports, its_reports, level):
         compare_elements = [
             self.compare_menu_button(key[0], key[1], value, './reports', level,
-                reports, saved_reports)
+                reports, saved_reports, its_reports)
             for key, value in sorted(reports.items(), reverse=True)
         ]
         compare_elements.extend([
             self.sub_menu(u'Saved reports ...', [
                 self.compare_menu_button(key[0], key[1], value, './evaluation', level,
-                    reports, saved_reports)
+                    reports, saved_reports, its_reports)
                 for key, value in sorted(saved_reports.items(), reverse=True)
             ])
         ])
@@ -331,7 +331,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         return self.menu("Choose a report to compare!", compare_elements)
 
 
-    def compare_menu_button(self, run, dataset, indexer, prefix, level, reports, saved_reports):
+    def compare_menu_button(self, run, dataset, indexer, prefix, level,
+                            reports, saved_reports, its_reports):
         def open_menu(button):
             def open_comparemenu(button):
                 compare_contents = self.compare_menu(reports, saved_reports, its_reports, level + 1)
