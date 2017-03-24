@@ -400,7 +400,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         if model.get("use_gt_matches", True):
             gt_info = "gt              "
         else:
-            gt_info = "nogt(%.2f, %.2f)" % model.get("gt_lbl_thresholds", (0.1, 0.6))
+            thresholds = model.get("gt_lbl_thresholds", (0.1, 0.6))
+            gt_info = "nogt(%.2f, %.2f)" % (thresholds[0], thresholds[1])
 
         if model.get("similarity", None):
             sim_info = "sim" + model.get("similarity", "")
@@ -478,8 +479,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
         gt_text = "%r" % model.get("use_gt_matches", True)
         if not model.get("use_gt_matches", True):
-            thres = model.get("gt_lbl_thresholds", (0.1, 0.6))
-            gt_text += " (%.2f, %.2f)" % thres
+            thresholds = model.get("gt_lbl_thresholds", (0.1, 0.6))
+            gt_text += " (%.2f, %.2f)" % (thresholds[0], thresholds[1])
 
         self.open_box(
             urwid.ListBox([
@@ -545,6 +546,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             text += "Recall:             %f\n" % measurements["recall"]
             text += "Precision:          %f\n" % measurements["precision"]
             text += "F1-Score:           %f\n" % measurements["f1_score"]
+            text += "Average Precsion    %f\n" % measurements.get("average_precision", float('nan'))
             columns_data[indexer].append(urwid.Text([text]))
             text =  "Times\n"
             text += "Build time:         %dh %dm %ds %dms\n" % time_to_hms(measurements["build_time"])

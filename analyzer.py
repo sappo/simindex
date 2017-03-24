@@ -364,6 +364,7 @@ def main(index_file, index_attributes,
         measurements["recall"] = engine.recall()
         measurements["precision"] = engine.precision()
         measurements["f1_score"] = engine.f1_score()
+        measurements["average_precision"] = engine.average_precision()
         precisions, recalls, thresholds = engine.precision_recall_curve()
         measurements["prc_precisions"] = precisions.tolist()
         measurements["prc_recalls"] = recalls.tolist()
@@ -375,6 +376,7 @@ def main(index_file, index_attributes,
         print("\tRecall:", measurements["recall"])
         print("\tPrecision:", measurements["precision"])
         print("\tF1-Score:", measurements["f1_score"])
+        print("\tAverage Precision:", measurements["average_precision"])
 
         # Save metrics
         fp = open(output, mode='w')

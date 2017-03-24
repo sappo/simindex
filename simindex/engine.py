@@ -485,6 +485,9 @@ class SimEngine(object):
     def f1_score(self):
         return skm.metrics.f1_score(self.y_true, self.y_pred)
 
+    def average_precision(self):
+        return skm.metrics.average_precision_score(self.y_true_score, self.y_scores)
+
     def precision_recall_curve(self):
         return skm.metrics.precision_recall_curve(self.y_true_score, self.y_scores)
 
