@@ -49,7 +49,7 @@ class SimEngine(object):
                  indexer=MDySimIII, classifier_candidates=None,
                  max_positive_labels=None, max_negative_labels=None,
                  max_bk_conjunction=2,
-                 label_thresholds=(0.1, 0.6),
+                 label_thresholds=(0.1, 0.6, 2, 0.1, 0.25),
                  clf_cfg=None, clf_cfg_params=None,
                  insert_timer=None, query_timer=None,
                  use_classifier=True, use_full_simvector=False,
@@ -70,6 +70,8 @@ class SimEngine(object):
         self.label_thresholds = label_thresholds
         self.max_p = max_positive_labels
         self.max_n = max_negative_labels
+        self.p_part = label_thresholds[3]
+        self.n_part = label_thresholds[4]
         self.nfP = 0
         self.nfN = 0
 
@@ -161,10 +163,10 @@ class SimEngine(object):
         if P is None and N is None:
             if not self.gold_pairs:
                 if self.max_p is None:
-                    self.max_p = int(len(dataset) * 0.1)
+                    self.max_p = int(len(dataset) * self.p_part)
 
                 if self.max_n is None:
-                    self.max_n = int(len(dataset) * 0.25)
+                    self.max_n = int(len(dataset) * self.n_part)
 
             labels = WeakLabels(self.attribute_count, dataset,
                                 gold_pairs=self.gold_pairs,
@@ -172,6 +174,7 @@ class SimEngine(object):
                                 max_negative_pairs=self.max_n,
                                 lower_threshold=self.label_thresholds[0],
                                 upper_threshold=self.label_thresholds[1],
+                                window_size=self.label_thresholds[2],
                                 verbose=self.verbose)
             labels.fit()
             P, N = labels.predict()
@@ -186,6 +189,7 @@ class SimEngine(object):
                                 max_negative_pairs=state[3],
                                 lower_threshold=self.label_thresholds[0],
                                 upper_threshold=self.label_thresholds[1],
+                                window_size=self.label_thresholds[2],
                                 verbose=self.verbose)
             labels.N_complete = state[0]
             labels.weights = state[1]
@@ -322,8 +326,8 @@ class SimEngine(object):
 
             X_P.extend(X_N)
             y_P.extend(y_N)
-            X = X_P
-            y = y_P
+            # X = X_P
+            # y = y_P
             assert len(X_train) < 5001, "Whoops, training labels should be less then 5000"
             assert len(y_train) < 5001, "Whoops, training labels should be less then 5000"
 
@@ -339,7 +343,7 @@ class SimEngine(object):
             self.clf_best_params = ful.best_params
             self.clf_best_score = ful.best_quality
             self.clf_result_grid = ful.result_grid
-            self.clf.fit(X, y)  # refit classifier with whole ground truth
+            # self.clf.fit(X, y)  # refit classifier with whole ground truth
             self.save_model()
 
         # Cleanup

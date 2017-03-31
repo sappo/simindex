@@ -88,7 +88,7 @@ def setup_logging(default_path='logging.json',
 )
 @click.option(
     u'--gt-thresholds', help=u'',
-    type=(float, float), default=(0.1, 0.6)
+    type=(float, float, int, float, float), default=(0.1, 0.6, 2, 0.1, 0.25)
 )
 @click.option(
     u'-rt', u'--run-type', help=u'What are you benchmarking?\
