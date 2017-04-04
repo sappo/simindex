@@ -91,6 +91,10 @@ def setup_logging(default_path='logging.json',
     type=(float, float, int, float, float), default=(0.1, 0.6, 2, 0.1, 0.25)
 )
 @click.option(
+    u'--dnf-filters', help=u'',
+    type=(int, float), default=(100, 0.9)
+)
+@click.option(
     u'-rt', u'--run-type', help=u'What are you benchmarking?\
                                  evaluation - calculate all metrics\
                                  plot - draw results'
@@ -109,7 +113,7 @@ def main(index_file, index_attributes,
          train_file, train_attributes,
          gold_standard, gold_attributes,
          run_type, classifier, full_simvector,
-         gt_labels, gt_thresholds,
+         gt_labels, gt_thresholds, dnf_filters,
          clf, similarity,
          output, run_name, indexer,
          baseline):
@@ -154,18 +158,21 @@ def main(index_file, index_attributes,
         if indexer == "MDySimII":
             engine = SimEngine(datasetname, indexer=MDySimII,
                                label_thresholds=gt_thresholds,
+                               max_blocksize=dnf_filters[0], min_goodratio=dnf_filters[1],
                                clf_cfg=clf_name, clf_cfg_params=clf_params,
                                datadir=engine_datadir, verbose=True, max_bk_conjunction=2,
                                use_classifier=classifier, use_full_simvector=full_simvector)
         elif indexer == "MDySimIII":
             engine = SimEngine(datasetname, indexer=MDySimIII,
                                label_thresholds=gt_thresholds,
+                               max_blocksize=dnf_filters[0], min_goodratio=dnf_filters[1],
                                clf_cfg=clf_name, clf_cfg_params=clf_params,
                                datadir=engine_datadir, verbose=True, max_bk_conjunction=2,
                                use_classifier=classifier, use_full_simvector=full_simvector)
         elif indexer == "MDyLSH":
             engine = SimEngine(datasetname, indexer=MDyLSH,
                                label_thresholds=gt_thresholds,
+                               max_blocksize=dnf_filters[0], min_goodratio=dnf_filters[1],
                                clf_cfg=clf_name, clf_cfg_params=clf_params,
                                datadir=engine_datadir, verbose=True, max_bk_conjunction=2,
                                use_classifier=classifier, use_full_simvector=full_simvector)
@@ -227,6 +234,8 @@ def main(index_file, index_attributes,
         model["best_classifier"] = type(engine.clf).__name__
         model["best_params"] = engine.clf_best_params
         model["best_score"] = engine.clf_best_score
+        model["max_blocksize"] = engine.max_blocksize
+        model["min_goodratio"] = engine.min_goodratio
         model["clf_result_grid"] = engine.clf_result_grid
         model["clf"] = clf
         model["use_classifier"] = engine.use_classifier

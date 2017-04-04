@@ -7,7 +7,7 @@ import numpy as np
 import json
 from pprint import pprint
 
-from collections import defaultdict, Counter
+from collections import defaultdict
 import sklearn as skm
 
 from .dysim import MDySimIII
@@ -50,6 +50,7 @@ class SimEngine(object):
                  max_positive_labels=None, max_negative_labels=None,
                  max_bk_conjunction=2,
                  label_thresholds=(0.1, 0.6, 2, 0.1, 0.25),
+                 max_blocksize=100, min_goodratio=0.9,
                  clf_cfg=None, clf_cfg_params=None,
                  insert_timer=None, query_timer=None,
                  use_classifier=True, use_full_simvector=False,
@@ -77,6 +78,8 @@ class SimEngine(object):
 
         # DNF Blocking Scheme Learner parameters
         self.max_bk_conjunction = max_bk_conjunction
+        self.max_blocksize = max_blocksize
+        self.min_goodratio = min_goodratio
 
         # FusionLearner parameters
         self.clf = None
@@ -211,6 +214,8 @@ class SimEngine(object):
             dbs = DisjunctiveBlockingScheme(blocking_keys, P, N,
                                             self.indexer_class,
                                             self.max_bk_conjunction,
+                                            max_blocksize=self.max_blocksize,
+                                            min_goodratio=self.min_goodratio,
                                             verbose=self.verbose)
             self.blocking_scheme = dbs.transform(dataset)
             if self.verbose:
@@ -222,6 +227,8 @@ class SimEngine(object):
         if self.verbose:
             logger.info("Learned the following blocking scheme:")
             pprint(self.blocking_scheme)
+            for index, term in enumerate(self.blocking_scheme):
+                print("Term %d has %d illegal keys" % (index, len(term.illegal_bkvs)))
 
         # Filter labels based on blocking scheme
         P, N = labels.filter(self.blocking_scheme, P, N)

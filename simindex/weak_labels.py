@@ -371,6 +371,7 @@ class Feature:
 class DisjunctiveBlockingScheme(object):
 
     def __init__(self, blocking_keys, P, N, indexer, k=2,
+                 max_blocksize=100, min_goodratio=0.9,
                  block_timer=None, verbose=False):
         self.P = [frozenset((p.t1, p.t2)) for p in P]
         self.N = [frozenset((p.t1, p.t2)) for p in N]
@@ -378,6 +379,8 @@ class DisjunctiveBlockingScheme(object):
         self.flat_P = set(hp.flatten(self.frozen_P))
         self.features = []
         self.k = k
+        self.max_blocksize = max_blocksize
+        self.min_goodratio = min_goodratio
         self.indexer = indexer
 
         self.verbose = verbose
@@ -442,8 +445,8 @@ class DisjunctiveBlockingScheme(object):
             block_sizes.append(len(block))
 
         freq_dis = Counter(block_sizes)
-        ngood = sum([freq_dis[b] * b for b in freq_dis.keys() if b > 1 and b < 101])
-        nbad = sum([freq_dis[b] * b for b in freq_dis.keys() if b > 100])
+        ngood = sum([freq_dis[b] * b for b in freq_dis.keys() if b > 1 and b < self.max_blocksize + 1])
+        nbad = sum([freq_dis[b] * b for b in freq_dis.keys() if b > self.max_blocksize])
         # In case the blocking key assigns unique keys
         if ngood == 0:
             return 0
@@ -454,7 +457,7 @@ class DisjunctiveBlockingScheme(object):
             logger.info("1) Number of Blocks %d" % nblocks)
             logger.info("1) Frequency Ratio is %f\t%s" % (good_ratio, hp.memory_usage()))
 
-        if good_ratio < 0.90:
+        if good_ratio < self.min_goodratio:
             logger.info("2) Skip because of bad ratio")
             logger.info("----------------------------------------------------")
             return 0
@@ -462,7 +465,7 @@ class DisjunctiveBlockingScheme(object):
         term_candidate_pairs = set()
         TP, FP, FN = 0, 0, 0
         for block_key, block in blocks:
-            if len(block) > 100:
+            if len(block) > self.max_blocksize:
                 feature.add_illegal_bkv(block_key)
                 continue
 
