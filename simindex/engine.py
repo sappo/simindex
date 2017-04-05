@@ -48,7 +48,7 @@ class SimEngine(object):
     def __init__(self, name, datadir='.',
                  indexer=MDySimIII, classifier_candidates=None,
                  max_positive_labels=None, max_negative_labels=None,
-                 max_bk_conjunction=2,
+                 max_bk_conjunction=2, max_bk_disjunction=3,
                  label_thresholds=(0.1, 0.6, 2, 0.1, 0.25),
                  max_blocksize=100, min_goodratio=0.9,
                  clf_cfg=None, clf_cfg_params=None,
@@ -78,6 +78,7 @@ class SimEngine(object):
 
         # DNF Blocking Scheme Learner parameters
         self.max_bk_conjunction = max_bk_conjunction
+        self.max_bk_disjunction = max_bk_disjunction
         self.max_blocksize = max_blocksize
         self.min_goodratio = min_goodratio
 
@@ -214,6 +215,7 @@ class SimEngine(object):
             dbs = DisjunctiveBlockingScheme(blocking_keys, P, N,
                                             self.indexer_class,
                                             self.max_bk_conjunction,
+                                            self.max_bk_disjunction,
                                             max_blocksize=self.max_blocksize,
                                             min_goodratio=self.min_goodratio,
                                             verbose=self.verbose)

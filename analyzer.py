@@ -88,7 +88,11 @@ def setup_logging(default_path='logging.json',
 )
 @click.option(
     u'--gt-thresholds', help=u'',
-    type=(float, float, int, float, float), default=(0.1, 0.6, 2, 0.1, 0.25)
+    type=(float, float, int, float, float), default=(0.3, 0.3, 2, 0.1, 0.25)
+)
+@click.option(
+    u'--dnf-depths', help=u'',
+    type=(int, int), default=(2, 3)
 )
 @click.option(
     u'--dnf-filters', help=u'',
@@ -113,7 +117,8 @@ def main(index_file, index_attributes,
          train_file, train_attributes,
          gold_standard, gold_attributes,
          run_type, classifier, full_simvector,
-         gt_labels, gt_thresholds, dnf_filters,
+         gt_labels, gt_thresholds,
+         dnf_depths, dnf_filters,
          clf, similarity,
          output, run_name, indexer,
          baseline):
@@ -158,23 +163,26 @@ def main(index_file, index_attributes,
         if indexer == "MDySimII":
             engine = SimEngine(datasetname, indexer=MDySimII,
                                label_thresholds=gt_thresholds,
+                               max_bk_conjunction=dnf_depths[0], max_bk_disjunction=dnf_depths[1],
                                max_blocksize=dnf_filters[0], min_goodratio=dnf_filters[1],
                                clf_cfg=clf_name, clf_cfg_params=clf_params,
-                               datadir=engine_datadir, verbose=True, max_bk_conjunction=2,
+                               datadir=engine_datadir, verbose=True,
                                use_classifier=classifier, use_full_simvector=full_simvector)
         elif indexer == "MDySimIII":
             engine = SimEngine(datasetname, indexer=MDySimIII,
                                label_thresholds=gt_thresholds,
+                               max_bk_conjunction=dnf_depths[0], max_bk_disjunction=dnf_depths[1],
                                max_blocksize=dnf_filters[0], min_goodratio=dnf_filters[1],
                                clf_cfg=clf_name, clf_cfg_params=clf_params,
-                               datadir=engine_datadir, verbose=True, max_bk_conjunction=2,
+                               datadir=engine_datadir, verbose=True,
                                use_classifier=classifier, use_full_simvector=full_simvector)
         elif indexer == "MDyLSH":
             engine = SimEngine(datasetname, indexer=MDyLSH,
                                label_thresholds=gt_thresholds,
+                               max_bk_conjunction=dnf_depths[0], max_bk_disjunction=dnf_depths[1],
                                max_blocksize=dnf_filters[0], min_goodratio=dnf_filters[1],
                                clf_cfg=clf_name, clf_cfg_params=clf_params,
-                               datadir=engine_datadir, verbose=True, max_bk_conjunction=2,
+                               datadir=engine_datadir, verbose=True,
                                use_classifier=classifier, use_full_simvector=full_simvector)
 
         if len(baseline) > 0:

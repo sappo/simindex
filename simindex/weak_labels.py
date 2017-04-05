@@ -370,7 +370,7 @@ class Feature:
 
 class DisjunctiveBlockingScheme(object):
 
-    def __init__(self, blocking_keys, P, N, indexer, k=2,
+    def __init__(self, blocking_keys, P, N, indexer, k=2, d=3,
                  max_blocksize=100, min_goodratio=0.9,
                  block_timer=None, verbose=False):
         self.P = [frozenset((p.t1, p.t2)) for p in P]
@@ -379,6 +379,7 @@ class DisjunctiveBlockingScheme(object):
         self.flat_P = set(hp.flatten(self.frozen_P))
         self.features = []
         self.k = k
+        self.d = d
         self.max_blocksize = max_blocksize
         self.min_goodratio = min_goodratio
         self.indexer = indexer
@@ -555,7 +556,7 @@ class DisjunctiveBlockingScheme(object):
         top_10 = heapq.nlargest(150, Kf, key=lambda feature: feature.fsc)
 
         blocking_scheme_candidates = []
-        for index in range(3):
+        for index in range(self.d):
             blocking_scheme_candidates.extend(it.combinations(top_10, index))
 
         best_blocking_scheme = None
