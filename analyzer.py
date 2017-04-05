@@ -242,6 +242,8 @@ def main(index_file, index_attributes,
         model["best_classifier"] = type(engine.clf).__name__
         model["best_params"] = engine.clf_best_params
         model["best_score"] = engine.clf_best_score
+        model["conjunctions"] = engine.max_bk_conjunction
+        model["disjunctions"] = engine.max_bk_disjunction
         model["max_blocksize"] = engine.max_blocksize
         model["min_goodratio"] = engine.min_goodratio
         model["clf_result_grid"] = engine.clf_result_grid
