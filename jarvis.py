@@ -397,6 +397,10 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         else:
             vec_info = "par "
 
+        maxbs = model.get("max_blocksize", 100)
+        minrt = model.get("min_goodratio", 0.9)
+        bs_info = "bs(%d, %.2f)" % (maxbs, minrt)
+
         if model.get("use_gt_matches", True):
             gt_info = "gt              "
         else:
@@ -408,7 +412,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         else:
             sim_info = "simlearn"
 
-        return clf_info.ljust(10) + vec_info.ljust(7) + gt_info.ljust(20) + sim_info.ljust(10)
+        return clf_info.ljust(10) + vec_info.ljust(7) + gt_info.ljust(20) + bs_info.ljust(15) + sim_info.ljust(10)
 
 
     def model_info(self, button):
@@ -671,7 +675,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                 )
 
                 # Sort data by indexer and then by dataset
-                memory_usage[dataset][indexer][run] = measurements["build_memory_peak"]
+                memory_usage[dataset][indexer][run] = measurements.get("build_memory_peak", float('nan'))
                 index_build_time[dataset][indexer][run] = measurements["build_time"]
 
         picture_names = []

@@ -80,7 +80,7 @@ def draw_record_time_curve(times, dataset, action):
     fig.canvas.set_window_title(title)
     st = fig.suptitle("Dataset %s" % dataset)
     gs = gridspec.GridSpec(nrows, ncols)
-    for index, run in enumerate(times.keys()):
+    for index, run in enumerate(sorted(times.keys())):
         row = int(index - (index / 2))
         col = index % 2
         ax = fig.add_subplot(gs[row, col])
