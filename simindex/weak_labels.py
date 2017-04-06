@@ -200,6 +200,9 @@ class WeakLabels(object):
 
             # Calculate probability distribution
             self.weights = [len(bin) for bin in N_bins]
+            if self.verbose:
+                logger.info(self.weights)
+
             wsum = sum(self.weights)
             self.weights[:] = [float(weight)/wsum for weight in self.weights]
 
@@ -235,6 +238,21 @@ class WeakLabels(object):
                     break
 
                 N.append(pair)
+
+        if self.verbose:
+            P_bins = [set() for x in range(20)]
+            for t in P:
+                sim = self.tfidf_similarity(t[0], t[1])
+                bin = int(sim * 20)
+                if bin >= 20:
+                    bin = 20 - 1
+
+                P_bins[bin].add(t)
+
+            for index, _ in enumerate(P_bins):
+                P_bins[index] = len(P_bins[index])
+
+            logger.info(P_bins)
 
         return P, N
 
