@@ -492,7 +492,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                 urwid.Divider(),
                 urwid.Text(self.model_info_short(prefix, run, dataset)),
                 urwid.Divider(),
-                urwid.Text("Fit time: %dh %dm %ds %dms" % time_to_hms(model.get("fit_time", "N/A"))),
+                urwid.Text("Fit time: %dd %dh %dm %ds %dms" % time_to_hms(model.get("fit_time", "N/A"))),
                 urwid.Divider(),
                 urwid.Text("Ground Truth - P (%s), N (%s) - with Matches? %s" % (blocking_P, blocking_N, gt_text)),
                 urwid.Divider(),
@@ -500,7 +500,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                 urwid.Divider(),
                 urwid.Text("Fusion Learner - %s = %s" % (model.get("best_classifier", "N/A"), model.get("best_params", "N/A"))),
                 result_grid,
-                urwid.Text("Blocking Scheme - max disjunction: 3, max conjunction: %d" % model.get("blocking_scheme_max_c", int(2))),
+                urwid.Text("Blocking Scheme - max disjunction: %d, max conjunction: %d" %
+                    (model.get("disjunctions", int(3)), model.get("conjunctions", int(2)))),
                 urwid.Divider(),
                 urwid.Columns(columns),
             ])
@@ -553,10 +554,10 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             text += "Average Precsion    %f\n" % measurements.get("average_precision", float('nan'))
             columns_data[indexer].append(urwid.Text([text]))
             text =  "Times\n"
-            text += "Build time:         %dh %dm %ds %dms\n" % time_to_hms(measurements["build_time"])
-            text += "Build time sum:     %dh %dm %ds %dms\n" % time_to_hms(measurements["build_time_sum"])
-            text += "Query time:         %dh %dm %ds %dms\n" % time_to_hms(measurements["query_time"])
-            text += "Query time sum:     %dh %dm %ds %dms\n" % time_to_hms(measurements["query_time_sum"])
+            text += "Build time:         %dd %dh %dm %ds %dms\n" % time_to_hms(measurements["build_time"])
+            text += "Build time sum:     %dd %dh %dm %ds %dms\n" % time_to_hms(measurements["build_time_sum"])
+            text += "Query time:         %dd %dh %dm %ds %dms\n" % time_to_hms(measurements["query_time"])
+            text += "Query time sum:     %dd %dh %dm %ds %dms\n" % time_to_hms(measurements["query_time_sum"])
             text += "Inserts mean:       %f\n" % measurements["inserts_mean"]
             text += "Queries mean:       %f\n" % measurements["queries_mean"]
             text += "Inserts (s):        %.0f\n" % measurements["inserts_sec"]
@@ -712,17 +713,19 @@ def time_to_hms(time):
     if not time == "N/A":
         sec = timedelta(seconds=time)
         d = datetime(1,1,1) + sec
+        days = d.day - 1
         hours = d.hour
         minutes = d.minute
         seconds = d.second
         microsecond = d.microsecond / 1000
     else:
+        days = "N/A"
         hours = "N/A"
         minutes = "N/A"
         seconds = "N/A"
         microsecond = "N/A"
 
-    return hours, minutes, seconds, microsecond
+    return days, hours, minutes, seconds, microsecond
 
 
 def parse_mprofile(filename):
