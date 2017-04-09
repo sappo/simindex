@@ -151,6 +151,70 @@ do
         ${datasetprefix}${dataset}_train.csv
 
 done
+elif [ "$1" == '-r' ]; then
+###############################################################################
+dataset="restaurant"
+datasetprefix="../../master_thesis/datasets/restaurant/"
+###############################################################################
+
+for indexer in "MDySimIII"
+do
+    if [ "$2" == '-b' ]; then
+        # Fit baseline model once!
+        mprof run analyzer.py \
+            --run-type fit -r "${timestamp}" \
+            -o "${reportprefix}/${timestamp}_fit_${dataset}" \
+            -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
+            -t id -t name -t addr -t city -t phone -t type \
+            -b "0 name term_id" \
+            -b "0 city tokens" \
+            -b "1 phone tokens" \
+            $EVAL_FLAGS \
+            -m ${indexer} \
+            ${datasetprefix}${dataset}_index.csv \
+            ${datasetprefix}${dataset}_train_query.csv \
+            ${datasetprefix}${dataset}_train.csv
+    else
+        # Fit model once!
+        mprof run analyzer.py \
+            --run-type fit -r "${timestamp}" \
+            -o "${reportprefix}/${timestamp}_fit_${dataset}" \
+            -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
+            -t id -t name -t addr -t city -t phone -t type \
+            $EVAL_FLAGS \
+            -m ${indexer} \
+            ${datasetprefix}${dataset}_index.csv \
+            ${datasetprefix}${dataset}_train_query.csv \
+            ${datasetprefix}${dataset}_train.csv
+    fi
+
+    result_output="${reportprefix}/${timestamp}_${indexer}_${dataset}"
+    # Build and Query without metrics to get precice memory usage
+    mprof run analyzer.py \
+        -i id -i name -i addr -i city -i phone -i type \
+        -q id -q name -q addr -q city -q phone -q type \
+        -t id -t name -t addr -t city -t phone -t type \
+        -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
+        --run-type build -r "${timestamp}" -m ${indexer} \
+        $EVAL_FLAGS \
+        ${datasetprefix}${dataset}_index.csv \
+        ${datasetprefix}${dataset}_train_query.csv \
+        ${datasetprefix}${dataset}_train.csv
+
+    # Calculate metrics on dataset
+    python -W ignore analyzer.py \
+        -i id -i name -i addr -i city -i phone -i type \
+        -q id -q name -q addr -q city -q phone -q type \
+        -t id -t name -t addr -t city -t phone -t type \
+        -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
+        --run-type evaluation -o $result_output \
+        -m ${indexer} \
+        $EVAL_FLAGS \
+        ${datasetprefix}${dataset}_index.csv \
+        ${datasetprefix}${dataset}_train_query.csv \
+        ${datasetprefix}${dataset}_train.csv
+
+done
 fi
 
 mv mprofile* $reportprefix
