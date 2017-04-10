@@ -70,6 +70,7 @@ def prepare_record_fitting(dataset, ground_truth):
 
     return X, y
 
+
 def matches_count(q_id, result, gold_records):
     count = 0
     if q_id in gold_records.keys():
@@ -158,10 +159,12 @@ def convert_bytes(n):
     prefix = {}
     for i, s in enumerate(symbols):
         prefix[s] = 1 << (i + 1) * 10
+
     for s in reversed(symbols):
         if n >= prefix[s]:
             value = float(n) / prefix[s]
             return '%.1f%s' % (value, s)
+
     return "%sB" % n
 
 

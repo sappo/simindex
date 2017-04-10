@@ -5,6 +5,7 @@ import numpy as np
 import itertools as it
 import sklearn
 import json
+from nltk import ngrams
 from collections import defaultdict, namedtuple, Counter
 from gensim import corpora, models
 from pprint import pprint
@@ -571,7 +572,7 @@ class DisjunctiveBlockingScheme(object):
 
         Kf = filter(lambda feature: feature.fsc > 0, Kf)
         Kf = sorted(Kf, key=lambda feature: feature.fsc, reverse=True)
-        top_10 = heapq.nlargest(150, Kf, key=lambda feature: feature.fsc)
+        top_10 = heapq.nlargest(1000, Kf, key=lambda feature: feature.fsc)
 
         blocking_scheme_candidates = []
         for index in range(self.d):
@@ -616,3 +617,19 @@ def is_exact_match(t1, t2):
         return 1
     else:
         return 0
+
+
+def bigrams(term):
+    return set(''.join(x) for x in ngrams(term, 2))
+
+
+def trigrams(term):
+    return set(''.join(x) for x in ngrams(term, 3))
+
+
+def prefixes(term):
+    return set(term[:i+2] for i in np.arange(3))
+
+
+def suffixes(term):
+    return set(term[-(i+2):] for i in np.arange(3))

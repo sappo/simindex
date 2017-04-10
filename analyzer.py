@@ -79,6 +79,9 @@ def setup_logging(default_path='logging.json',
     default=True
 )
 @click.option(
+    u'--classifier-scoring', help=u'', default="f1", type=click.STRING
+)
+@click.option(
     u'--full-simvector/--no-full-simvector', help=u'Calalucate full simvector?',
     default=False
 )
@@ -116,7 +119,8 @@ def main(index_file, index_attributes,
          query_file, query_attributes,
          train_file, train_attributes,
          gold_standard, gold_attributes,
-         run_type, classifier, full_simvector,
+         run_type, classifier, classifier_scoring,
+         full_simvector,
          gt_labels, gt_thresholds,
          dnf_depths, dnf_filters,
          clf, similarity,
@@ -167,7 +171,8 @@ def main(index_file, index_attributes,
                                max_blocksize=dnf_filters[0], min_goodratio=dnf_filters[1],
                                clf_cfg=clf_name, clf_cfg_params=clf_params,
                                datadir=engine_datadir, verbose=True,
-                               use_classifier=classifier, use_full_simvector=full_simvector)
+                               use_classifier=classifier, clf_scoring=classifier_scoring,
+                               use_full_simvector=full_simvector)
         elif indexer == "MDySimIII":
             engine = SimEngine(datasetname, indexer=MDySimIII,
                                label_thresholds=gt_thresholds,
@@ -175,7 +180,8 @@ def main(index_file, index_attributes,
                                max_blocksize=dnf_filters[0], min_goodratio=dnf_filters[1],
                                clf_cfg=clf_name, clf_cfg_params=clf_params,
                                datadir=engine_datadir, verbose=True,
-                               use_classifier=classifier, use_full_simvector=full_simvector)
+                               use_classifier=classifier, clf_scoring=classifier_scoring,
+                               use_full_simvector=full_simvector)
         elif indexer == "MDyLSH":
             engine = SimEngine(datasetname, indexer=MDyLSH,
                                label_thresholds=gt_thresholds,
@@ -183,7 +189,8 @@ def main(index_file, index_attributes,
                                max_blocksize=dnf_filters[0], min_goodratio=dnf_filters[1],
                                clf_cfg=clf_name, clf_cfg_params=clf_params,
                                datadir=engine_datadir, verbose=True,
-                               use_classifier=classifier, use_full_simvector=full_simvector)
+                               use_classifier=classifier, clf_scoring=classifier_scoring,
+                               use_full_simvector=full_simvector)
 
         if len(baseline) > 0:
             baseline_scheme = []

@@ -16,8 +16,7 @@ from .weak_labels import WeakLabels, \
                          BlockingKey, \
                          Feature, \
                          SimTupel, \
-                         tokens, \
-                         term_id
+                         tokens, term_id, bigrams, trigrams, prefixes, suffixes
 from .similarity import SimLearner
 from .fusionlearner import FusionLearner
 import simindex.helper as hp
@@ -51,7 +50,7 @@ class SimEngine(object):
                  max_bk_conjunction=2, max_bk_disjunction=3,
                  label_thresholds=(0.1, 0.6, 2, 0.1, 0.25),
                  max_blocksize=100, min_goodratio=0.9,
-                 clf_cfg=None, clf_cfg_params=None,
+                 clf_cfg=None, clf_cfg_params=None, clf_scoring="f1",
                  insert_timer=None, query_timer=None,
                  use_classifier=True, use_full_simvector=False,
                  verbose=False):
@@ -89,8 +88,10 @@ class SimEngine(object):
         self.clf_result_grid = None
         self.clf_cfg = clf_cfg
         self.clf_cfg_params = clf_cfg_params
+        self.clf_scoring = clf_scoring
 
         # Evaluation attributes
+        self.RR = []
         self.true_matches = 0
         self.true_nonmatches = 0
         self.total_matches = 0
@@ -209,8 +210,12 @@ class SimEngine(object):
         if self.blocking_scheme is None:
             blocking_keys = []
             for field in range(self.attribute_count):
-                blocking_keys.append(BlockingKey(field, tokens))
                 blocking_keys.append(BlockingKey(field, term_id))
+                blocking_keys.append(BlockingKey(field, tokens))
+                # blocking_keys.append(BlockingKey(field, prefixes))
+                # blocking_keys.append(BlockingKey(field, suffixes))
+                # blocking_keys.append(BlockingKey(field, bigrams))
+                # blocking_keys.append(BlockingKey(field, trigrams))
 
             dbs = DisjunctiveBlockingScheme(blocking_keys, P, N,
                                             self.indexer_class,
@@ -342,11 +347,10 @@ class SimEngine(object):
 
             # Train the best model
             if self.clf_cfg and self.clf_cfg_params:
-                ful = FusionLearner(
-                          FusionLearner.build_candidates(
-                              self.clf_cfg, self.clf_cfg_params))
+                ful = FusionLearner(FusionLearner.build_candidates(self.clf_cfg, self.clf_cfg_params),
+                                    self.clf_scoring)
             else:
-                ful = FusionLearner(FusionLearner.candidate_families())
+                ful = FusionLearner(FusionLearner.candidate_families(), self.clf_scoring)
 
             self.clf = ful.best_model(X_train, y_train)
             self.clf_best_params = ful.best_params
@@ -424,9 +428,13 @@ class SimEngine(object):
                 matches_count = hp.matches_count(q_id, result, self.gold_records)
                 all_matches_count = hp.all_matches_count(q_id, self.gold_records)
                 self.true_matches += matches_count
-                self.true_nonmatches += len(result) - matches_count
+                if matches_count:
+                    self.true_nonmatches += len(result) - matches_count
+
                 self.total_matches += all_matches_count
                 self.total_nonmatches += self.indexer.nrecords - 1 - all_matches_count
+                self.RR.append(1 - ( (self.true_matches + self.true_nonmatches) /
+                                   (self.total_matches + self.total_nonmatches)))
 
             # Apply classifier
             if self.use_classifier:
@@ -484,10 +492,7 @@ class SimEngine(object):
         return self.true_matches / (self.true_matches + self.true_nonmatches)
 
     def reduction_ratio(self):
-        return 1 - (
-                    (self.true_matches + self.true_nonmatches) /
-                    (self.total_matches + self.total_nonmatches)
-                   )
+        return np.mean(self.RR)
 
     def recall(self):
         return skm.metrics.recall_score(self.y_true, self.y_pred)

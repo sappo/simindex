@@ -20,14 +20,18 @@ def mycolors():
     for color in color_sequence:
         yield color
 
+
 def show():
     plt.show()
 
 
 def save(picture_names):
     for index, figno in enumerate(plt.get_fignums()):
-        plt.figure(figno)
-        plt.savefig("%s.pdf" % picture_names[index], bbox_inches='tight')
+        try:
+            plt.figure(figno)
+            plt.savefig("%s.pdf" % picture_names[index], bbox_inches='tight')
+        except ValueError:
+            print("ValueError for %s", picture_names[index])
 
     plt.close('all')
 
@@ -226,4 +230,4 @@ def draw_bar_chart(data, title, unit):
 
     ax.set_xticks(ticks_pos)
     ax.set_xticklabels(ticklabels)
-    ax.legend(loc="lower right")
+    ax.legend(loc="bottom left")

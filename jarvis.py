@@ -649,7 +649,10 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
     def draw_plots(self, save=False):
         memory_usage = defaultdict(lambda: defaultdict(dict))
+        inserts_per_second = defaultdict(lambda: defaultdict(dict))
+        queries_per_second = defaultdict(lambda: defaultdict(dict))
         index_build_time = defaultdict(lambda: defaultdict(dict))
+        query_build_time = defaultdict(lambda: defaultdict(dict))
         insert_times = defaultdict(lambda: defaultdict(dict))
         query_times = defaultdict(lambda: defaultdict(dict))
         prc_curves = defaultdict(lambda: defaultdict(dict))
@@ -677,7 +680,10 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
                 # Sort data by indexer and then by dataset
                 memory_usage[dataset][indexer][run] = measurements.get("build_memory_peak", float('nan'))
-                index_build_time[dataset][indexer][run] = measurements["build_time"]
+                inserts_per_second[dataset][indexer][run] = measurements["inserts_sec"]
+                queries_per_second[dataset][indexer][run] = measurements["queries_sec"]
+                index_build_time[dataset][indexer][run] = measurements["build_time_sum"]
+                query_build_time[dataset][indexer][run] = measurements["query_time_sum"]
 
         picture_names = []
         for dataset in prc_curves.keys():
@@ -701,6 +707,21 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             splt.draw_bar_chart(index_build_time[dataset],
                            "Index build time (%s)" % dataset, "Seconds (s)")
             picture_names.append("%s_index_bt" % '_'.join(index_build_time[dataset].keys()))
+
+        for dataset in query_build_time.keys():
+            splt.draw_bar_chart(query_build_time[dataset],
+                           "Query time (%s)" % dataset, "Seconds (s)")
+            picture_names.append("%s_query_bt" % '_'.join(index_build_time[dataset].keys()))
+
+        for dataset in inserts_per_second.keys():
+            splt.draw_bar_chart(inserts_per_second[dataset],
+                           "Inserts per second (%s)" % dataset, "Seconds (s)")
+            picture_names.append("%s_index_ips" % '_'.join(index_build_time[dataset].keys()))
+
+        for dataset in queries_per_second.keys():
+            splt.draw_bar_chart(queries_per_second[dataset],
+                           "Queries per second (%s)" % dataset, "Seconds (s)")
+            picture_names.append("%s_query_ips" % '_'.join(index_build_time[dataset].keys()))
 
         # Show plots
         if not save:

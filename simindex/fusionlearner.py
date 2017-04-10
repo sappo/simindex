@@ -5,9 +5,10 @@ from sklearn.model_selection import GridSearchCV
 
 class FusionLearner(object):
 
-    def __init__(self, classifier_families):
+    def __init__(self, classifier_families, scoring="f1"):
         self.classifier_families = classifier_families
         self.result_grid = defaultdict(list)
+        self.scoring = scoring
 
     @staticmethod
     def candidate_families():
@@ -45,7 +46,7 @@ class FusionLearner(object):
         self.best_params = {}
         classifiers = []
         for params, model, parameters in self.classifier_families:
-            clf = GridSearchCV(model, parameters, cv=3, scoring="f1_macro", n_jobs=8, refit=True)
+            clf = GridSearchCV(model, parameters, cv=3, scoring=self.scoring, n_jobs=8, refit=True)
             clf.fit(X, y)
             best_estimator = clf.best_estimator_
             classifiers.append([clf.best_params_, clf.best_score_, best_estimator])
