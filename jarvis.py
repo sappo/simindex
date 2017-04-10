@@ -114,6 +114,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
         menu_elements.extend([
             self.sub_menu(u'Run remote evaluation ...', [
+                self.machines_menu(u'Baseline', "eval_baseline_ncvoter.sh"),
                 self.machines_menu(u'Classifier', "eval_classifier_ncvoter.sh"),
                 self.machines_menu(u'GT vs no GT', "eval_gtvsnogt_ncvoter.sh"),
                 self.machines_menu(u'Similarities', "eval_simeffect_ncvoter.sh"),

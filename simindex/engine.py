@@ -326,20 +326,20 @@ class SimEngine(object):
             # Shrink training set to max 5000 (max 1000 P, max 4000 N) samples
             X_train = []
             y_train = []
-            P_samples = min(1000, len(X_P))
+            P_samples = min(2000, len(X_P))
             choices = np.random.choice(np.arange(len(X_P)), size=P_samples, replace=False)
             for choice in choices:
                 X_train.append(X_P[choice])
                 y_train.append(y_P[choice])
 
-            N_samples = min(4000, len(X_N))
+            N_samples = min(3000, len(X_N))
             choices = np.random.choice(np.arange(len(X_N)), size=N_samples, replace=False)
             for choice in choices:
                 X_train.append(X_N[choice])
                 y_train.append(y_N[choice])
 
-            X_P.extend(X_N)
-            y_P.extend(y_N)
+            # X_P.extend(X_N)
+            # y_P.extend(y_N)
             # X = X_P
             # y = y_P
             assert len(X_train) < 5001, "Whoops, training labels should be less then 5000"

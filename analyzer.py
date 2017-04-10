@@ -99,7 +99,7 @@ def setup_logging(default_path='logging.json',
 )
 @click.option(
     u'--dnf-filters', help=u'',
-    type=(int, float), default=(100, 0.9)
+    type=(int, float), default=(100, 0.85)
 )
 @click.option(
     u'-rt', u'--run-type', help=u'What are you benchmarking?\
@@ -217,10 +217,12 @@ def main(index_file, index_attributes,
                     similarities.append('SimBag')
                 if similarity == "levenshtein":
                     similarities.append('SimLevenshtein')
-                if similarity == "jaro":
-                    similarities.append('SimJaro')
-                if similarity == "ratio":
-                    similarities.append('SimRatio')
+                if similarity == "jarowinkler":
+                    similarities.append('SimJaroWinkler')
+                if similarity == "lee":
+                    similarities.append('SimLee')
+                if similarity == "jaccard":
+                    similarities.append('SimJaccard')
 
             engine.similarities = similarities
             engine.save_similarities()

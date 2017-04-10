@@ -30,8 +30,9 @@ class SimLearner():
         self.measures = [SimBag,
                          SimDamerau,
                          SimLevenshtein,
-                         SimJaro,
-                         SimRatio]
+                         SimJaroWinkler,
+                         SimLee,
+                         SimJaccard]
         self.similarity_objs = []
         for measure in self.measures:
             self.similarity_objs.append(measure())
