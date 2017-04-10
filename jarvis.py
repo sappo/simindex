@@ -118,6 +118,12 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                 self.machines_menu(u'Classifier', "eval_classifier_ncvoter.sh"),
                 self.machines_menu(u'GT vs no GT', "eval_gtvsnogt_ncvoter.sh"),
                 self.machines_menu(u'Similarities', "eval_simeffect_ncvoter.sh"),
+                self.machines_menu(u'Similarities (linear)',
+                                   "eval_simeffect_ncvoter.sh --clf=svmlinear"),
+                self.machines_menu(u'Similarities (rbf)',
+                                   "eval_simeffect_ncvoter.sh --clf=svmrbf"),
+                self.machines_menu(u'Similarities (dt)',
+                                   "eval_simeffect_ncvoter.sh --clf=decisiontree"),
                 self.menu_button(u'Grep Data', self.machines_grep_data),
             ])
         ])
