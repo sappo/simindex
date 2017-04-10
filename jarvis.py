@@ -72,12 +72,14 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             saved_reports[(report.split('_')[0],
                            report.split('_')[2])].append(report.split('_')[1])
 
+        evaldirs = [x[0] for x in os.walk("./evaluation") if os.path.isdir(x[0]) and x[0] != "./evaluation"]
+
         its_reports = {}
-        for no in np.arange(19):
-            machine = "its%s" % str(no).zfill(2)
-            its_reports[machine] = defaultdict(list)
-            its_report = its_reports[machine]
-            for report in sorted(glob.glob("./evaluation/%s/*" % machine), reverse=True):
+        for dir in sorted(evaldirs):
+            maschine = os.path.basename(dir)
+            its_reports[maschine] = defaultdict(list)
+            its_report = its_reports[maschine]
+            for report in sorted(glob.glob("%s/*" % dir), reverse=True):
                 if os.path.basename(report).startswith("mprofile") \
                         or report.count('fit'):
                     continue
@@ -101,8 +103,10 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                 for key, value in sorted(saved_reports.items(), reverse=True)
             ])
         ])
-        for no in np.arange(19):
-            machine = "its%s" % str(no).zfill(2)
+
+        evaldirs = [x[0] for x in os.walk("./evaluation") if os.path.isdir(x[0]) and x[0] != "./evaluation"]
+        for dir in sorted(evaldirs):
+            machine = os.path.basename(dir)
             its_report = its_reports[machine]
             menu_elements.extend([
                 self.sub_menu(u'%s reports (%d) ...' % (machine, len(its_report)), [
@@ -331,8 +335,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                 for key, value in sorted(saved_reports.items(), reverse=True)
             ])
         ])
-        for no in np.arange(19):
-            machine = "its%s" % str(no).zfill(2)
+        for machine in sorted(its_reports.keys()):
             its_report = its_reports[machine]
             compare_elements.extend([
                 self.sub_menu(u'%s reports (%d) ...' % (machine, len(its_report)), [
