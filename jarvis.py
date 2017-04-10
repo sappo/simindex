@@ -124,6 +124,12 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                                    "eval_simeffect_ncvoter.sh --clf=svmrbf"),
                 self.machines_menu(u'Similarities (dt)',
                                    "eval_simeffect_ncvoter.sh --clf=decisiontree"),
+                self.machines_menu(u'FusionLearner (linear)',
+                                   "eval_fusionlearn_ncvoter.sh --clf=svmlinear"),
+                self.machines_menu(u'FusionLearner (rbf)',
+                                   "eval_fusionlearn_ncvoter.sh --clf=svmrbf"),
+                self.machines_menu(u'FusionLearner (dt)',
+                                   "eval_fusionlearn_ncvoter.sh --clf=decisiontree"),
                 self.menu_button(u'Grep Data', self.machines_grep_data),
             ])
         ])
