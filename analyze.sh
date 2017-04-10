@@ -94,7 +94,7 @@ for indexer in "MDySimIII"
 do
     if [ "$2" == '-b' ]; then
         # Fit baseline model once!
-        mprof run analyzer.py \
+        mprof run -T 1.0 analyzer.py \
             --run-type fit -r "${timestamp}" \
             -o "${reportprefix}/${timestamp}_fit_${dataset}" \
             -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
@@ -112,7 +112,7 @@ do
             ${datasetprefix}${dataset}_train.csv
     else
         # Fit model once!
-        mprof run analyzer.py \
+        mprof run -T 1.0 analyzer.py \
             --run-type fit -r "${timestamp}" \
             -o "${reportprefix}/${timestamp}_fit_${dataset}" \
             -s ${datasetprefix}${dataset}_train_gold.csv -g id_1 -g id_2 \
@@ -126,7 +126,7 @@ do
 
     result_output="${reportprefix}/${timestamp}_${indexer}_${dataset}"
     # Build and Query without metrics to get precice memory usage
-    mprof run analyzer.py \
+    mprof run -T 1.0 analyzer.py \
         -i id -i first_name -i middle_name -i last_name -i city -i state -i zip_code -i street_address -i full_phone_num \
         -q id -q first_name -q middle_name -q last_name -q city -q state -q zip_code -q street_address -q full_phone_num \
         -t id -t first_name -t middle_name -t last_name -t city -t state -t zip_code -t street_address -t full_phone_num \
