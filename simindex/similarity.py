@@ -7,9 +7,11 @@ import numpy as np
 import jellyfish
 from difflib import SequenceMatcher
 from harry import Measures, Hstring
-from pprint import pprint
 
 import simindex.helper as hp
+import logging
+
+logger = logging.getLogger(__name__)
 
 try:
     profile
@@ -76,16 +78,16 @@ class SimLearner():
         for field in range(self.attribute_count):
             best_field_similarity = None
             best_field_score = 0
-            print("Field %d" % field)
+            logger.info("Field %d" % field)
             for sim_obj in self.similarity_objs:
                 field_score = self.score(sim_obj.compare, field, P, N)
-                print("%s: %f" % (type(sim_obj).__name__, field_score))
+                logger.info("%s: %f" % (type(sim_obj).__name__, field_score))
                 if field_score > best_field_score:
                     best_field_similarity = type(sim_obj).__name__
                     best_field_score = field_score
 
             result[field] = best_field_similarity
-            print()
+            logger.info("")
 
         return list(result.values())
 
