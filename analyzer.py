@@ -217,12 +217,12 @@ def main(index_file, index_attributes,
                     similarities.append('SimBag')
                 if similarity == "levenshtein":
                     similarities.append('SimLevenshtein')
-                if similarity == "jarowinkler":
-                    similarities.append('SimJaroWinkler')
-                if similarity == "lee":
-                    similarities.append('SimLee')
+                if similarity == "jaro":
+                    similarities.append('SimJaro')
                 if similarity == "jaccard":
                     similarities.append('SimJaccard')
+                if similarity == "ratio":
+                    similarities.append('SimRatio')
 
             engine.similarities = similarities
             engine.save_similarities()

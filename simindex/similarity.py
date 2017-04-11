@@ -28,11 +28,10 @@ class SimLearner():
         self.blocking_scheme = blocking_scheme
         self.use_full_simvector = use_full_simvector
         self.measures = [SimBag,
-                         SimDamerau,
                          SimLevenshtein,
-                         SimJaroWinkler,
-                         SimLee,
-                         SimJaccard]
+                         SimJaro,
+                         SimJaccard,
+                         SimRatio]
         self.similarity_objs = []
         for measure in self.measures:
             self.similarity_objs.append(measure())
@@ -240,43 +239,10 @@ class SimLevenshtein(Measure):
         return self.levenshtein.compare(ha, hb)
 
 
-class SimJaroWinkler(Measure):
-
-    def __init__(self):
-        self.jarowinkler = Measures("dist_jarowinkler")
-        self.jarowinkler.config_set_string("measures.dist_jarowinkler.norm", "max")
-        self.jarowinkler.config_set_bool("measures.global_cache", True)
-
-    def __name__(self):
-        return "SimJaroWinkler"
-
-    def compare(self, a, b):
-        ha = Hstring(a)
-        hb = Hstring(b)
-        return self.jarowinkler.compare(ha, hb)
-
-
-class SimLee(Measure):
-
-    def __init__(self):
-        self.lee = Measures("dist_lee")
-        self.lee.config_set_string("measures.dist_lee.norm", "max")
-        self.lee.config_set_bool("measures.global_cache", True)
-
-    def __name__(self):
-        return "SimLee"
-
-    def compare(self, a, b):
-        ha = Hstring(a)
-        hb = Hstring(b)
-        return self.lee.compare(ha, hb)
-
-
 class SimJaccard(Measure):
 
     def __init__(self):
         self.jaccard = Measures("sim_jaccard")
-        self.jaccard.config_set_string("measures.sim_jaccard.norm", "max")
         self.jaccard.config_set_bool("measures.global_cache", True)
 
     def __name__(self):

@@ -18,12 +18,12 @@ EVAL_FLAGS="$CLF --similarity=levenshtein --gt-labels" ./analyze.sh -n > /its/ks
 EVAL_FLAGS="$CLF --similarity=levenshtein --gt-labels --full-simvector" ./analyze.sh -n > /its/ksapp002/nohup.log
 
 # JARO-WINKLER distance
-EVAL_FLAGS="$CLF --similarity=jarowinkler --gt-labels" ./analyze.sh -n > /its/ksapp002/nohup.log
-EVAL_FLAGS="$CLF --similarity=jarowinkler --gt-labels --full-simvector" ./analyze.sh -n > /its/ksapp002/nohup.log
+EVAL_FLAGS="$CLF --similarity=jaro --gt-labels" ./analyze.sh -n > /its/ksapp002/nohup.log
+EVAL_FLAGS="$CLF --similarity=jaro --gt-labels --full-simvector" ./analyze.sh -n > /its/ksapp002/nohup.log
 
 # LEE distance
-EVAL_FLAGS="$CLF --similarity=lee --gt-labels" ./analyze.sh -n > /its/ksapp002/nohup.log
-EVAL_FLAGS="$CLF --similarity=lee --gt-labels --full-simvector" ./analyze.sh -n > /its/ksapp002/nohup.log
+EVAL_FLAGS="$CLF --similarity=ratio --gt-labels" ./analyze.sh -n > /its/ksapp002/nohup.log
+EVAL_FLAGS="$CLF --similarity=ratio --gt-labels --full-simvector" ./analyze.sh -n > /its/ksapp002/nohup.log
 
 # JACCARD distance
 EVAL_FLAGS="$CLF --similarity=jaccard --gt-labels" ./analyze.sh -n > /its/ksapp002/nohup.log
