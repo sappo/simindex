@@ -247,8 +247,8 @@ def main(index_file, index_attributes,
             for blocking_key in blocking_scheme:
                 blocking_key[1] = train_attributes[blocking_key[1] + 1]
 
-            for index, similarity in enumerate(similarities):
-                similarities[index] = (train_attributes[index + 1], similarity)
+            for index, sim in enumerate(similarities):
+                similarities[index] = (train_attributes[index + 1], sim)
 
         model["blocking_scheme"] = blocking_scheme
         model["blocking_scheme_max_c"] = engine.max_bk_conjunction
