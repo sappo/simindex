@@ -215,12 +215,18 @@ def main(index_file, index_attributes,
             for _ in train_attributes[1:]:
                 if similarity == "bag":
                     similarities.append('SimBag')
+                if similarity == "compression":
+                    similarities.append('SimCompression')
+                if similarity == "hamming":
+                    similarities.append('SimHamming')
                 if similarity == "levenshtein":
                     similarities.append('SimLevenshtein')
-                if similarity == "jaro":
-                    similarities.append('SimJaro')
                 if similarity == "jaccard":
                     similarities.append('SimJaccard')
+                if similarity == "jaro":
+                    similarities.append('SimJaro')
+                if similarity == "jarowinkler":
+                    similarities.append('SimJaroWinkler')
                 if similarity == "ratio":
                     similarities.append('SimRatio')
 

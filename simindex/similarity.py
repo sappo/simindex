@@ -207,6 +207,37 @@ class SimBag(Measure):
         return self.bag.compare(ha, hb)
 
 
+class SimCompression(Measure):
+
+    def __init__(self):
+        self.compression = Measures("dist_compression")
+        self.compression.config_set_bool("measures.global_cache", True)
+
+    def __name__(self):
+        return "SimCompression"
+
+    def compare(self, a, b):
+        ha = Hstring(a)
+        hb = Hstring(b)
+        return 1 - self.compression.compare(ha, hb)
+
+
+class SimHamming(Measure):
+
+    def __init__(self):
+        self.hamming = Measures("dist_hamming")
+        self.hamming.config_set_string("measures.dist_hamming.norm", "max")
+        self.hamming.config_set_bool("measures.global_cache", True)
+
+    def __name__(self):
+        return "SimHamming"
+
+    def compare(self, a, b):
+        ha = Hstring(a)
+        hb = Hstring(b)
+        return 1 - self.hamming.compare(ha, hb)
+
+
 class SimDamerau(Measure):
 
     def __init__(self):
@@ -264,6 +295,21 @@ class SimJaro(Measure):
 
     def compare(self, a, b):
         return jellyfish.jaro_distance(a, b)
+
+
+class SimJaroWinkler(Measure):
+
+    def __init__(self):
+        self.jarowinkler = Measures("dist_jarowinkler")
+        self.jarowinkler.config_set_bool("measures.global_cache", True)
+
+    def __name__(self):
+        return "SimJaroWinkler"
+
+    def compare(self, a, b):
+        ha = Hstring(a)
+        hb = Hstring(b)
+        return 1 - self.jarowinkler.compare(ha, hb)
 
 
 class SimRatio(Measure):
