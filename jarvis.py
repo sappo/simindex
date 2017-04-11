@@ -818,7 +818,7 @@ def parse_mprofile(filename):
             with open(resultfile, mode='w') as fp:
                 json.dump(measurements, fp, sort_keys=True, indent=4)
         except FileNotFoundError:
-            os.remove(filename)
+            # os.remove(filename)
             return
 
     # Modify memory usage report to only contain useful information
@@ -842,7 +842,7 @@ def parse_mprofile(filename):
 
                 whandle.write(line)
 
-    os.remove(filename)
+    # os.remove(filename)
 
 
 @click.command(context_settings=dict(help_option_names=[u'-h', u'--help']))
