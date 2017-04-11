@@ -322,3 +322,20 @@ class SimRatio(Measure):
 
     def compare(self, a, b):
         return SequenceMatcher(None, a, b).ratio()
+
+
+class SimWdegree(Measure):
+
+    def __init__(self):
+        self.wdegree = Measures("dist_kernel")
+        self.wdegree.config_set_string("measures.dist_kernel.kern", "kern_wdegree")
+        self.wdegree.config_set_string("measures.dist_kernel.norm", "l2")
+        self.wdegree.config_set_bool("measures.global_cache", True)
+
+    def __name__(self):
+        return "SimWdegree"
+
+    def compare(self, a, b):
+        ha = Hstring(a)
+        hb = Hstring(b)
+        return 1 - self.wdegree.compare(ha, hb)

@@ -229,6 +229,8 @@ def main(index_file, index_attributes,
                     similarities.append('SimJaroWinkler')
                 if similarity == "ratio":
                     similarities.append('SimRatio')
+                if similarity == "wdegree":
+                    similarities.append('SimWdegree')
 
             engine.similarities = similarities
             engine.save_similarities()
