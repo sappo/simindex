@@ -52,7 +52,7 @@ class SimEngine(object):
                  max_blocksize=100, min_goodratio=0.9,
                  clf_cfg=None, clf_cfg_params=None, clf_scoring="f1",
                  insert_timer=None, query_timer=None,
-                 use_classifier=True, use_full_simvector=False,
+                 use_classifier=True, use_parfull_simvector=False, use_full_simvector=False,
                  verbose=False):
         self.name = name
         self.datadir = datadir.strip('/')
@@ -100,6 +100,7 @@ class SimEngine(object):
         self.query_timer = query_timer
         self.use_classifier = use_classifier
         self.use_full_simvector = use_full_simvector
+        self.use_parfull_simvector = use_parfull_simvector
         self.verbose = verbose
 
         # Gold Standard/Ground Truth attributes
@@ -277,6 +278,20 @@ class SimEngine(object):
                     for field, (p1_attribute, p2_attribute) in enumerate(zip(p1_attributes, p2_attributes)):
                         if p1_attribute and p2_attribute:
                             x[field] = similarity_fns[field](p1_attribute, p2_attribute)
+
+                elif self.use_parfull_simvector:
+                    # Calculate similarites between all attributes covered by
+                    # the blocking schema
+                    fields = set()
+                    for blocking_key in self.blocking_scheme:
+                        fields.update(blocking_key.covered_fields())
+
+                    for field in fields:
+                        p1_attribute = p1_attributes[field]
+                        p2_attribute = p2_attributes[field]
+                        if p1_attribute and p2_attribute:
+                            x[field] = similarity_fns[field](p1_attribute, p2_attribute)
+
                 else:
                     # Calculate similarites between pairs whose attributes have
                     # a common block.
@@ -304,6 +319,20 @@ class SimEngine(object):
                     for field, (p1_attribute, p2_attribute) in enumerate(zip(p1_attributes, p2_attributes)):
                         if p1_attribute and p2_attribute:
                             x[field] = similarity_fns[field](p1_attribute, p2_attribute)
+
+                elif self.use_parfull_simvector:
+                    # Calculate similarites between all attributes covered by
+                    # the blocking schema
+                    fields = set()
+                    for blocking_key in self.blocking_scheme:
+                        fields.update(blocking_key.covered_fields())
+
+                    for field in fields:
+                        p1_attribute = p1_attributes[field]
+                        p2_attribute = p2_attributes[field]
+                        if p1_attribute and p2_attribute:
+                            x[field] = similarity_fns[field](p1_attribute, p2_attribute)
+
                 else:
                     # Calculate similarites between pairs whose attributes have
                     # a common block.
@@ -375,7 +404,7 @@ class SimEngine(object):
         for measure in SimLearner.strings_to_prediction(self.similarities):
             similarity_fns.append(measure().compare)
 
-        if self.use_full_simvector:
+        if self.use_full_simvector or self.use_parfull_simvector:
             dataset = {}
             for record in hp.hdf_records(pd.HDFStore(self.traindatastore_name, mode="r"), self.name):
                 if self.attribute_count is None:
@@ -387,6 +416,8 @@ class SimEngine(object):
             self.indexer = self.indexer_class(self.attribute_count,
                                               self.blocking_scheme,
                                               similarity_fns,
+                                              use_full_simvector=self.use_full_simvector,
+                                              use_parfull_simvector=self.use_parfull_simvector,
                                               dataset=dataset)
         else:
             self.indexer = self.indexer_class(self.attribute_count,

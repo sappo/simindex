@@ -227,7 +227,7 @@ class SimAwareIndex(object):
 class MDySimII(object):
 
     def __init__(self, count, dns_blocking_scheme, similarity_fns,
-            dataset=None):
+                 use_full_simvector=False, use_parfull_simvector=False, dataset=None):
         self.attribute_count = count
         self.dns_blocking_scheme = dns_blocking_scheme
         self.similarity_fns = similarity_fns
@@ -238,6 +238,16 @@ class MDySimII(object):
         self.RI = defaultdict(set)     # Record Index (RI)
         self.FBI = defaultdict(dict)   # Field Block Indicies (FBI)
         self.SI = defaultdict(dict)    # Similarity Index (SI)
+
+        self.use_full_simvector = use_full_simvector
+        self.use_parfull_simvector = use_parfull_simvector
+
+        if self.use_parfull_simvector:
+            # Calculate similarites between all attributes covered by
+            # the blocking schema
+            self.fields = set()
+            for blocking_key in self.dns_blocking_scheme:
+                self.fields.update(blocking_key.covered_fields())
 
     def insert(self, r_id, r_attributes):
         for feature in self.dns_blocking_scheme:
@@ -331,10 +341,17 @@ class MDySimII(object):
         if q_id in accumulator:
             del accumulator[q_id]
 
-        if self.dataset:
+        if self.use_full_simvector:
             for id in accumulator.keys():
                 for field, sim in enumerate(accumulator[id]):
                     if sim == 0 and q_attributes[field] and self.dataset[id][field]:
+                        sim = self.similarity_fns[field](q_attributes[field], self.dataset[id][field])
+                        accumulator[id][field] = sim
+
+        elif self.use_parfull_simvector:
+            for id in accumulator.keys():
+                for field, sim in enumerate(accumulator[id]):
+                    if field in self.fields and sim == 0 and q_attributes[field] and self.dataset[id][field]:
                         sim = self.similarity_fns[field](q_attributes[field], self.dataset[id][field])
                         accumulator[id][field] = sim
 
@@ -430,7 +447,7 @@ class MDySimII(object):
 class MDySimIII(object):
 
     def __init__(self, count, dns_blocking_scheme, similarity_fns,
-                 dataset=None):
+                 use_full_simvector=False, use_parfull_simvector=False, dataset=None):
         self.dns_blocking_scheme = dns_blocking_scheme
         self.similarity_fns = similarity_fns
 
@@ -442,6 +459,16 @@ class MDySimIII(object):
 
         # Format output
         self.attribute_count = count
+
+        self.use_full_simvector = use_full_simvector
+        self.use_parfull_simvector = use_parfull_simvector
+
+        if self.use_parfull_simvector:
+            # Calculate similarites between all attributes covered by
+            # the blocking schema
+            self.fields = set()
+            for blocking_key in self.dns_blocking_scheme:
+                self.fields.update(blocking_key.covered_fields())
 
     def insert(self, r_id, r_attributes):
         for feature in self.dns_blocking_scheme:
@@ -537,10 +564,17 @@ class MDySimIII(object):
         if q_id in accumulator:
             del accumulator[q_id]
 
-        if self.dataset:
+        if self.use_full_simvector:
             for id in accumulator.keys():
                 for field, sim in enumerate(accumulator[id]):
                     if sim == 0 and q_attributes[field] and self.dataset[id][field]:
+                        sim = self.similarity_fns[field](q_attributes[field], self.dataset[id][field])
+                        accumulator[id][field] = sim
+
+        elif self.use_parfull_simvector:
+            for id in accumulator.keys():
+                for field, sim in enumerate(accumulator[id]):
+                    if field in self.fields and sim == 0 and q_attributes[field] and self.dataset[id][field]:
                         sim = self.similarity_fns[field](q_attributes[field], self.dataset[id][field])
                         accumulator[id][field] = sim
 

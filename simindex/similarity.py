@@ -24,11 +24,13 @@ except NameError as e:
 
 class SimLearner():
 
-    def __init__(self, count, dataset, blocking_scheme=None, use_full_simvector=False):
+    def __init__(self, count, dataset, blocking_scheme=None,
+                 use_full_simvector=False, use_parfull_simvector=False):
         self.dataset = dataset
         self.attribute_count = count
         self.blocking_scheme = blocking_scheme
         self.use_full_simvector = use_full_simvector
+        self.use_parfull_simvector = use_parfull_simvector
         self.measures = [SimBag,
                          SimLevenshtein,
                          SimJaro,
@@ -37,6 +39,13 @@ class SimLearner():
         self.similarity_objs = []
         for measure in self.measures:
             self.similarity_objs.append(measure())
+
+        if self.use_parfull_simvector:
+            # Calculate similarites between all attributes covered by
+            # the blocking schema
+            self.fields = set()
+            for blocking_key in self.dns_blocking_scheme:
+                self.fields.update(blocking_key.covered_fields())
 
     def parse_gold(self, gold_standard, gold_attributes):
         # Gold Standard/Ground Truth attributes
@@ -104,6 +113,14 @@ class SimLearner():
                 p2_attribute = p2_attributes[field]
                 if p1_attribute and p2_attribute:
                     x = similarity(p1_attribute, p2_attribute)
+
+            elif self.use_parfull_simvector and field in self.fields:
+                # Calculate similarities between all attributes
+                p1_attribute = p1_attributes[field]
+                p2_attribute = p2_attributes[field]
+                if p1_attribute and p2_attribute:
+                    x = similarity(p1_attribute, p2_attribute)
+
             else:
                 for blocking_key in self.blocking_scheme:
                     # Calculate similarites between pairs whose attributes
@@ -130,6 +147,14 @@ class SimLearner():
                 p2_attribute = p2_attributes[field]
                 if p1_attribute and p2_attribute:
                     x = similarity(p1_attribute, p2_attribute)
+
+            elif self.use_parfull_simvector and field in self.fields:
+                # Calculate similarities between all attributes
+                p1_attribute = p1_attributes[field]
+                p2_attribute = p2_attributes[field]
+                if p1_attribute and p2_attribute:
+                    x = similarity(p1_attribute, p2_attribute)
+
             else:
                 for blocking_key in self.blocking_scheme:
                     # Calculate similarites between pairs whose attributes

@@ -86,6 +86,10 @@ def setup_logging(default_path='logging.json',
     default=False
 )
 @click.option(
+    u'--parfull-simvector/--no-parfull-simvector', help=u'Calalucate full simvector?',
+    default=False
+)
+@click.option(
     u'--gt-labels/--no-gt-labels', help=u'Provide Label Generate with ground truth matches?',
     default=True
 )
@@ -120,7 +124,7 @@ def main(index_file, index_attributes,
          train_file, train_attributes,
          gold_standard, gold_attributes,
          run_type, classifier, classifier_scoring,
-         full_simvector,
+         full_simvector, parfull_simvector,
          gt_labels, gt_thresholds,
          dnf_depths, dnf_filters,
          clf, similarity,
@@ -172,7 +176,8 @@ def main(index_file, index_attributes,
                                clf_cfg=clf_name, clf_cfg_params=clf_params,
                                datadir=engine_datadir, verbose=True,
                                use_classifier=classifier, clf_scoring=classifier_scoring,
-                               use_full_simvector=full_simvector)
+                               use_full_simvector=full_simvector,
+                               use_parfull_simvector=parfull_simvector)
         elif indexer == "MDySimIII":
             engine = SimEngine(datasetname, indexer=MDySimIII,
                                label_thresholds=gt_thresholds,
@@ -181,7 +186,8 @@ def main(index_file, index_attributes,
                                clf_cfg=clf_name, clf_cfg_params=clf_params,
                                datadir=engine_datadir, verbose=True,
                                use_classifier=classifier, clf_scoring=classifier_scoring,
-                               use_full_simvector=full_simvector)
+                               use_full_simvector=full_simvector,
+                               use_parfull_simvector=parfull_simvector)
         elif indexer == "MDyLSH":
             engine = SimEngine(datasetname, indexer=MDyLSH,
                                label_thresholds=gt_thresholds,
@@ -190,7 +196,8 @@ def main(index_file, index_attributes,
                                clf_cfg=clf_name, clf_cfg_params=clf_params,
                                datadir=engine_datadir, verbose=True,
                                use_classifier=classifier, clf_scoring=classifier_scoring,
-                               use_full_simvector=full_simvector)
+                               use_full_simvector=full_simvector,
+                               use_parfull_simvector=parfull_simvector)
 
         if len(baseline) > 0:
             baseline_scheme = []
@@ -267,6 +274,7 @@ def main(index_file, index_attributes,
         model["clf"] = clf
         model["use_classifier"] = engine.use_classifier
         model["use_fullvector"] = engine.use_full_simvector
+        model["use_parfullvector"] = engine.use_parfull_simvector
         model["gt_lbl_thresholds"] = engine.label_thresholds
         if len(baseline) == 0:
             model["positive_labels"] = engine.nP
@@ -284,15 +292,21 @@ def main(index_file, index_attributes,
         if indexer == "MDySimII":
             engine = SimEngine(datasetname, indexer=MDySimII,
                                datadir=engine_datadir, verbose=False,
-                               use_classifier=classifier, use_full_simvector=full_simvector)
+                               use_classifier=classifier,
+                               use_full_simvector=full_simvector,
+                               use_parfull_simvector=parfull_simvector)
         elif indexer == "MDySimIII":
             engine = SimEngine(datasetname, indexer=MDySimIII,
                                datadir=engine_datadir, verbose=False,
-                               use_classifier=classifier, use_full_simvector=full_simvector)
+                               use_classifier=classifier,
+                               use_full_simvector=full_simvector,
+                               use_parfull_simvector=parfull_simvector)
         elif indexer == "MDyLSH":
             engine = SimEngine(datasetname, indexer=MDyLSH,
                                datadir=engine_datadir, verbose=False,
-                               use_classifier=classifier, use_full_simvector=full_simvector)
+                               use_classifier=classifier,
+                               use_full_simvector=full_simvector,
+                               use_parfull_simvector=parfull_simvector)
 
         print()
         print("##############################################################")
@@ -333,20 +347,25 @@ def main(index_file, index_attributes,
                                datadir=engine_datadir,
                                insert_timer=insert_timer,
                                query_timer=query_timer,
-                               use_classifier=classifier, use_full_simvector=full_simvector)
+                               use_classifier=classifier,
+                               use_full_simvector=full_simvector,
+                               use_parfull_simvector=parfull_simvector)
         elif indexer == "MDySimIII":
             engine = SimEngine(datasetname, indexer=MDySimIII, verbose=True,
                                datadir=engine_datadir,
                                insert_timer=insert_timer,
                                query_timer=query_timer,
-                               use_classifier=classifier, use_full_simvector=full_simvector)
+                               use_classifier=classifier,
+                               use_full_simvector=full_simvector,
+                               use_parfull_simvector=parfull_simvector)
         elif indexer == "MDyLSH":
             engine = SimEngine(datasetname, indexer=MDyLSH, verbose=True,
                                datadir=engine_datadir,
                                insert_timer=insert_timer,
                                query_timer=query_timer,
-                               use_classifier=classifier, use_full_simvector=full_simvector)
-
+                               use_classifier=classifier,
+                               use_full_simvector=full_simvector,
+                               use_parfull_simvector=parfull_simvector)
         print()
         print("------------------------------ 1 -----------------------------")
         print("Loading fitted training dataset.")
