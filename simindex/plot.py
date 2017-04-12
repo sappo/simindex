@@ -1,4 +1,5 @@
 import sys
+import math
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
 import numpy as np
@@ -108,10 +109,10 @@ def draw_time_curve(times, action, run='', ax=plt):
         mean = np.mean(times[indexer])
         times_mean = [mean for i in x_pos]
         ax.plot(x_pos, times[indexer], lw=lw,
-                color=color_sequence[2 * index + 1], label=indexer)
+                color=color_sequence[2 * index + 1], label=indexer, rasterized=True)
         # zorder assures that mean lines are always printed above
         ax.plot(x_pos, times_mean, color=color_sequence[2 * index],
-                zorder=index + 100, linestyle='--')
+                zorder=index + 100, linestyle='--', rasterized=True)
 
     xlabel = "Record %s number" % action
     plt.xlabel(xlabel)
@@ -129,10 +130,10 @@ def draw_precision_recall_curve(y_true, y_scores, dataset):
     draw_prc({'?': {'?': (precision, recall, thresholds)}}, dataset)
 
 
-def draw_prc(prc_curves, dataset):
+def draw_prc(prc_curves, dataset, multiple=True, mod=1):
     nplots = len(prc_curves)
-    nrows = int((nplots - 1) / 2) + 1
-    ncols = min(2, nplots)
+    nrows = int((math.ceil(nplots / mod) - 1) / 2) + 1
+    ncols = min(2, math.ceil(nplots / mod))
     fig = plt.figure(figsize=(8 * ncols, 5 * nrows), dpi=None, facecolor="white")
     fig.canvas.set_window_title("PRC (%s)" % dataset)
     st = fig.suptitle("Dataset %s" % dataset)
@@ -142,16 +143,21 @@ def draw_prc(prc_curves, dataset):
     # Plot Precision-Recall curve
     gs = gridspec.GridSpec(nrows, ncols)
     for index, run in enumerate(sorted(prc_curves.keys())):
-        row = int(index - (index / 2))
-        col = index % 2
-        ax = fig.add_subplot(gs[row, col])
-        for index, indexer in enumerate(sorted(prc_curves[run].keys())):
+        if multiple and index % mod == 0:
+            cur = index / mod
+            row = int(cur - (cur / 2))
+            col = int(cur % 2)
+            ax = fig.add_subplot(gs[row, col])
+        elif not multiple and index == 0:
+            ax = fig.add_subplot(111)
+
+        for _, indexer in enumerate(sorted(prc_curves[run].keys())):
             precisions, recalls, thresholds = prc_curves[run][indexer]
             if (thresholds[0] == 0):
                 recalls = recalls[1:]
                 precisions = precisions[1:]
             ax.plot(recalls, precisions, 'yo-', lw=lw, label=indexer,
-                    color=color_sequence[index], picker=True)
+                    color=color_sequence[index], picker=True, rasterized=True)
 
         plt.xlabel('Recall')
         plt.ylabel('Precision')

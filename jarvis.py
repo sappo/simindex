@@ -306,8 +306,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             contents = self.menu(title, [
                             self.menu_button(u'Model', self.model_info),
                             self.menu_button(u'Metrics', self.metrics_info),
-                            self.menu_button(u'Show Plots', self.show_plots),
-                            self.menu_button(u'Save Plots', self.save_plots),
+                            self.plot_menu(u'Show Plots', self.show_plots),
+                            self.plot_menu(u'Save Plots', self.save_plots),
                             self.sub_menu(u'Memory Usage', [
                                 self.menu_button(idx, self.show_mprof) for idx in
                                 sorted(it.chain(indexer, ['fit']))
@@ -357,8 +357,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             contents = self.menu("Compare with - %s" % btn_caption, [
                             self.menu_button(u'Model', self.model_info),
                             self.menu_button(u'Metrics', self.metrics_info),
-                            self.menu_button(u'Show Plots', self.show_plots),
-                            self.menu_button(u'Save Plots', self.save_plots),
+                            self.plot_menu(u'Show Plots', self.show_plots),
+                            self.plot_menu(u'Save Plots', self.save_plots),
                             self.menu_button(u'Compare', open_comparemenu),
                        ])
 
@@ -382,6 +382,42 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             return self.open_box(contents)
 
         return self.menu_button(['Save'], open_menu)
+
+    def plot_menu(self, label, callback):
+        def open_menu(button):
+            edit = urwid.Edit(u'Combine reports into one PRC: ')
+            edit.set_edit_text("1")
+
+            self.plots = set()
+            def check_plots(checkbox, state):
+                if state == True:
+                    self.plots.add(checkbox.label)
+                else:
+                    self.plots.remove(checkbox.label)
+
+            checkboxes = []
+            checkboxes.append(urwid.CheckBox("PRC", on_state_change=check_plots))
+            checkboxes.append(urwid.CheckBox("Inserts", on_state_change=check_plots))
+            checkboxes.append(urwid.CheckBox("Queries", on_state_change=check_plots))
+            checkboxes.append(urwid.CheckBox("Insert Time", on_state_change=check_plots))
+            checkboxes.append(urwid.CheckBox("Inserts per second", on_state_change=check_plots))
+            checkboxes.append(urwid.CheckBox("Query Time", on_state_change=check_plots))
+            checkboxes.append(urwid.CheckBox("Queries per second", on_state_change=check_plots))
+            checkboxes.append(urwid.CheckBox("Memory Usage", on_state_change=check_plots))
+            for box in checkboxes:
+                box.toggle_state()
+
+            elements = [edit]
+            elements.extend(checkboxes)
+            elements.extend([
+                urwid.Divider(),
+                self.menu_button("Okay", callback)
+            ])
+            contents = self.menu("Plot settings", elements)
+            self.plot_combine = edit
+            return self.open_box(contents)
+
+        return self.menu_button([label], open_menu)
 
     def sub_menu(self, caption, choices):
         def open_menu(button):
@@ -705,42 +741,50 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                 query_build_time[dataset][indexer][run] = measurements["query_time_sum"]
 
         picture_names = []
-        for dataset in prc_curves.keys():
-            splt.draw_prc(prc_curves[dataset], dataset)
-            picture_names.append("%s_prc" % '_'.join(prc_curves[dataset].keys()))
+        if "PRC" in self.plots:
+            for dataset in prc_curves.keys():
+                splt.draw_prc(prc_curves[dataset], dataset, mod=int(self.plot_combine.edit_text))
+                picture_names.append("%s_prc" % '_'.join(prc_curves[dataset].keys()))
 
-        for dataset in insert_times.keys():
-            splt.draw_record_time_curve(insert_times[dataset], dataset, "insertion")
-            picture_names.append("%s_tc_insert" % '_'.join(insert_times[dataset].keys()))
+        if "Inserts" in self.plots:
+            for dataset in insert_times.keys():
+                splt.draw_record_time_curve(insert_times[dataset], dataset, "insertion")
+                picture_names.append("%s_tc_insert" % '_'.join(insert_times[dataset].keys()))
 
-        for dataset in query_times.keys():
-            splt.draw_record_time_curve(query_times[dataset], dataset, "query")
-            picture_names.append("%s_tc_query" % '_'.join(query_times[dataset].keys()))
+        if "Queries" in self.plots:
+            for dataset in query_times.keys():
+                splt.draw_record_time_curve(query_times[dataset], dataset, "query")
+                picture_names.append("%s_tc_query" % '_'.join(query_times[dataset].keys()))
 
-        for dataset in memory_usage.keys():
-            splt.draw_bar_chart(memory_usage[dataset],
-                           "Memory usage (%s)" % dataset, "MiB")
-            picture_names.append("%s_memusg" % '_'.join(memory_usage[dataset].keys()))
+        if "Memory Usage" in self.plots:
+            for dataset in memory_usage.keys():
+                splt.draw_bar_chart(memory_usage[dataset],
+                               "Memory usage (%s)" % dataset, "MiB")
+                picture_names.append("%s_memusg" % '_'.join(memory_usage[dataset].keys()))
 
-        for dataset in index_build_time.keys():
-            splt.draw_bar_chart(index_build_time[dataset],
-                           "Index build time (%s)" % dataset, "Seconds (s)")
-            picture_names.append("%s_index_bt" % '_'.join(index_build_time[dataset].keys()))
+        if "Insert Time" in self.plots:
+            for dataset in index_build_time.keys():
+                splt.draw_bar_chart(index_build_time[dataset],
+                               "Index build time (%s)" % dataset, "Seconds (s)")
+                picture_names.append("%s_index_bt" % '_'.join(index_build_time[dataset].keys()))
 
-        for dataset in query_build_time.keys():
-            splt.draw_bar_chart(query_build_time[dataset],
-                           "Query time (%s)" % dataset, "Seconds (s)")
-            picture_names.append("%s_query_bt" % '_'.join(index_build_time[dataset].keys()))
+        if "Query Time" in self.plots:
+            for dataset in query_build_time.keys():
+                splt.draw_bar_chart(query_build_time[dataset],
+                               "Query time (%s)" % dataset, "Seconds (s)")
+                picture_names.append("%s_query_bt" % '_'.join(index_build_time[dataset].keys()))
 
-        for dataset in inserts_per_second.keys():
-            splt.draw_bar_chart(inserts_per_second[dataset],
-                           "Inserts per second (%s)" % dataset, "Seconds (s)")
-            picture_names.append("%s_index_ips" % '_'.join(index_build_time[dataset].keys()))
+        if "Inserts per second" in self.plots:
+            for dataset in inserts_per_second.keys():
+                splt.draw_bar_chart(inserts_per_second[dataset],
+                               "Inserts per second (%s)" % dataset, "Seconds (s)")
+                picture_names.append("%s_index_ips" % '_'.join(index_build_time[dataset].keys()))
 
-        for dataset in queries_per_second.keys():
-            splt.draw_bar_chart(queries_per_second[dataset],
-                           "Queries per second (%s)" % dataset, "Seconds (s)")
-            picture_names.append("%s_query_ips" % '_'.join(index_build_time[dataset].keys()))
+        if "Queries per second" in self.plots:
+            for dataset in queries_per_second.keys():
+                splt.draw_bar_chart(queries_per_second[dataset],
+                               "Queries per second (%s)" % dataset, "Seconds (s)")
+                picture_names.append("%s_query_ips" % '_'.join(index_build_time[dataset].keys()))
 
         # Show plots
         if not save:
