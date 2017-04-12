@@ -130,7 +130,7 @@ def draw_precision_recall_curve(y_true, y_scores, dataset):
     draw_prc({'?': {'?': (precision, recall, thresholds)}}, dataset)
 
 
-def draw_prc(prc_curves, dataset, multiple=True, mod=1):
+def draw_prc(prc_curves, dataset, multiple=True, mod=1, repeat_colors=False):
     nplots = len(prc_curves)
     nrows = int((math.ceil(nplots / mod) - 1) / 2) + 1
     ncols = min(2, math.ceil(nplots / mod))
@@ -151,19 +151,39 @@ def draw_prc(prc_curves, dataset, multiple=True, mod=1):
         elif not multiple and index == 0:
             ax = fig.add_subplot(111)
 
+        if mod > 1:
+            title = set()
+        else:
+            title = run
+
         for _, indexer in enumerate(sorted(prc_curves[run].keys())):
             precisions, recalls, thresholds = prc_curves[run][indexer]
             if (thresholds[0] == 0):
                 recalls = recalls[1:]
                 precisions = precisions[1:]
-            ax.plot(recalls, precisions, 'yo-', lw=lw, label=indexer,
-                    color=color_sequence[index], picker=True, rasterized=True)
+
+            label = indexer
+            if mod > 1:
+                label = run
+                title.add(indexer)
+
+            color_no = index
+            if repeat_colors:
+                color_no = index % mod
+
+            ax.plot(recalls, precisions, 'yo-', lw=lw, label=label,
+                    markersize=5.0,
+                    color=color_sequence[color_no],
+                    markeredgecolor=color_sequence[color_no],
+                    picker=True, rasterized=True)
 
         plt.xlabel('Recall')
         plt.ylabel('Precision')
         plt.ylim([0.0, 1.02])
         plt.xlim([0.0, 1.02])
-        plt.title("Precision-Recall Curve (%s)" % run)
+        if mod > 1:
+            title = "/".join(title)
+        plt.title("Precision-Recall Curve (%s)" % title)
         plt.legend(loc="lower left")
 
     fig.tight_layout()

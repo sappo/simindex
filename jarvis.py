@@ -296,7 +296,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
     def result_menu(self, run, dataset, indexer, prefix,
                     reports, saved_reports, its_reports):
         short_info = self.model_info_short(prefix, run, dataset)
-        btn_caption = "%s    %s (%s) - %s" % (run.ljust(20), short_info, dataset, ', '.join(indexer))
+        btn_caption = "%s    %s (%s) - %s" % (run.ljust(25), short_info, dataset, ', '.join(indexer))
         def open_menu(button):
             title = "Choose an option for %s!" % btn_caption
             def open_comparemenu(button):
@@ -367,7 +367,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             return self.open_box(contents)
 
         short_info = self.model_info_short(prefix, run, dataset)
-        btn_caption = "%s   %s (%s) - %s" % (run.ljust(20), short_info, dataset, ', '.join(indexer))
+        btn_caption = "%s   %s (%s) - %s" % (run.ljust(25), short_info, dataset, ', '.join(indexer))
         return self.menu_button([btn_caption], open_menu)
 
     def save_menu(self):
@@ -385,8 +385,9 @@ class JarvisMenu(urwid.WidgetPlaceholder):
 
     def plot_menu(self, label, callback):
         def open_menu(button):
-            edit = urwid.Edit(u'Combine reports into one PRC: ')
-            edit.set_edit_text("1")
+            self.plot_combine = urwid.Edit(u'[PRC] Combine reports into one PRC: ')
+            self.plot_combine.set_edit_text("1")
+            self.prc_repeat_colors = urwid.CheckBox("[PRC] Repeat Colors")
 
             self.plots = set()
             def check_plots(checkbox, state):
@@ -407,14 +408,13 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             for box in checkboxes:
                 box.toggle_state()
 
-            elements = [edit]
+            elements = [self.plot_combine, self.prc_repeat_colors, urwid.Divider()]
             elements.extend(checkboxes)
             elements.extend([
                 urwid.Divider(),
                 self.menu_button("Okay", callback)
             ])
             contents = self.menu("Plot settings", elements)
-            self.plot_combine = edit
             return self.open_box(contents)
 
         return self.menu_button([label], open_menu)
@@ -743,7 +743,9 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         picture_names = []
         if "PRC" in self.plots:
             for dataset in prc_curves.keys():
-                splt.draw_prc(prc_curves[dataset], dataset, mod=int(self.plot_combine.edit_text))
+                splt.draw_prc(prc_curves[dataset], dataset,
+                              mod=int(self.plot_combine.edit_text),
+                              repeat_colors=self.prc_repeat_colors.state)
                 picture_names.append("%s_prc" % '_'.join(prc_curves[dataset].keys()))
 
         if "Inserts" in self.plots:
