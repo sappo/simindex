@@ -19,7 +19,7 @@ class FusionLearner(object):
         candidates = []
         svm_tuned_parameters = [{'kernel': ['linear'],  'C': [0.1, 1, 10, 100, 1000]},
                                 {'kernel': ['rbf'],     'C': [0.1, 1, 10, 100, 1000]}]
-        candidates.append(["SVM", SVC(C=1, probability=True, class_weight='balanced'), svm_tuned_parameters])
+        candidates.append(["SVM", SVC(C=1, class_weight='balanced'), svm_tuned_parameters])
         dt_tuned_parameters = [{'max_features': ['auto', 'sqrt', 'log2']}]
         candidates.append(["DecisionTree", tree.DecisionTreeClassifier(class_weight='balanced'), dt_tuned_parameters])
         return candidates
@@ -72,5 +72,9 @@ class FusionLearner(object):
 
         print ("Choosen classifier %r with parameters %r" %
                 (self.best_classifier, self.best_params))
+
+        if hasattr(self.best_classifier, 'probability'):
+            self.best_classifier.set_params(probability=True)
+            self.best_classifier.fit(X, y)
 
         return self.best_classifier
