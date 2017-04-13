@@ -489,8 +489,10 @@ class SimEngine(object):
             # Calculate quality metrics
             if self.gold_records:
                 q_id = q_record[0]
-                hp.calc_micro_scores(q_id, candidates, probas, self.y_true_score,
-                                     self.y_scores, self.gold_records)
+                if self.use_classifier:
+                    hp.calc_micro_scores(q_id, candidates, probas, self.y_true_score,
+                                         self.y_scores, self.gold_records)
+
                 hp.calc_micro_metrics(q_id, result, self.y_true,
                                       self.y_pred, self.gold_records)
 
