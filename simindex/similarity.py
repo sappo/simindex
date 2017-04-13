@@ -25,10 +25,12 @@ except NameError as e:
 class SimLearner():
 
     def __init__(self, count, dataset, blocking_scheme=None,
+                 use_average_precision_score=True,
                  use_full_simvector=False, use_parfull_simvector=False):
         self.dataset = dataset
         self.attribute_count = count
         self.blocking_scheme = blocking_scheme
+        self.use_average_precision_score = use_average_precision_score
         self.use_full_simvector = use_full_simvector
         self.use_parfull_simvector = use_parfull_simvector
         self.measures = [SimBag,
@@ -62,8 +64,17 @@ class SimLearner():
                 self.gold_records[a].add(b)
                 self.gold_records[b].add(a)
 
+    def predict(self, P, N):
+        print(self.use_average_precision_score)
+        if self.use_average_precision_score:
+            return self.predict_average_precision(P, N)
+        else:
+            return self.predict_min_max(P, N)
+
     @profile
-    def predict_old(self, P, N):
+    def predict_min_max(self, P, N):
+        logger.info("Predict MIN/MAX")
+        print("Predict MIN/MAX")
         prediction = defaultdict(OrderedDict)
         for field in range(self.attribute_count):
             for sim_obj in self.similarity_objs:
@@ -82,7 +93,10 @@ class SimLearner():
 
         return list(result.values())
 
-    def predict(self, P, N):
+    @profile
+    def predict_average_precision(self, P, N):
+        logger.info("Predict Average Precision")
+        print("Predict AVP")
         result = OrderedDict()
         for field in range(self.attribute_count):
             best_field_similarity = None

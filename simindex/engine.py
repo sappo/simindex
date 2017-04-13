@@ -52,6 +52,7 @@ class SimEngine(object):
                  max_blocksize=100, min_goodratio=0.9,
                  clf_cfg=None, clf_cfg_params=None, clf_scoring="f1",
                  insert_timer=None, query_timer=None,
+                 use_average_precision_score=True,
                  use_classifier=True, use_parfull_simvector=False, use_full_simvector=False,
                  verbose=False):
         self.name = name
@@ -99,6 +100,7 @@ class SimEngine(object):
         self.insert_timer = insert_timer
         self.query_timer = query_timer
         self.use_classifier = use_classifier
+        self.use_average_precision_score = use_average_precision_score
         self.use_full_simvector = use_full_simvector
         self.use_parfull_simvector = use_parfull_simvector
         self.verbose = verbose
@@ -249,7 +251,10 @@ class SimEngine(object):
         self.similarities = self.load_similarities()
         if self.similarities is None:
             sl = SimLearner(self.attribute_count, dataset,
-                            self.blocking_scheme, self.use_full_simvector)
+                            blocking_scheme=self.blocking_scheme,
+                            use_average_precision_score=self.use_average_precision_score,
+                            use_full_simvector=self.use_full_simvector,
+                            use_parfull_simvector=self.use_parfull_simvector)
             self.similarities = sl.predict(P, N)
             self.save_similarities()
             del sl

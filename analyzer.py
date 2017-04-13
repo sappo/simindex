@@ -75,6 +75,10 @@ def setup_logging(default_path='logging.json',
     u'--similarity', help=u'Which similarity to use!', type=click.STRING
 )
 @click.option(
+    u'--sim-avp/--no-sim-avp', help=u'Use average precision score?',
+    default=True
+)
+@click.option(
     u'--classifier/--no-classifier', help=u'Usage of a classifier?',
     default=True
 )
@@ -127,7 +131,7 @@ def main(index_file, index_attributes,
          full_simvector, parfull_simvector,
          gt_labels, gt_thresholds,
          dnf_depths, dnf_filters,
-         clf, similarity,
+         clf, similarity, sim_avp,
          output, run_name, indexer,
          baseline):
     """
@@ -175,6 +179,7 @@ def main(index_file, index_attributes,
                                max_blocksize=dnf_filters[0], min_goodratio=dnf_filters[1],
                                clf_cfg=clf_name, clf_cfg_params=clf_params,
                                datadir=engine_datadir, verbose=True,
+                               use_average_precision_score=sim_avp,
                                use_classifier=classifier, clf_scoring=classifier_scoring,
                                use_full_simvector=full_simvector,
                                use_parfull_simvector=parfull_simvector)
@@ -185,6 +190,7 @@ def main(index_file, index_attributes,
                                max_blocksize=dnf_filters[0], min_goodratio=dnf_filters[1],
                                clf_cfg=clf_name, clf_cfg_params=clf_params,
                                datadir=engine_datadir, verbose=True,
+                               use_average_precision_score=sim_avp,
                                use_classifier=classifier, clf_scoring=classifier_scoring,
                                use_full_simvector=full_simvector,
                                use_parfull_simvector=parfull_simvector)
@@ -195,6 +201,7 @@ def main(index_file, index_attributes,
                                max_blocksize=dnf_filters[0], min_goodratio=dnf_filters[1],
                                clf_cfg=clf_name, clf_cfg_params=clf_params,
                                datadir=engine_datadir, verbose=True,
+                               use_average_precision_score=sim_avp,
                                use_classifier=classifier, clf_scoring=classifier_scoring,
                                use_full_simvector=full_simvector,
                                use_parfull_simvector=parfull_simvector)
