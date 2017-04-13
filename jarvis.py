@@ -728,9 +728,11 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                 query_times[dataset][run][indexer] = measurements["query_times"]
 
                 prc_curves[dataset][run][indexer] = (
-                        np.array(measurements["prc_precisions"]),
-                        np.array(measurements["prc_recalls"]),
-                        np.array(measurements["prc_thresholds"])
+                    np.array(measurements["prc_precisions"]),
+                    np.array(measurements["prc_recalls"]),
+                    np.array(measurements["prc_thresholds"]),
+                    measurements["recall"],
+                    measurements["precision"]
                 )
 
                 # Sort data by indexer and then by dataset

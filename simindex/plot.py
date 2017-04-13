@@ -1,5 +1,6 @@
 import sys
 import math
+import simindex.helper as hp
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
 import numpy as np
@@ -157,7 +158,7 @@ def draw_prc(prc_curves, dataset, multiple=True, mod=1, repeat_colors=False):
             title = run
 
         for _, indexer in enumerate(sorted(prc_curves[run].keys())):
-            precisions, recalls, thresholds = prc_curves[run][indexer]
+            precisions, recalls, thresholds, recall, precision = prc_curves[run][indexer]
             if (thresholds[0] == 0):
                 recalls = recalls[1:]
                 precisions = precisions[1:]
@@ -175,7 +176,11 @@ def draw_prc(prc_curves, dataset, multiple=True, mod=1, repeat_colors=False):
                     markersize=5.0,
                     color=color_sequence[color_no],
                     markeredgecolor=color_sequence[color_no],
-                    picker=True, rasterized=True)
+                    picker=True, rasterized=True, zorder=1)
+            darker_color = hp.colorscale(color_sequence[color_no], 0.75)
+            ax.plot([recall], [precision], 'o', lw=lw,
+                    markersize=5.0, zorder=10,
+                    color=darker_color)
 
         plt.xlabel('Recall')
         plt.ylabel('Precision')
