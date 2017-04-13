@@ -88,24 +88,26 @@ def all_matches_count(id, gold_records):
         return 0
 
 
-def calc_micro_scores(q_id, result, y_true, y_score, gold_records):
+def calc_micro_scores(q_id, result, probas, y_true, y_score, gold_records):
     # Only consider querys with relevant records this disregards
     # True negatives (TN)
-    if q_id in gold_records.keys():
-        for result_id in result.keys():
-                result_score = np.sum(result[result_id])
-                y_score.append(result_score)
-                if result_id in gold_records[q_id]:
-                    # True Positive (TP)
-                    y_true.append(1)
-                else:
-                    # False Positive (FP)
-                    y_true.append(0)
+    if q_id not in gold_records.keys():
+        return
 
-        # Fill in False Negatives (FN) with score 0.0
-        for fn in gold_records[q_id].difference(result.keys()):
+    for result_id in result.keys():
+        result_score = probas[result_id][1]
+        y_score.append(result_score)
+        if result_id in gold_records[q_id]:
+            # True Positive (TP)
             y_true.append(1)
-            y_score.append(0.)
+        else:
+            # False Positive (FP)
+            y_true.append(0)
+
+    # Fill in False Negatives (FN) with score 0.0
+    for fn in gold_records[q_id].difference(result.keys()):
+        y_true.append(1)
+        y_score.append(0.)
 
 
 def calc_micro_metrics(q_id, result, y_true, y_pred, gold_records):

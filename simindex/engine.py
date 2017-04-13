@@ -456,16 +456,16 @@ class SimEngine(object):
 
     def query(self, q_record):
             # Run Query
-            result = self.indexer.query(q_record)
+            candidates = self.indexer.query(q_record)
 
             # Calculate complexity metrics
             if self.gold_records:
                 q_id = q_record[0]
-                matches_count = hp.matches_count(q_id, result, self.gold_records)
+                matches_count = hp.matches_count(q_id, candidates, self.gold_records)
                 all_matches_count = hp.all_matches_count(q_id, self.gold_records)
                 self.true_matches += matches_count
                 if matches_count:
-                    self.true_nonmatches += len(result) - matches_count
+                    self.true_nonmatches += len(candidates) - matches_count
 
                 self.total_matches += all_matches_count
                 self.total_nonmatches += self.indexer.nrecords - 1 - all_matches_count
@@ -474,15 +474,22 @@ class SimEngine(object):
 
             # Apply classifier
             if self.use_classifier:
-                for candidate in list(result.keys()):
-                    prediction = self.clf.predict([result[candidate]])[0]
-                    if prediction == 0:
-                        del result[candidate]
+                result = {}
+                probas = {}
+                for candidate in list(candidates.keys()):
+                    if self.gold_records:
+                        probas[candidate] = self.clf.predict_proba([candidates[candidate]])[0]
+
+                    prediction = self.clf.predict([candidates[candidate]])[0]
+                    if prediction == 1:
+                        result[candidate] = candidates[candidate]
+            else:
+                result = candidates
 
             # Calculate quality metrics
             if self.gold_records:
                 q_id = q_record[0]
-                hp.calc_micro_scores(q_id, result, self.y_true_score,
+                hp.calc_micro_scores(q_id, candidates, probas, self.y_true_score,
                                      self.y_scores, self.gold_records)
                 hp.calc_micro_metrics(q_id, result, self.y_true,
                                       self.y_pred, self.gold_records)
