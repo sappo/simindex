@@ -142,6 +142,9 @@ def draw_prc(prc_curves, dataset, multiple=True, mod=1, repeat_colors=False):
                       '#9467bd', '#8c564b',  '#e377c2',  '#7f7f7f',
                       '#bcbd22',  '#17becf']
     # Plot Precision-Recall curve
+    if mod > 1:
+        title = set()
+
     gs = gridspec.GridSpec(nrows, ncols)
     for index, run in enumerate(sorted(prc_curves.keys())):
         if multiple and index % mod == 0:
@@ -152,9 +155,7 @@ def draw_prc(prc_curves, dataset, multiple=True, mod=1, repeat_colors=False):
         elif not multiple and index == 0:
             ax = fig.add_subplot(111)
 
-        if mod > 1:
-            title = set()
-        else:
+        if mod == 1:
             title = run
 
         for _, indexer in enumerate(sorted(prc_curves[run].keys())):
@@ -187,9 +188,10 @@ def draw_prc(prc_curves, dataset, multiple=True, mod=1, repeat_colors=False):
         plt.ylim([0.0, 1.02])
         plt.xlim([0.0, 1.02])
         if mod > 1:
-            title = "/".join(title)
-        plt.title("Precision-Recall Curve (%s)" % title)
-        plt.legend(loc="lower left")
+            plt.title("Precision-Recall Curve (%s)" % "/".join(title))
+        else:
+            plt.title("Precision-Recall Curve (%s)" % title)
+        plt.legend(loc="best")
 
     fig.tight_layout()
     # shift subplots down:
