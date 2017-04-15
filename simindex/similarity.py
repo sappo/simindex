@@ -48,7 +48,7 @@ class SimLearner():
             # Calculate similarites between all attributes covered by
             # the blocking schema
             self.fields = set()
-            for blocking_key in self.dns_blocking_scheme:
+            for blocking_key in self.blocking_scheme:
                 self.fields.update(blocking_key.covered_fields())
 
     def parse_gold(self, gold_standard, gold_attributes):
