@@ -304,7 +304,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
     def result_menu(self, run, dataset, indexer, prefix,
                     reports, saved_reports, its_reports):
         short_info = self.model_info_short(prefix, run, dataset)
-        btn_caption = "%s    %s (%s) - %s" % (run.ljust(25), short_info, dataset, ', '.join(indexer))
+        btn_caption = "%s    %s (%s) - %s" % (run.ljust(31), short_info, dataset, ', '.join(indexer))
         def open_menu(button):
             title = "Choose an option for %s!" % btn_caption
             def open_comparemenu(button):
@@ -363,7 +363,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             self.sub_menu(u'Saved reports ...', [
                 self.compare_menu_button(key[0], key[1], value, './evaluation', level,
                     reports, saved_reports, its_reports)
-                for key, value in sorted(saved_reports.items(), reverse=True)
+                for key, value in sorted(saved_reports.items(), key=lambda i: i[0])
             ])
         ])
         for machine in sorted(its_reports.keys()):
@@ -398,7 +398,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             return self.open_box(contents)
 
         short_info = self.model_info_short(prefix, run, dataset)
-        btn_caption = "%s   %s (%s) - %s" % (run.ljust(25), short_info, dataset, ', '.join(indexer))
+        btn_caption = "%s   %s (%s) - %s" % (run.ljust(31), short_info, dataset, ', '.join(indexer))
         return self.menu_button([btn_caption], open_menu)
 
     def save_menu(self):
@@ -478,9 +478,9 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         if model.get("use_fullvector", False):
             vec_info = "full"
         elif model.get("use_parfullvector", False):
-            vec_info = "parfull"
+            vec_info = "par"
         else:
-            vec_info = "par "
+            vec_info = "var "
 
         maxbs = model.get("max_blocksize", 100)
         minrt = model.get("min_goodratio", 0.9)
@@ -497,7 +497,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         else:
             sim_info = "simlearn"
 
-        return clf_info.ljust(16) + vec_info.ljust(11) + gt_info.ljust(20) + bs_info.ljust(15) + sim_info.ljust(20)
+        return clf_info.ljust(19) + vec_info.ljust(8) + gt_info.ljust(20) + bs_info.ljust(15) + sim_info.ljust(20)
 
 
     def model_info(self, button):
@@ -653,8 +653,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             text += "Best Params           %s\n"   % measurements['model'].get("best_params", "N/A")
             text += "Best Score            %s\n"   % measurements['model'].get("best_score", "N/A")
             text += "Use Classifier        %s\n"   % measurements['model'].get("use_classifier", "N/A")
-            text += "Use Full Simvector    %s\n"   % measurements['model'].get("use_fullvector", "N/A")
-            text += "Use Parfull Simvector %s\n"   % measurements['model'].get("use_parfullvector", "N/A")
+            text += "Use Full Simvector    %s\n"   % measurements['model'].get("use_fullvector", "False")
+            text += "Use Partial Simvector %s\n"   % measurements['model'].get("use_parfullvector", "False")
             columns_data[indexer].append(urwid.Text([text]))
             text =  "Other\n"
             text += "Memory peak (MB)    %.2f" % measurements.get("build_memory_peak", float('nan'))
