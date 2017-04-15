@@ -419,6 +419,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             self.plot_combine = urwid.Edit(u'[PRC] Combine reports into one PRC: ')
             self.plot_combine.set_edit_text("1")
             self.prc_repeat_colors = urwid.CheckBox("[PRC] Repeat Colors")
+            self.bar_landscape = urwid.CheckBox("[Bar] Landscape Mode")
 
             self.plots = set()
             def check_plots(checkbox, state):
@@ -439,7 +440,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             for box in checkboxes:
                 box.toggle_state()
 
-            elements = [self.plot_combine, self.prc_repeat_colors, urwid.Divider()]
+            elements = [self.plot_combine, self.prc_repeat_colors,
+                        self.bar_landscape, urwid.Divider()]
             elements.extend(checkboxes)
             elements.extend([
                 urwid.Divider(),
@@ -744,27 +746,27 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         prc_curves = defaultdict(lambda: defaultdict(dict))
 
         for prefix, run, dataset in self.selected_reports:
-            for resultfile in glob.glob("%s/%s_*%s" % (prefix, run, dataset)):
-                if resultfile.count("fit"):
-                    continue
-
-                fp = open(resultfile)
-                measurements = json.load(fp)
-                fp.close()
-                indexer_dataset = resultfile[resultfile.index('_') + 1:]
-                indexer = indexer_dataset[:indexer_dataset.index('_')]
-                dataset = indexer_dataset[indexer_dataset.index('_') + 1:]
-
+            metrics = self.read_metrics(prefix, run, dataset)
+            for indexer, measurements in metrics.items():
                 insert_times[dataset][run][indexer] = measurements["insert_times"]
                 query_times[dataset][run][indexer] = measurements["query_times"]
 
-                prc_curves[dataset][run][indexer] = (
-                    np.array(measurements["prc_precisions"]),
-                    np.array(measurements["prc_recalls"]),
-                    np.array(measurements["prc_thresholds"]),
-                    measurements["recall"],
-                    measurements["precision"]
-                )
+                if measurements['model'].get("use_classifier", True):
+                    prc_curves[dataset][run][indexer] = (
+                        np.array(measurements["prc_precisions"]),
+                        np.array(measurements["prc_recalls"]),
+                        np.array(measurements["prc_thresholds"]),
+                        measurements["recall"],
+                        measurements["precision"]
+                    )
+                else:
+                    prc_curves[dataset][run][indexer] = (
+                        np.empty(0),
+                        np.empty(0),
+                        np.empty(0),
+                        measurements["recall"],
+                        measurements["precision"]
+                    )
 
                 # Sort data by indexer and then by dataset
                 memory_usage[dataset][indexer][run] = measurements.get("build_memory_peak", float('nan'))
@@ -794,31 +796,36 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         if "Memory Usage" in self.plots:
             for dataset in memory_usage.keys():
                 splt.draw_bar_chart(memory_usage[dataset],
-                               "Memory usage (%s)" % dataset, "MiB")
+                               "Memory usage (%s)" % dataset, "MiB",
+                               landscape=self.bar_landscape.state)
                 picture_names.append("%s_memusg" % '_'.join(memory_usage[dataset].keys()))
 
         if "Insert Time" in self.plots:
             for dataset in index_build_time.keys():
                 splt.draw_bar_chart(index_build_time[dataset],
-                               "Index build time (%s)" % dataset, "Seconds (s)")
+                               "Index build time (%s)" % dataset, "Seconds (s)",
+                               landscape=self.bar_landscape.state)
                 picture_names.append("%s_index_bt" % '_'.join(index_build_time[dataset].keys()))
 
         if "Query Time" in self.plots:
             for dataset in query_build_time.keys():
                 splt.draw_bar_chart(query_build_time[dataset],
-                               "Query time (%s)" % dataset, "Seconds (s)")
+                               "Query time (%s)" % dataset, "Seconds (s)",
+                               landscape=self.bar_landscape.state)
                 picture_names.append("%s_query_bt" % '_'.join(index_build_time[dataset].keys()))
 
         if "Inserts per second" in self.plots:
             for dataset in inserts_per_second.keys():
                 splt.draw_bar_chart(inserts_per_second[dataset],
-                               "Inserts per second (%s)" % dataset, "Seconds (s)")
+                               "Inserts per second (%s)" % dataset, "Seconds (s)",
+                               landscape=self.bar_landscape.state)
                 picture_names.append("%s_index_ips" % '_'.join(index_build_time[dataset].keys()))
 
         if "Queries per second" in self.plots:
             for dataset in queries_per_second.keys():
                 splt.draw_bar_chart(queries_per_second[dataset],
-                               "Queries per second (%s)" % dataset, "Seconds (s)")
+                               "Queries per second (%s)" % dataset, "Seconds (s)",
+                               landscape=self.bar_landscape.state)
                 picture_names.append("%s_query_ips" % '_'.join(index_build_time[dataset].keys()))
 
         # Show plots

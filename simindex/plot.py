@@ -18,7 +18,7 @@ plt.rcParams.update({'legend.fontsize': 'medium'})
 def mycolors():
     color_sequence = ['#1f77b4',  '#ff7f0e',  '#2ca02c', '#d62728',
                       '#9467bd', '#8c564b',  '#e377c2',  '#7f7f7f',
-                      '#bcbd22',  '#17becf']
+                      'gold',  'c', 'tomato',  'orchid']
     for color in color_sequence:
         yield color
 
@@ -31,9 +31,9 @@ def save(picture_names):
     for index, figno in enumerate(plt.get_fignums()):
         try:
             plt.figure(figno)
-            plt.savefig("%s.pdf" % picture_names[index], bbox_inches='tight')
+            plt.savefig("%s.pdf" % picture_names[index][:20], bbox_inches='tight')
         except ValueError:
-            print("ValueError for %s", picture_names[index])
+            print("ValueError for %s", picture_names[index][:20])
 
     plt.close('all')
 
@@ -160,6 +160,21 @@ def draw_prc(prc_curves, dataset, multiple=True, mod=1, repeat_colors=False):
 
         for _, indexer in enumerate(sorted(prc_curves[run].keys())):
             precisions, recalls, thresholds, recall, precision = prc_curves[run][indexer]
+            color_no = index
+            if repeat_colors:
+                color_no = index % mod
+
+            darker_color = hp.colorscale(color_sequence[color_no], 0.75)
+            if len(precisions) == 0 and len(recalls) == 0 and len(thresholds) == 0:
+                darker_color = "black"
+
+            ax.plot([recall], [precision], 'o', lw=lw,
+                    markersize=5.0, zorder=10,
+                    color=darker_color)
+
+            if len(precisions) == 0 and len(recalls) == 0 and len(thresholds) == 0:
+                continue
+
             if (thresholds[0] == 0):
                 recalls = recalls[1:]
                 precisions = precisions[1:]
@@ -169,19 +184,11 @@ def draw_prc(prc_curves, dataset, multiple=True, mod=1, repeat_colors=False):
                 label = run
                 title.add(indexer)
 
-            color_no = index
-            if repeat_colors:
-                color_no = index % mod
-
             ax.plot(recalls, precisions, 'yo-', lw=lw, label=label,
                     markersize=5.0,
                     color=color_sequence[color_no],
                     markeredgecolor=color_sequence[color_no],
                     picker=True, rasterized=True, zorder=1)
-            darker_color = hp.colorscale(color_sequence[color_no], 0.75)
-            ax.plot([recall], [precision], 'o', lw=lw,
-                    markersize=5.0, zorder=10,
-                    color=darker_color)
 
         plt.xlabel('Recall')
         plt.ylabel('Precision')
@@ -210,8 +217,11 @@ def draw_plots(x_vals, y_vals):
     fig.savefig("plot-%d.png" % len(x_vals))
 
 
-def draw_bar_chart(data, title, unit):
-    fig = plt.figure(dpi=None, facecolor="white")
+def draw_bar_chart(data, title, unit, landscape=False):
+    if landscape:
+        fig = plt.figure(figsize=(12, 5), dpi=None, facecolor="white")
+    else:
+        fig = plt.figure(dpi=None, facecolor="white")
     fig.canvas.set_window_title(title)
     plt.clf()
     plt.title(title)
@@ -238,7 +248,7 @@ def draw_bar_chart(data, title, unit):
             # label_position = height + (y_height * 0.01)
 
             ax.text(rect.get_x() + rect.get_width() / 2., label_position,
-                    str(round(height, 2)), ha='center', va='bottom')
+                    str(int(round(height))), ha='center', va='bottom')
 
     ax = plt.subplot(111)
     width = 0.28
