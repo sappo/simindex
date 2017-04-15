@@ -32,6 +32,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         self.edit_mode = False
         self.selected_reports = []
         self.close_on_level = []
+        self.quick_compare_mode = False
 
         self.refresh_menu()
 
@@ -100,7 +101,7 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             self.sub_menu(u'Saved reports (%d) ...' % len(saved_reports), [
                 self.result_menu(key[0], key[1], value, './evaluation',
                                  reports, saved_reports, its_reports)
-                for key, value in sorted(saved_reports.items(), reverse=True)
+                for key, value in sorted(saved_reports.items(), key=lambda i: i[0])
             ])
         ])
 
@@ -239,7 +240,9 @@ class JarvisMenu(urwid.WidgetPlaceholder):
         if small:
             width = 30
             height = 34
-        frame = urwid.Frame(box)
+        footer = urwid.Text("(%s) -  [t] Toggle Mode, [c] Compare Menu"
+                    % ("Single-Mode" if not self.quick_compare_mode else "Multi-Mode"))
+        frame = urwid.Frame(box, footer=footer)
         self.original_widget = \
             urwid.Overlay(urwid.AttrMap(urwid.LineBox(frame), '', 'line'),
                           self.original_widget,
@@ -277,6 +280,8 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                 self.close_box()
             elif (key == 'esc' or key == 'q') and self.box_level == 1:
                 exit_program(None)
+            elif key == 'c':
+                return self.open_quick_compare_menu()
             elif key == 'i':
                 self.edit_mode = True
                 self.mainloop.screen.register_palette_entry('line', 'dark red', '')
@@ -285,6 +290,9 @@ class JarvisMenu(urwid.WidgetPlaceholder):
                 return super(JarvisMenu, self).keypress(size, "down")
             elif key == 'k':
                 return super(JarvisMenu, self).keypress(size, "up")
+            elif key == 't':
+                self.quick_compare_mode = not self.quick_compare_mode
+                return self.refresh_menu()
             else:
                 return super(JarvisMenu, self).keypress(size, key)
 
@@ -320,7 +328,30 @@ class JarvisMenu(urwid.WidgetPlaceholder):
             self.close_on_level.append(self.box_level)
             return self.open_box(contents)
 
-        return self.menu_button([btn_caption], open_menu)
+        def select_report(checkbox, state, user_data):
+            if state:
+                self.selected_reports.append(user_data)
+            else:
+                self.selected_reports.remove(user_data)
+
+        if self.quick_compare_mode:
+            return  urwid.CheckBox([btn_caption], on_state_change=select_report,
+                                   user_data=(prefix, run, dataset))
+        else:
+            return self.menu_button([btn_caption], open_menu)
+
+    def open_quick_compare_menu(self):
+        title = "Compare %d choosen reports" % len(self.selected_reports)
+        if len(self.selected_reports):
+            contents = [
+                            self.menu_button(u'Metrics', self.metrics_info),
+                            self.plot_menu(u'Show Plots', self.show_plots),
+                            self.plot_menu(u'Save Plots', self.save_plots),
+                       ]
+        else:
+            contents = []
+
+        return self.open_box(self.menu(title, contents))
 
     def compare_menu(self, reports, saved_reports, its_reports, level):
         compare_elements = [
