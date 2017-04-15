@@ -34,10 +34,12 @@ class SimLearner():
         self.use_full_simvector = use_full_simvector
         self.use_parfull_simvector = use_parfull_simvector
         self.measures = [SimBag,
-                         SimLevenshtein,
-                         SimJaro,
+                         SimCompression,
+                         SimHamming,
                          SimJaccard,
-                         SimRatio]
+                         SimJaro,
+                         SimJaroWinkler,
+                         SimLevenshtein]
         self.similarity_objs = []
         for measure in self.measures:
             self.similarity_objs.append(measure())
