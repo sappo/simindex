@@ -1,17 +1,21 @@
-#!/usr/bin/env sh
+#!/bin/bash
 
 # ########################################## #
 #  Evaluate Ground Truth vs No Ground Truth  #
 # ########################################## #
 
-#Evaluation with ground truth
-rm -f ./.engine/.ncvoter*
-EVAL_FLAGS="--gt-labels" ./analyze.sh -n > /its/ksapp002/nohup.log
-EVAL_FLAGS="--gt-labels --full-simvector" ./analyze.sh -n > /its/ksapp002/nohup.log
-EVAL_FLAGS="--gt-labels --no-classifier" ./analyze.sh -n > /its/ksapp002/nohup.log
+if [ "$1" == 'gt' ]; then
+    #Evaluation with ground truth
+    rm -f ./.engine/.ncvoter*
+    EVAL_FLAGS="--gt-labels --parfull-simvector --no-classifier" ./analyze.sh -n -x test test &> /its/ksapp002/nohup.log
+    EVAL_FLAGS="--gt-labels --parfull-simvector" ./analyze.sh -n -x test test &> /its/ksapp002/nohup.log
+    EVAL_FLAGS="--gt-labels --parfull-simvector" ./analyze.sh -n -x test validate &> /its/ksapp002/nohup.log
+fi
 
-# Evaluation without ground truth
-rm -f ./.engine/.ncvoter*
-EVAL_FLAGS="--no-gt-labels" ./analyze.sh -n > /its/ksapp002/nohup.log
-EVAL_FLAGS="--no-gt-labels --full-simvector" ./analyze.sh -n > /its/ksapp002/nohup.log
-EVAL_FLAGS="--no-gt-labels --no-classifier" ./analyze.sh -n > /its/ksapp002/nohup.log
+if [ "$1" == 'nogt' ]; then
+    # Evaluation without ground truth
+    rm -f ./.engine/.ncvoter*
+    EVAL_FLAGS="--no-gt-labels --parfull-simvector --no-classifier" ./analyze.sh -n -x test test &> /its/ksapp002/nohup.log
+    EVAL_FLAGS="--no-gt-labels --parfull-simvector" ./analyze.sh -n -x test test &> /its/ksapp002/nohup.log
+    EVAL_FLAGS="--no-gt-labels --parfull-simvector" ./analyze.sh -n -x test validate &> /its/ksapp002/nohup.log
+fi
