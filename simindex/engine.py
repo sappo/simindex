@@ -598,9 +598,9 @@ class SimEngine(object):
 
     def set_baseline(self, baseline):
         self.blocking_scheme = self.read_blocking_scheme(baseline['scheme'])
-        self.similarities = baseline['similarities']
+        # self.similarities = baseline['similarities']
         self.save_blocking_scheme()
-        self.save_similarities()
+        # self.save_similarities()
 
     def blocking_scheme_to_strings(self):
         data = []
