@@ -227,11 +227,11 @@ class SimAwareIndex(object):
 class MDySimII(object):
 
     def __init__(self, count, dns_blocking_scheme, similarity_fns,
-                 use_full_simvector=False, use_parfull_simvector=False, dataset=None):
+                 use_full_simvector=False, use_parfull_simvector=False):
         self.attribute_count = count
         self.dns_blocking_scheme = dns_blocking_scheme
         self.similarity_fns = similarity_fns
-        self.dataset = dataset
+        self.dataset = {}
 
         # Class structure
         self.nrecords = 0              # Number of records indexed
@@ -279,6 +279,9 @@ class MDySimII(object):
 
                             #  Append similarity to attribute
                             self.SI[attribute][block_value] = similarity
+
+        if self.use_full_simvector or self.use_parfull_simvector:
+            self.dataset[r_id] = r_attributes
 
         self.nrecords += 1
 
@@ -447,7 +450,7 @@ class MDySimII(object):
 class MDySimIII(object):
 
     def __init__(self, count, dns_blocking_scheme, similarity_fns,
-                 use_full_simvector=False, use_parfull_simvector=False, dataset=None):
+                 use_full_simvector=False, use_parfull_simvector=False):
         self.dns_blocking_scheme = dns_blocking_scheme
         self.similarity_fns = similarity_fns
 
@@ -455,7 +458,7 @@ class MDySimIII(object):
         self.nrecords = 0              # Number of records indexed
         self.FBI = defaultdict(dict)   # Field Block Indicies (FBI)
         self.SI = defaultdict(dict)    # Similarity Index (SI)
-        self.dataset = dataset
+        self.dataset = {}
 
         # Format output
         self.attribute_count = count
@@ -498,6 +501,9 @@ class MDySimIII(object):
 
                             #  Append similarity to attribute
                             self.SI[attribute][block_value] = similarity
+
+        if self.use_full_simvector or self.use_parfull_simvector:
+            self.dataset[r_id] = r_attributes
 
         self.nrecords += 1
 

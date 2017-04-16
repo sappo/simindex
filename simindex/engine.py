@@ -408,26 +408,11 @@ class SimEngine(object):
         similarity_fns = []
         for measure in SimLearner.strings_to_prediction(self.similarities):
             similarity_fns.append(measure().compare)
-
-        if self.use_full_simvector or self.use_parfull_simvector:
-            dataset = {}
-            for record in hp.hdf_records(pd.HDFStore(self.traindatastore_name, mode="r"), self.name):
-                if self.attribute_count is None:
-                    self.attribute_count = len(record[1:])
-                r_id = record[0]
-                r_attributes = record[1:]
-                dataset[r_id] = r_attributes
-
             self.indexer = self.indexer_class(self.attribute_count,
                                               self.blocking_scheme,
                                               similarity_fns,
                                               use_full_simvector=self.use_full_simvector,
-                                              use_parfull_simvector=self.use_parfull_simvector,
-                                              dataset=dataset)
-        else:
-            self.indexer = self.indexer_class(self.attribute_count,
-                                              self.blocking_scheme,
-                                              similarity_fns)
+                                              use_parfull_simvector=self.use_parfull_simvector)
 
         if not self.indexer.load(self.name, self.datadir):
             for record in records:
