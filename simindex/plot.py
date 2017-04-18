@@ -31,9 +31,9 @@ def save(picture_names):
     for index, figno in enumerate(plt.get_fignums()):
         try:
             plt.figure(figno)
-            plt.savefig("%s.pdf" % picture_names[index][:20], bbox_inches='tight')
+            plt.savefig("%s.pdf" % picture_names[index][-20:], bbox_inches='tight')
         except ValueError:
-            print("ValueError for %s", picture_names[index][:20])
+            print("ValueError for %s", picture_names[index][-20:])
 
     plt.close('all')
 
